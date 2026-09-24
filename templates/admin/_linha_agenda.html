@@ -1,0 +1,13 @@
+<tr id="agenda-{{ a.id_agenda }}">
+  <td><strong>{{ a.consultorio }}</strong></td>
+  <td>{{ a.nome }} <span class="nota">#{{ a.id_agenda }}</span></td>
+  <td>{{ a.unidade_atendimento or "—" }}</td>
+  <td>{% if a.ativa %}<span class="badge badge-ok">Ativa</span>{% else %}<span class="badge badge-neutro">Inativa</span>{% endif %}</td>
+  <td>
+    <button type="button" class="alternador" role="switch" aria-checked="{{ 'true' if a.incluir_relatorio else 'false' }}"
+            hx-post="/admin/agendas/{{ a.id_agenda }}/incluir" hx-vals='{"incluir": "{{ 'false' if a.incluir_relatorio else 'true' }}"}'
+            hx-target="#agenda-{{ a.id_agenda }}" hx-swap="outerHTML">
+      <span class="alternador-trilho" aria-hidden="true"></span>{{ "Incluída" if a.incluir_relatorio else "Fora" }}
+    </button>
+  </td>
+</tr>

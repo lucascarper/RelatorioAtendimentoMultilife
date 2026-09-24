@@ -1,0 +1,47 @@
+{% extends "admin/base.html" %}
+{% block titulo %}Unidades e agendas{% endblock %}
+{% block conteudo %}
+<h1>Unidades e agendas</h1>
+
+<section class="card">
+  <h2>Unidades incluídas no relatório</h2>
+  {% if unidades %}
+  <form method="post" action="/admin/unidades" class="form">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <fieldset class="opcoes">
+      <label class="check"><input type="radio" name="modo" value="todas" {% if not selecionadas %}checked{% endif %}> Todas as unidades</label>
+      <label class="check"><input type="radio" name="modo" value="selecionadas" {% if selecionadas %}checked{% endif %}> Somente as selecionadas:</label>
+      <div class="opcoes-lista">
+        {% for id_unidade, nome in unidades %}
+        <label class="check"><input type="checkbox" name="unidades" value="{{ id_unidade }}" {% if id_unidade in selecionadas %}checked{% endif %}> {{ nome }}</label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <button type="submit" class="btn btn-primario">Salvar unidades</button>
+  </form>
+  {% else %}
+  <p class="nota">Nenhuma agenda sincronizada ainda. A sincronização roda às 05:30 ou pelo botão abaixo.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <div class="card-titulo">
+    <h2>Agendas (consultórios)</h2>
+    <form method="post" action="/admin/agendas/sincronizar">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button type="submit" class="btn btn-secundario">Sincronizar com o SGG agora</button>
+    </form>
+  </div>
+  <p class="nota">Cada agenda do SGG é um consultório; o nome exibido vem do campo “sala”. Desligue as agendas que não devem entrar no relatório.</p>
+  <div class="rolagem">
+  <table class="tabela">
+    <thead><tr><th>Consultório</th><th>Agenda</th><th>Unidade</th><th>No SGG</th><th>No relatório</th></tr></thead>
+    <tbody>
+      {% for a in agendas %}{% include "admin/_linha_agenda.html" %}{% else %}
+      <tr><td colspan="5" class="nota">Nenhuma agenda.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}

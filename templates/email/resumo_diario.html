@@ -1,0 +1,296 @@
+{% extends "email/_base.html" %}
+{#
+  Recebe apenas `a` (apresentação montada a partir de resumo_diario.metricas).
+  Sem lógica de cálculo aqui: só exibição. Hierarquia de leitura (≈ 1 minuto):
+  topo = manchete + KPIs; meio = turnos, consultórios, agendas; base = comparativo,
+  alertas e rodapé.
+#}
+{% macro titulo_secao(texto, subtitulo="") -%}
+<tr>
+  <td bgcolor="#FFFFFF" class="px fonte" style="background:#FFFFFF; padding:28px 32px 10px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td width="4" bgcolor="#D0080F" style="background:#D0080F; width:4px; border-radius:2px; font-size:0; line-height:0;">&nbsp;</td>
+        <td class="fonte" style="padding-left:10px; font-size:16px; line-height:20px; font-weight:700; color:#164F95;">{{ texto }}</td>
+      </tr>
+    </table>
+    {%- if subtitulo %}
+    <div class="fonte" style="padding-top:5px; font-size:12px; line-height:16px; color:#6B7280;">{{ subtitulo }}</div>
+    {%- endif %}
+  </td>
+</tr>
+{%- endmacro %}
+
+{% macro delta_html(d) -%}
+{%- if d -%}
+<span style="color:{{ d.cor }}; font-weight:700;">{{ d.seta }}&nbsp;{{ d.texto }}</span> <span style="color:#6B7280;">{{ d.rotulo }}</span>
+{%- else -%}
+<span style="color:#6B7280;">sem base de comparação</span>
+{%- endif -%}
+{%- endmacro %}
+
+{% block titulo %}{{ a.assunto }}{% endblock %}
+{% block preheader %}{{ a.preheader }}{% endblock %}
+
+{% block faixa_amostra %}
+{% if a.amostra %}
+<tr>
+  <td class="fonte" bgcolor="#FFF4DB" style="background:#FFF4DB; border:1px solid #E0A100; border-radius:8px; padding:10px 16px; font-size:13px; line-height:18px; color:#7A4D00; text-align:center;">
+    <strong>Prévia com dados fictícios</strong> — valores apenas para ilustrar o layout do relatório.
+  </td>
+</tr>
+<tr><td style="height:12px; font-size:0; line-height:0;">&nbsp;</td></tr>
+{% endif %}
+{% endblock %}
+
+{% block cabecalho_direita %}
+<div style="font-size:12px; line-height:16px; letter-spacing:1.2px; text-transform:uppercase; color:#6B7280; font-weight:600;">Resumo diário de atendimentos</div>
+<div style="font-size:18px; line-height:24px; color:#1B2533; font-weight:700; padding-top:2px;">{{ a.titulo_data }}</div>
+<div style="font-size:12px; line-height:16px; color:#4A5568; padding-top:2px;">{{ a.unidades }}</div>
+{% endblock %}
+
+{% block conteudo %}
+<!-- Manchete -->
+<tr>
+  <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:0 32px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td class="fonte" bgcolor="#EAF1FA" style="background:#EAF1FA; border-radius:10px; padding:14px 18px; font-size:15px; line-height:22px; color:#1B2533;">
+          {{ a.manchete }}
+          {%- if a.quantidade_alertas %}
+          <div style="padding-top:8px;">
+            <span style="display:inline-block; background:#FDECEC; color:#A3060B; border:1px solid #D0080F; border-radius:999px; padding:2px 10px; font-size:12px; line-height:18px; font-weight:700;">&#9679; {{ a.quantidade_alertas }} alerta{{ "s" if a.quantidade_alertas > 1 }} para revisar</span>
+          </div>
+          {%- endif %}
+        </td>
+      </tr>
+    </table>
+  </td>
+</tr>
+
+{% if a.sem_movimento %}
+<tr>
+  <td bgcolor="#FFFFFF" class="px fonte" style="background:#FFFFFF; padding:24px 32px 8px; font-size:14px; line-height:21px; color:#4A5568;">
+    Não houve agendamentos nas unidades e agendas incluídas no relatório — dia sem expediente ou sem movimento.
+    Se isso não era esperado, confira a coleta e o cadastro de agendas no painel administrativo.
+  </td>
+</tr>
+{% else %}
+
+<!-- KPIs do dia -->
+<tr>
+  <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:18px 24px 0; font-size:0; text-align:center;">
+    <!--[if mso]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><![endif]-->
+    {%- for k in a.kpis %}
+    <!--[if mso]><td width="25%" valign="top"><![endif]-->
+    <div class="kpi" style="display:inline-block; width:100%; max-width:146px; vertical-align:top;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding:6px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F7F9FC" style="background:#F7F9FC; border:1px solid #E3E8EF; border-top:3px solid #164F95; border-radius:10px;">
+              <tr>
+                <td class="fonte" style="padding:12px 12px 12px; text-align:left;">
+                  <div style="font-size:12px; line-height:16px; color:#4A5568; font-weight:600; min-height:32px;">{{ k.rotulo }}</div>
+                  <div class="kpi-valor" style="font-size:28px; line-height:34px; color:#1B2533; font-weight:700; padding-top:4px; white-space:nowrap;">{{ k.valor }}</div>
+                  <div style="font-size:11px; line-height:15px; color:#6B7280; padding-top:2px; min-height:30px;">{{ k.contexto }}</div>
+                  <div style="font-size:11px; line-height:15px; padding-top:6px; border-top:1px solid #E3E8EF; margin-top:6px;">{{ delta_html(k.delta) }}</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </div>
+    <!--[if mso]></td><![endif]-->
+    {%- endfor %}
+    <!--[if mso]></tr></table><![endif]-->
+  </td>
+</tr>
+
+<!-- Por turno -->
+{{ titulo_secao("Por turno", "Turno definido pela hora agendada.") }}
+<tr>
+  <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:0 32px;">
+    <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px; line-height:18px; color:#1B2533;">
+      <tr>
+        <th align="left" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:left; border-radius:6px 0 0 0;">Indicador</th>
+        {%- for t in a.turnos %}
+        <th align="right" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:right;{% if loop.last %} border-radius:0 6px 0 0;{% endif %}">{{ t.rotulo }}<br><span style="font-weight:400; color:#4A5568; font-size:11px;">{{ t.faixa }}</span></th>
+        {%- endfor %}
+      </tr>
+      {%- for linha in a.linhas_turno %}
+      <tr>
+        <td style="padding:8px 10px; color:#4A5568;{% if linha.destaque %} font-weight:700; color:#1B2533;{% endif %}">{{ linha.rotulo }}</td>
+        {%- for v in linha.valores %}
+        <td class="num" align="right" style="padding:8px 10px; text-align:right;{% if linha.destaque %} font-weight:700;{% endif %}">{{ v }}</td>
+        {%- endfor %}
+      </tr>
+      {%- endfor %}
+    </table>
+  </td>
+</tr>
+
+<!-- TMA por consultório -->
+{{ titulo_secao("TMA por consultório", "Do maior para o menor TMA do dia. Barra proporcional ao maior TMA.") }}
+<tr>
+  <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:0 32px;">
+    {%- if a.consultorios %}
+    <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px; line-height:18px; color:#1B2533;">
+      <tr>
+        <th align="left" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:left; border-radius:6px 0 0 0;">Consultório</th>
+        <th align="right" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:right;">Manhã<br><span style="font-weight:400; color:#4A5568; font-size:11px;">TMA · atend.</span></th>
+        <th align="right" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:right;">Tarde<br><span style="font-weight:400; color:#4A5568; font-size:11px;">TMA · atend.</span></th>
+        <th align="left" bgcolor="#EAF1FA" width="34%" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:left; border-radius:0 6px 0 0;">TMA do dia</th>
+      </tr>
+      {%- for c in a.consultorios %}
+      <tr>
+        <td style="padding:9px 10px;">
+          <div style="font-weight:700;">{{ c.consultorio }}</div>
+          {%- if c.agenda %}<div style="font-size:11px; line-height:15px; color:#6B7280;">{{ c.agenda }}</div>{% endif %}
+        </td>
+        <td class="num" align="right" style="padding:9px 10px; text-align:right;">{{ c.manha_tma }}<div style="font-size:11px; line-height:15px; color:#6B7280;">{{ c.manha_n }}</div></td>
+        <td class="num" align="right" style="padding:9px 10px; text-align:right;">{{ c.tarde_tma }}<div style="font-size:11px; line-height:15px; color:#6B7280;">{{ c.tarde_n }}</div></td>
+        <td style="padding:9px 10px;">
+          <div class="num" style="font-weight:700; padding-bottom:4px;">{{ c.tma }}</div>
+          {%- if c.barra %}
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td width="{{ c.barra }}%" height="8" bgcolor="#164F95" style="background:#164F95; height:8px; border-radius:0 4px 4px 0; border-bottom:0; font-size:0; line-height:0;">&nbsp;</td>
+              {%- if c.barra < 100 %}
+              <td width="{{ 100 - c.barra }}%" height="8" style="height:8px; border-bottom:0; font-size:0; line-height:0;">&nbsp;</td>
+              {%- endif %}
+            </tr>
+          </table>
+          {%- endif %}
+        </td>
+      </tr>
+      {%- endfor %}
+    </table>
+    {%- else %}
+    <div class="fonte" style="font-size:13px; color:#6B7280;">Nenhum atendimento no dia.</div>
+    {%- endif %}
+  </td>
+</tr>
+
+<!-- Tempo de atendimento por agenda -->
+{{ titulo_secao("Tempo de atendimento por agenda", "Todas as agendas do dia, da mais movimentada para a menos.") }}
+<tr>
+  <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:0 32px;">
+    <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px; line-height:18px; color:#1B2533;">
+      <tr>
+        <th align="left" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:left; border-radius:6px 0 0 0;">Agenda</th>
+        <th align="right" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:right;">Qtd.</th>
+        <th align="right" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:right;">Média</th>
+        <th align="right" bgcolor="#EAF1FA" class="oculta-mobile" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:right;">Mediana</th>
+        <th align="right" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:right; border-radius:0 6px 0 0;">Maior</th>
+      </tr>
+      {%- for ag in a.agendas %}
+      <tr>
+        <td style="padding:8px 10px;">
+          <div style="font-weight:600;">{{ ag.agenda }}</div>
+          {%- if ag.consultorio %}<div style="font-size:11px; line-height:15px; color:#6B7280;">{{ ag.consultorio }}</div>{% endif %}
+        </td>
+        <td class="num" align="right" style="padding:8px 10px; text-align:right; font-weight:700;">{{ ag.atendimentos }}</td>
+        <td class="num" align="right" style="padding:8px 10px; text-align:right;">{{ ag.media }}</td>
+        <td class="num oculta-mobile" align="right" style="padding:8px 10px; text-align:right;">{{ ag.mediana }}</td>
+        <td class="num" align="right" style="padding:8px 10px; text-align:right;">{{ ag.maximo }}</td>
+      </tr>
+      {%- endfor %}
+    </table>
+  </td>
+</tr>
+
+<!-- Comparativo -->
+{{ titulo_secao("Comparativo com a semana anterior", ("Mesmo dia da semana: " ~ a.comparativo_base) if a.comparativo_disponivel else "") }}
+<tr>
+  <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:0 32px;">
+    {%- if a.comparativo_disponivel %}
+    <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px; line-height:18px; color:#1B2533;">
+      <tr>
+        <th align="left" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:left; border-radius:6px 0 0 0;">Indicador</th>
+        <th align="right" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:right;">{{ a.coluna_atual }}</th>
+        <th align="right" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:right;">{{ a.coluna_base }}</th>
+        <th align="right" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:right; border-radius:0 6px 0 0;">Variação</th>
+      </tr>
+      {%- for linha in a.comparativo %}
+      <tr>
+        <td style="padding:8px 10px; color:#4A5568;">{{ linha.rotulo }}</td>
+        <td class="num" align="right" style="padding:8px 10px; text-align:right; font-weight:700;">{{ linha.atual }}</td>
+        <td class="num" align="right" style="padding:8px 10px; text-align:right; color:#4A5568;">{{ linha.anterior }}</td>
+        <td class="num" align="right" style="padding:8px 10px; text-align:right;">
+          {%- if linha.delta -%}
+          <span style="color:{{ linha.delta.cor }}; font-weight:700;">{{ linha.delta.seta }}&nbsp;{{ linha.delta.texto }}</span>
+          {%- else -%}<span style="color:#6B7280;">—</span>{%- endif -%}
+        </td>
+      </tr>
+      {%- endfor %}
+    </table>
+    <div class="fonte" style="padding-top:6px; font-size:11px; line-height:15px; color:#6B7280;">
+      <span style="color:#1E7A3A; font-weight:700;">▲▼ verde</span> = melhorou ·
+      <span style="color:#D0080F; font-weight:700;">▲▼ vermelho</span> = piorou ·
+      cinza = neutro (TMA maior não é necessariamente pior). Taxas variam em pontos percentuais (p.p.).
+    </div>
+    {%- else %}
+    <div class="fonte" style="font-size:13px; line-height:19px; color:#6B7280;">Sem base de comparação: não há resumo do mesmo dia da semana anterior (ou foi um dia sem movimento).</div>
+    {%- endif %}
+  </td>
+</tr>
+{% endif %}
+
+<!-- Alertas -->
+{{ titulo_secao("Alertas", "Qualidade dos dados e da coleta do dia.") }}
+<tr>
+  <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:0 32px;">
+    {%- if a.alertas %}
+    {%- for al in a.alertas %}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:10px;">
+      <tr>
+        <td width="4" bgcolor="{{ al.borda }}" style="background:{{ al.borda }}; width:4px; border-radius:6px 0 0 6px; font-size:0; line-height:0;">&nbsp;</td>
+        <td class="fonte" bgcolor="{{ al.fundo }}" style="background:{{ al.fundo }}; border-radius:0 6px 6px 0; padding:10px 14px; font-size:13px; line-height:19px; color:#1B2533;">
+          <div><span style="color:{{ al.cor }}; font-weight:700;">{{ al.icone }} {{ al.rotulo }}</span> · <strong>{{ al.titulo }}</strong></div>
+          <div style="color:#4A5568; padding-top:2px;">{{ al.descricao }}</div>
+          {%- for item in al.itens %}
+          <div class="num" style="color:#4A5568; padding-top:4px; white-space:normal; font-size:12px;">{{ item }}{% if al.restantes %} e mais {{ al.restantes }}{% endif %}</div>
+          {%- endfor %}
+          {%- if al.tabela %}
+          <table role="presentation" class="fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:6px; font-size:12px; line-height:16px; color:#1B2533;">
+            <tr>
+              {%- for h in al.cabecalho %}
+              <td style="padding:3px 8px 3px 0; color:#6B7280; font-weight:600; border-bottom:1px solid #E3E8EF;">{{ h }}</td>
+              {%- endfor %}
+            </tr>
+            {%- for linha in al.tabela %}
+            <tr>
+              {%- for celula in linha %}
+              <td class="num" style="padding:3px 8px 3px 0;">{{ celula }}</td>
+              {%- endfor %}
+            </tr>
+            {%- endfor %}
+          </table>
+          {%- if al.restantes %}<div style="font-size:12px; color:#6B7280; padding-top:4px;">e mais {{ al.restantes }} no painel administrativo.</div>{% endif %}
+          {%- endif %}
+        </td>
+      </tr>
+    </table>
+    {%- endfor %}
+    {%- else %}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td width="4" bgcolor="#1E7A3A" style="background:#1E7A3A; width:4px; border-radius:6px 0 0 6px; font-size:0; line-height:0;">&nbsp;</td>
+        <td class="fonte" bgcolor="#E8F5EC" style="background:#E8F5EC; border-radius:0 6px 6px 0; padding:10px 14px; font-size:13px; line-height:19px; color:#1B2533;">
+          <span style="color:#1E7A3A; font-weight:700;">✓ Tudo certo</span> · Coleta completa, nenhum atendimento atípico e todos os agendamentos com baixa.
+        </td>
+      </tr>
+    </table>
+    {%- endif %}
+    {%- for nota in a.notas %}
+    <div class="fonte" style="padding-top:6px; font-size:11px; line-height:15px; color:#6B7280;">{{ nota }}</div>
+    {%- endfor %}
+  </td>
+</tr>
+{% endblock %}
+
+{% block rodape %}
+Gerado em {{ a.gerado_em }} · Regra de cálculo v{{ a.versao_regra }}{% if a.admin_url %} · <a href="{{ a.admin_url }}" style="color:#164F95; font-weight:600;">Painel administrativo</a>{% endif %}
+<br>Números agregados do SGG, sem dados de pacientes (LGPD).
+{% endblock %}

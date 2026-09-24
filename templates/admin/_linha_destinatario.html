@@ -1,0 +1,12 @@
+<tr id="destinatario-{{ d.id }}">
+  <td><strong>{{ d.email }}</strong></td>
+  <td>{{ d.nome or "—" }}</td>
+  <td>{{ d.criado_em | data_br }}</td>
+  <td>
+    <button type="button" class="alternador" role="switch" aria-checked="{{ 'true' if d.ativo else 'false' }}"
+            hx-post="/admin/destinatarios/{{ d.id }}/ativo" hx-vals='{"ativo": "{{ 'false' if d.ativo else 'true' }}"}'
+            hx-target="#destinatario-{{ d.id }}" hx-swap="outerHTML">
+      <span class="alternador-trilho" aria-hidden="true"></span>{{ "Ativo" if d.ativo else "Inativo" }}
+    </button>
+  </td>
+</tr>

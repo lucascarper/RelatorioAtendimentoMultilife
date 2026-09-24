@@ -1,0 +1,44 @@
+{
+  "resultado": [
+    {
+      "id_agendamento": "1001",
+      "id_empresa": "32",
+      "id_funcionario": "999001",
+      "agenda": "Clínico Geral",
+      "id_fornecedor": "",
+      "fornecedor": "",
+      "id_unidade_atendimento": "1",
+      "unidade_atendimento": "Unidade Centro",
+      "data_agendamento": "2026-09-23",
+      "hora_agendamento": "08:00",
+      "situacao": "Em Atendimento",
+      "senha": "12",
+      "setor": "SETOR FICTÍCIO",
+      "cargo": "CARGO FICTÍCIO",
+      "data_nascimento": "1900-01-01",
+      "sexo": "M",
+      "duracao": "15",
+      "tipo": "Periódico",
+      "data_admissao": "1900-01-01",
+      "observacoes": "texto fictício que não pode ser armazenado",
+      "data_hora_criacao": "2026-09-20 10:00:00",
+      "data_hora_edicao": "2026-09-23 08:05:12"
+    },
+    {
+      "id_agendamento": "1002",
+      "id_empresa": "32",
+      "id_funcionario": "999002",
+      "agenda": "Audiometria",
+      "id_unidade_atendimento": "1",
+      "unidade_atendimento": "Unidade Centro",
+      "data_agendamento": "2026-09-23",
+      "hora_agendamento": "13:30:00",
+      "situacao": "Aguardando",
+      "data_nascimento": "1900-01-01",
+      "sexo": "F",
+      "data_hora_criacao": "2026-09-21 10:00:00",
+      "data_hora_edicao": "2026-09-23 13:20:40"
+    }
+  ],
+  "temProximaPagina": true
+}

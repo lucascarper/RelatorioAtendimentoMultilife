@@ -1,0 +1,60 @@
+# Ambiente local completo: PostgreSQL 16 + migrações + admin (web) + worker.
+#   cp .env.example .env    # preencha ADMIN_PASSWORD_HASH e SECRET_KEY
+#   docker compose up --build
+#   docker compose run --rm web relatorio demo --dias 8   # dados fictícios p/ testar
+# Admin: http://localhost:8000  ·  e-mails ficam no volume "emails" (EMAIL_BACKEND=arquivo)
+
+x-app: &app
+  build: .
+  env_file:
+    - path: .env
+      required: false
+  environment: &ambiente
+    APP_ENV: development
+    DATABASE_URL: postgresql://relatorio:relatorio@postgres:5432/relatorio
+    EMAIL_BACKEND: arquivo
+    ADMIN_URL: http://localhost:8000/admin
+  depends_on:
+    migracoes:
+      condition: service_completed_successfully
+  volumes:
+    - emails:/app/saida_emails
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: relatorio
+      POSTGRES_PASSWORD: relatorio
+      POSTGRES_DB: relatorio
+      TZ: America/Sao_Paulo
+    ports:
+      - "5432:5432"
+    volumes:
+      - dados:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U relatorio"]
+      interval: 3s
+      retries: 20
+
+  migracoes:
+    build: .
+    command: alembic upgrade head
+    environment:
+      DATABASE_URL: postgresql://relatorio:relatorio@postgres:5432/relatorio
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    <<: *app
+    ports:
+      - "8000:8000"
+
+  worker:
+    <<: *app
+    command: python -m relatorio.infrastructure.scheduler
+
+volumes:
+  dados:
+  emails:

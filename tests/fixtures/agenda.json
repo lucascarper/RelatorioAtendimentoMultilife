@@ -1,0 +1,30 @@
+{
+  "resultado": [
+    {
+      "id_agenda": "32",
+      "nome": "Clínico Geral",
+      "id_fornecedor": "12",
+      "fornecedor": "Clínica Fictícia",
+      "duracao_padrao_minutos": "15",
+      "id_regiao": "0",
+      "regiao": "Região 0",
+      "id_unidade_atendimento": "1",
+      "unidade_atendimento": "Unidade Centro",
+      "situacao": "Ativa",
+      "forma_atendimento": "Hora",
+      "limite_diario_atendimento": "50",
+      "sala": "Consultório 01",
+      "horarios": [{"dia_de_semana": "Seg", "inicio": "07:00", "fim": "12:00"}],
+      "exames": [{"codigo": 0, "nome": "Clínico", "sigla_integracao": ""}]
+    },
+    {
+      "id_agenda": "33",
+      "nome": "Audiometria",
+      "id_unidade_atendimento": "1",
+      "unidade_atendimento": "Unidade Centro",
+      "situacao": "Inativa",
+      "sala": ""
+    }
+  ],
+  "temProximaPagina": false
+}
