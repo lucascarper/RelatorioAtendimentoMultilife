@@ -1,0 +1,94 @@
+{% extends "admin/base.html" %}
+{% block titulo %}Painel{% endblock %}
+{% block conteudo %}
+<h1>Painel</h1>
+
+<section class="status-grade" aria-label="Situação do sistema">
+  <article class="card status">
+    <h2>Coleta do SGG</h2>
+    {% if not coletor_habilitado %}
+      <p class="valor">Painel</p>
+      <p class="nota">Eventos gravados pelo coletor do painel em tempo real.</p>
+    {% elif ultimo_sucesso %}
+      <p class="valor">{{ ultimo_sucesso.inicio | hora_br }}</p>
+      <p class="nota">Último ciclo bem-sucedido · {{ ultimo_sucesso.inicio | data_br }}</p>
+      {% if falhas_seguidas %}<p><span class="badge badge-erro">● {{ falhas_seguidas }} falha(s) seguida(s)</span></p>
+      {% elif coleta_atrasada %}<p><span class="badge badge-erro">● Coleta atrasada (worker parado?)</span></p>
+      {% elif em_coleta %}<p><span class="badge badge-ok">✓ Coletando</span></p>
+      {% else %}<p><span class="badge badge-neutro">Fora do horário de coleta</span></p>{% endif %}
+    {% else %}
+      <p class="valor">—</p>
+      <p class="nota">Nenhum ciclo de coleta ainda.</p>
+    {% endif %}
+  </article>
+  <article class="card status">
+    <h2>Último relatório</h2>
+    {% set ultimo = resumos[0] if resumos else None %}
+    {% if ultimo %}
+      <p class="valor">{{ ultimo.data | data_br }}</p>
+      <p class="nota">{{ ultimo.data | dia_semana }}</p>
+      <p>{% include "admin/_status_envio.html" %}</p>
+    {% else %}
+      <p class="valor">—</p><p class="nota">Nenhum dia consolidado ainda.</p>
+    {% endif %}
+  </article>
+  <article class="card status">
+    <h2>Destinatários ativos</h2>
+    <p class="valor">{{ destinatarios_ativos }}</p>
+    <p class="nota">{% if override %}Staging: envio só para {{ override | join(", ") }}{% else %}recebem o e-mail às 07:59{% endif %}</p>
+    <p><a href="/admin/destinatarios">Gerenciar →</a></p>
+  </article>
+</section>
+
+<section class="card">
+  <h2>Reprocessar ou reenviar uma data</h2>
+  <p class="nota">Recalcula o resumo a partir dos eventos gravados (use depois de mudar configurações ou corrigir o SGG). O reenvio manda o e-mail de novo, mesmo que já tenha sido enviado.</p>
+  <form method="post" action="/admin/relatorios/reprocessar" class="form form-linha">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Data
+      <input type="date" name="data" value="{{ ontem.isoformat() }}" max="{{ ontem.isoformat() }}" required>
+    </label>
+    <label class="check"><input type="checkbox" name="reconciliar" value="true"> Buscar de novo no SGG antes</label>
+    <label class="check"><input type="checkbox" name="enviar" value="true"> Reenviar o e-mail</label>
+    <button type="submit" class="btn btn-primario">Reprocessar</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Últimos 14 dias</h2>
+  {% if resumos %}
+  <div class="rolagem">
+  <table class="tabela">
+    <thead>
+      <tr>
+        <th>Data</th><th class="num">Atendimentos</th><th class="num">Faltas</th>
+        <th class="num">Espera média</th><th class="num">TMA</th><th class="num">Alertas</th>
+        <th>Envio</th><th><span class="sr">Ações</span></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in resumos %}
+      {% set k = r.metricas.get("kpis", {}) %}
+      <tr>
+        <td><strong>{{ r.data | data_br }}</strong> <span class="nota">{{ (r.data | dia_semana)[:3] }}</span></td>
+        {% if r.metricas.get("sem_movimento") %}
+        <td colspan="5" class="nota">Sem movimento</td>
+        {% else %}
+        <td class="num"><strong>{{ k.get("atendimentos") | numero }}</strong></td>
+        <td class="num">{{ k.get("faltas") | numero }} <span class="nota">({{ k.get("taxa_faltas") | percentual }})</span></td>
+        <td class="num">{{ k.get("espera_media_s") | duracao }}</td>
+        <td class="num">{{ k.get("tma_s") | duracao }}</td>
+        <td class="num">{{ r.metricas.get("alertas", {}).get("quantidade", 0) }}</td>
+        {% endif %}
+        <td>{% set ultimo = r %}{% include "admin/_status_envio.html" %}</td>
+        <td><a href="/admin/relatorios/{{ r.data.isoformat() }}" target="_blank" rel="noopener">Ver e-mail</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="nota">Ainda não há dias consolidados. A primeira consolidação roda às 23:00.</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,10 @@
+[ALERTA TÉCNICO] {{ titulo }}
+{{ quando }}
+
+{{ mensagem }}
+{% for chave, valor in detalhes.items() %}
+- {{ chave }}: {{ valor }}{% endfor %}
+{% if admin_url %}
+Painel administrativo: {{ admin_url }}{% endif %}
+--
+Relatório Diário de Atendimentos · MultiLife

@@ -1,0 +1,42 @@
+{% extends "admin/base.html" %}
+{% block titulo %}Execuções{% endblock %}
+{% block conteudo %}
+<h1>Execuções dos jobs</h1>
+<p class="nota">Últimas 7 execuções de cada job (horário de Brasília).</p>
+{% for job, rotulo, lista in jobs %}
+<section class="card">
+  <h2>{{ rotulo }}</h2>
+  <div class="rolagem">
+  <table class="tabela">
+    <thead><tr><th>Início</th><th class="num">Duração</th><th>Situação</th><th>Detalhe</th></tr></thead>
+    <tbody>
+    {% for e in lista %}
+      <tr>
+        <td>{{ e.inicio | datahora_br }}</td>
+        {% set ms = e.detalhe.get("duracao_ms", e.duracao_ms) %}
+        <td class="num">{% if ms is not none %}{{ ms | numero }} ms{% else %}—{% endif %}</td>
+        <td>
+          {% if e.status.value == "sucesso" %}<span class="badge badge-ok">✓ Sucesso</span>
+          {% elif e.status.value == "falha" %}<span class="badge badge-erro">● Falha</span>
+          {% elif e.status.value == "executando" %}<span class="badge badge-aviso">▲ Executando</span>
+          {% else %}<span class="badge badge-neutro">{{ e.status.value }}</span>{% endif %}
+        </td>
+        <td class="detalhe">
+          {% if e.detalhe.get("erro") %}<code>{{ e.detalhe.erro }}</code>
+          {% else %}
+            {% for chave, valor in e.detalhe.items() if chave not in ("duracao_ms", "de", "ate") %}
+              <span class="par"><span class="nota">{{ rotulos.get(chave, chave | replace("_", " ")) }}</span>
+                {%- if valor is sameas true %} sim{% elif valor is sameas false %} não{% else %} {{ valor }}{% endif %}</span>
+            {% endfor %}
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% else %}
+<section class="card"><p class="nota">Nenhuma execução registrada ainda.</p></section>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "admin/base.html" %}
+{% block titulo %}Configurações{% endblock %}
+{% block conteudo %}
+<h1>Configurações</h1>
+<form method="post" action="/admin/configuracoes" class="form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <section class="card">
+    <h2>Turnos</h2>
+    <p class="nota">O turno é definido pela hora agendada: é da tarde quando a hora agendada for igual ou posterior ao início da tarde.</p>
+    <div class="grade-3">
+      <label>Início da manhã
+        <input type="time" name="manha_inicio" value="{{ '%02d:%02d' % (config.turnos.manha_inicio.hour, config.turnos.manha_inicio.minute) }}" required>
+        <small>Padrão {{ '%02d:%02d' % (padrao.turnos.manha_inicio.hour, padrao.turnos.manha_inicio.minute) }}</small>
+      </label>
+      <label>Início da tarde (corte)
+        <input type="time" name="tarde_inicio" value="{{ '%02d:%02d' % (config.turnos.tarde_inicio.hour, config.turnos.tarde_inicio.minute) }}" required>
+        <small>Padrão {{ '%02d:%02d' % (padrao.turnos.tarde_inicio.hour, padrao.turnos.tarde_inicio.minute) }}</small>
+      </label>
+      <label>Fim da tarde
+        <input type="time" name="tarde_fim" value="{{ '%02d:%02d' % (config.turnos.tarde_fim.hour, config.turnos.tarde_fim.minute) }}" required>
+        <small>Padrão {{ '%02d:%02d' % (padrao.turnos.tarde_fim.hour, padrao.turnos.tarde_fim.minute) }}</small>
+      </label>
+    </div>
+  </section>
+  <section class="card">
+    <h2>Atendimentos atípicos</h2>
+    <p class="nota">Fora destes limites o atendimento conta nos totais, mas não entra nas médias e no TMA, e aparece nos alertas.</p>
+    <div class="grade-3">
+      <label>Mínimo (minutos)
+        <input type="number" name="atipico_min" min="0" max="600" value="{{ config.atipico_min_minutos }}" required>
+        <small>Padrão {{ padrao.atipico_min_minutos }}</small>
+      </label>
+      <label>Máximo (minutos)
+        <input type="number" name="atipico_max" min="1" max="1440" value="{{ config.atipico_max_minutos }}" required>
+        <small>Padrão {{ padrao.atipico_max_minutos }}</small>
+      </label>
+    </div>
+  </section>
+  <section class="card">
+    <h2>Alertas técnicos</h2>
+    <label>E-mail técnico
+      <input type="email" name="email_tecnico" value="{{ config.email_alerta_tecnico }}" maxlength="254">
+      <small>Recebe falhas de coleta, consolidação e envio. Padrão {{ padrao.email_alerta_tecnico }}</small>
+    </label>
+  </section>
+  <button type="submit" class="btn btn-primario">Salvar configurações</button>
+</form>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "admin/base.html" %}
+{% block titulo %}Destinatários{% endblock %}
+{% block conteudo %}
+<h1>Destinatários</h1>
+{% if override %}
+<div class="mensagem mensagem-aviso">Ambiente de homologação: todos os e-mails vão só para <strong>{{ override | join(", ") }}</strong> (EMAIL_DESTINATARIOS_OVERRIDE).</div>
+{% endif %}
+
+<section class="card">
+  <h2>Cadastrar</h2>
+  <form method="post" action="/admin/destinatarios" class="form form-linha">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>E-mail <input type="email" name="email" required maxlength="254" placeholder="nome@multilife.com.br"></label>
+    <label>Nome <input name="nome" maxlength="120" placeholder="Opcional"></label>
+    <button type="submit" class="btn btn-primario">Adicionar</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Lista</h2>
+  <p class="nota">Destinatários inativos continuam cadastrados, mas não recebem o relatório.</p>
+  <table class="tabela">
+    <thead><tr><th>E-mail</th><th>Nome</th><th>Cadastrado em</th><th>Situação</th></tr></thead>
+    <tbody>
+      {% for d in destinatarios %}{% include "admin/_linha_destinatario.html" %}{% else %}
+      <tr><td colspan="4" class="nota">Nenhum destinatário cadastrado.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

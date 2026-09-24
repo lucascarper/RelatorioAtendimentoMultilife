@@ -1,0 +1,266 @@
+"""Renderização (Jinja2 + premailer) e envio (SMTP/arquivo) dos e-mails."""
+
+from __future__ import annotations
+
+import smtplib
+from datetime import date
+from email import message_from_bytes
+from email.message import EmailMessage
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from relatorio.application.modelos import ConteudoEmail, ImagemInline
+from relatorio.infrastructure.email.apresentacao import (
+    duracao,
+    montar_apresentacao,
+    numero,
+    percentual,
+)
+from relatorio.infrastructure.email.envio import (
+    EnviadorArquivo,
+    EnviadorSmtp,
+    ErroEmail,
+    montar_mensagem,
+)
+from relatorio.infrastructure.email.renderizador import LOGO_CID, RenderizadorJinja
+from relatorio.infrastructure.sgg.simulado import gerar_dia
+from relatorio.interfaces.demo import gerar_previa, html_para_navegador, volume_do_dia
+
+RAIZ = Path(__file__).resolve().parents[2]
+DIA = date(2026, 9, 23)
+
+
+@pytest.fixture(scope="module")
+def previa() -> tuple[dict[str, Any], ConteudoEmail]:
+    return gerar_previa(DIA, RAIZ / "templates", RAIZ / "static", "https://admin.exemplo")
+
+
+@pytest.fixture
+def renderizador() -> RenderizadorJinja:
+    return RenderizadorJinja(RAIZ / "templates", RAIZ / "static", "https://admin.exemplo")
+
+
+class TestFormatacao:
+    @pytest.mark.parametrize(
+        ("segundos", "texto"),
+        [(None, "—"), (45, "45 s"), (600, "10 min"), (629, "10 min"), (3900, "1 h 05 min")],
+    )
+    def test_duracao(self, segundos: float | None, texto: str) -> None:
+        assert duracao(segundos) == texto
+
+    def test_numero_e_percentual(self) -> None:
+        assert numero(1234) == "1.234"
+        assert numero(None) == "—"
+        assert percentual(0.0948) == "9,5%"
+        assert percentual(None) == "—"
+
+
+class TestRelatorio:
+    def test_estrutura_do_email(self, previa: tuple[dict[str, Any], ConteudoEmail]) -> None:
+        metricas, conteudo = previa
+        assert conteudo.assunto == "Resumo de Atendimentos — 23/09/2026 (quarta-feira)"
+        html = conteudo.html
+        assert f'src="cid:{LOGO_CID}"' in html
+        for secao in (
+            "Por turno",
+            "TMA por consultório",
+            "Tempo de atendimento por agenda",
+            "Comparativo com a semana anterior",
+            "Alertas",
+            "Regra de cálculo v1.0.0",
+            "Prévia com dados fictícios",
+            "https://admin.exemplo",
+        ):
+            assert secao in html, secao
+        # premailer: estilos da <style> copiados para os elementos (Outlook/Gmail)
+        assert 'class="num"' in html
+        assert "font-variant-numeric:tabular-nums" in html.replace(" ", "")
+        assert "@media screen and (max-width: 520px)" in html  # media queries mantidas
+        assert conteudo.imagens[0].cid == LOGO_CID
+        assert conteudo.imagens[0].conteudo.startswith(b"\x89PNG")
+        # Tudo do JSON, nada calculado no template
+        assert f">{metricas['kpis']['atendimentos']}<" in html
+        assert "Coleta indisponível das 10:12 às 10:40 (28 min)" in html
+
+    def test_versao_texto(self, previa: tuple[dict[str, Any], ConteudoEmail]) -> None:
+        _, conteudo = previa
+        texto = conteudo.texto
+        assert texto.startswith("Resumo de Atendimentos — 23/09/2026")
+        for trecho in ("INDICADORES DO DIA", "POR TURNO", "TMA POR CONSULTÓRIO", "ALERTAS", "LGPD"):
+            assert trecho in texto
+        assert "<" not in texto
+
+    def test_sem_movimento(self, renderizador: RenderizadorJinja) -> None:
+        metricas = {
+            "assunto": "Resumo de Atendimentos — 27/09/2026 (domingo)",
+            "data_referencia": "2026-09-27",
+            "dia_semana": "domingo",
+            "sem_movimento": True,
+            "unidades": ["Todas as unidades"],
+            "kpis": {},
+            "alertas": {},
+            "versao_regra": "1.0.0",
+            "gerado_em": "2026-09-27T23:00:00-03:00",
+        }
+        conteudo = renderizador.relatorio(metricas)
+        assert "Sem movimento em 27/09/2026" in conteudo.html
+        assert "TMA por consultório" not in conteudo.html
+        assert "Tudo certo" in conteudo.html
+
+    def test_resumo_de_versao_antiga_nao_quebra(self, renderizador: RenderizadorJinja) -> None:
+        minimo = {
+            "assunto": "Resumo",
+            "data_referencia": "2026-09-23",
+            "kpis": {"atendimentos": 5, "agendados": 5, "faltas": 0},
+        }
+        conteudo = renderizador.relatorio(minimo)
+        assert "sem base de comparação" in conteudo.html
+
+    def test_manchete_e_alertas(self, previa: tuple[dict[str, Any], ConteudoEmail]) -> None:
+        metricas, _ = previa
+        apresentacao = montar_apresentacao(metricas)
+        assert apresentacao.manchete.startswith(f"{metricas['kpis']['atendimentos']} atendimentos")
+        assert apresentacao.quantidade_alertas >= 3
+        assert apresentacao.preheader.endswith("alerta(s) para revisar.")
+        assert apresentacao.kpis[1].delta is not None
+        assert apresentacao.kpis[1].delta.texto.endswith("p.p.")
+        severidades = [a.severidade for a in apresentacao.alertas]
+        assert severidades[0] == "critico"  # falha de coleta primeiro
+
+    def test_html_para_navegador(self, previa: tuple[dict[str, Any], ConteudoEmail]) -> None:
+        _, conteudo = previa
+        html = html_para_navegador(conteudo)
+        assert "cid:" not in html
+        assert "data:image/png;base64," in html
+
+
+def test_simulador_dia_sem_expediente_e_dia_fraco() -> None:
+    domingo, sabado = date(2026, 9, 27), date(2026, 9, 26)
+    assert volume_do_dia(domingo, 120, ultimo=True) == 0
+    assert gerar_dia(domingo, volume=0) == []
+    assert volume_do_dia(sabado, 120, ultimo=True) == 48
+    assert len(gerar_dia(sabado, volume=10)) == 10
+
+
+def test_alerta(renderizador: RenderizadorJinja) -> None:
+    conteudo = renderizador.alerta("Coleta falhando", "Falhou 10 vezes.", {"Último erro": "S000"})
+    assert conteudo.assunto == "[Alerta] Relatório de Atendimentos — Coleta falhando"
+    assert "Falhou 10 vezes." in conteudo.html
+    assert "Último erro: S000" in conteudo.texto
+
+
+CONTEUDO = ConteudoEmail(
+    assunto="Resumo",
+    html="<p>Olá</p><img src='cid:logo'>",
+    texto="Olá",
+    imagens=(ImagemInline("logo", b"\x89PNG-fake"),),
+)
+
+
+def test_mensagem_multipart_com_logo_inline() -> None:
+    mensagem = montar_mensagem(
+        "relatorios@multilife.com.br", "MultiLife", ["a@x.com", "b@x.com"], CONTEUDO
+    )
+    assert mensagem["To"] == "a@x.com, b@x.com"
+    assert "MultiLife" in mensagem["From"]
+    assert mensagem["Message-ID"].endswith("@multilife.com.br>")
+    reaberta = message_from_bytes(bytes(mensagem))
+    tipos = [p.get_content_type() for p in reaberta.walk()]
+    assert tipos == [
+        "multipart/alternative",
+        "text/plain",
+        "multipart/related",
+        "text/html",
+        "image/png",
+    ]
+    imagem = next(p for p in reaberta.walk() if p.get_content_type() == "image/png")
+    assert imagem["Content-ID"] == "<logo>"
+
+
+class SmtpFalso:
+    instancias: list[SmtpFalso] = []  # noqa: RUF012
+
+    def __init__(self, host: str, porta: int, **kwargs: Any) -> None:
+        self.host, self.porta, self.kwargs = host, porta, kwargs
+        self.chamadas: list[str] = []
+        self.enviadas: list[EmailMessage] = []
+        SmtpFalso.instancias.append(self)
+
+    def __enter__(self) -> SmtpFalso:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self.chamadas.append("quit")
+
+    def ehlo(self) -> None:
+        self.chamadas.append("ehlo")
+
+    def starttls(self, context: object) -> None:
+        self.chamadas.append("starttls")
+
+    def login(self, usuario: str, senha: str) -> None:
+        if senha == "errada":
+            raise smtplib.SMTPAuthenticationError(535, b"auth failed")
+        self.chamadas.append(f"login:{usuario}")
+
+    def send_message(self, mensagem: EmailMessage) -> None:
+        self.enviadas.append(mensagem)
+
+
+@pytest.fixture
+def smtp_falso(monkeypatch: pytest.MonkeyPatch) -> type[SmtpFalso]:
+    SmtpFalso.instancias = []
+    monkeypatch.setattr(smtplib, "SMTP", SmtpFalso)
+    monkeypatch.setattr(smtplib, "SMTP_SSL", SmtpFalso)
+    return SmtpFalso
+
+
+def enviador(porta: int, ssl: bool, senha: str = "segredo") -> EnviadorSmtp:
+    return EnviadorSmtp(
+        "mail.kinghost.net",
+        porta,
+        "relatorios@multilife.com.br",
+        senha,
+        "relatorios@multilife.com.br",
+        "MultiLife",
+        usar_ssl=ssl,
+    )
+
+
+def test_smtp_starttls(smtp_falso: type[SmtpFalso]) -> None:
+    enviador(587, ssl=False).enviar(["a@x.com"], CONTEUDO)
+    [smtp] = smtp_falso.instancias
+    assert (smtp.host, smtp.porta) == ("mail.kinghost.net", 587)
+    assert smtp.chamadas == [
+        "ehlo",
+        "starttls",
+        "ehlo",
+        "login:relatorios@multilife.com.br",
+        "quit",
+    ]
+    assert smtp.enviadas[0]["Subject"] == "Resumo"
+
+
+def test_smtp_ssl_direto(smtp_falso: type[SmtpFalso]) -> None:
+    enviador(465, ssl=True).enviar(["a@x.com"], CONTEUDO)
+    [smtp] = smtp_falso.instancias
+    assert "context" in smtp.kwargs
+    assert "starttls" not in smtp.chamadas
+
+
+def test_smtp_erro_vira_erro_de_integracao_sem_senha(smtp_falso: type[SmtpFalso]) -> None:
+    with pytest.raises(ErroEmail) as erro:
+        enviador(587, ssl=False, senha="errada").enviar(["a@x.com"], CONTEUDO)
+    assert "mail.kinghost.net:587" in str(erro.value)
+    assert "errada" not in str(erro.value)
+
+
+def test_enviador_arquivo(tmp_path: Path) -> None:
+    EnviadorArquivo(tmp_path, "relatorios@multilife.com.br", "MultiLife").enviar(
+        ["a@x.com"], CONTEUDO
+    )
+    assert len(list(tmp_path.glob("*.eml"))) == 1
+    [html] = tmp_path.glob("*.html")
+    assert html.read_text(encoding="utf-8") == CONTEUDO.html

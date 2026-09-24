@@ -1,0 +1,37 @@
+{{ a.assunto }}
+{{ a.unidades }}
+{% if a.amostra %}
+*** PRÉVIA COM DADOS FICTÍCIOS ***
+{% endif %}
+{{ a.manchete }}
+{% if a.sem_movimento %}
+Não houve agendamentos nas unidades e agendas incluídas no relatório.
+{% else %}
+INDICADORES DO DIA
+{% for k in a.kpis %}- {{ k.rotulo }}: {{ k.valor }} ({{ k.contexto }}){% if k.delta %} — {{ k.delta.seta }} {{ k.delta.texto }} {{ k.delta.rotulo }}{% endif %}
+{% endfor %}
+POR TURNO{% for t in a.turnos %} | {{ t.rotulo }} ({{ t.faixa }}){% endfor %}
+{% for linha in a.linhas_turno %}- {{ linha.rotulo }}:{% for v in linha.valores %} {{ v }}{% if not loop.last %} |{% endif %}{% endfor %}
+{% endfor %}
+TMA POR CONSULTÓRIO (maior → menor)
+{% for c in a.consultorios %}- {{ c.consultorio }}: dia {{ c.tma }} | manhã {{ c.manha_tma }} ({{ c.manha_n }} atend.) | tarde {{ c.tarde_tma }} ({{ c.tarde_n }} atend.)
+{% else %}- Nenhum atendimento no dia.
+{% endfor %}
+TEMPO DE ATENDIMENTO POR AGENDA (qtd. | média | mediana | maior)
+{% for ag in a.agendas %}- {{ ag.agenda }}: {{ ag.atendimentos }} | {{ ag.media }} | {{ ag.mediana }} | {{ ag.maximo }}
+{% endfor %}
+COMPARATIVO COM {{ a.comparativo_base | upper if a.comparativo_disponivel else "A SEMANA ANTERIOR" }}
+{% if a.comparativo_disponivel %}{% for linha in a.comparativo %}- {{ linha.rotulo }}: {{ linha.atual }} vs {{ linha.anterior }}{% if linha.delta %} ({{ linha.delta.seta }} {{ linha.delta.texto }}){% endif %}
+{% endfor %}{% else %}- Sem base de comparação.
+{% endif %}{% endif %}
+ALERTAS
+{% for al in a.alertas %}- [{{ al.rotulo }}] {{ al.titulo }}: {{ al.descricao }}
+{% for item in al.itens %}  {{ item }}{% if al.restantes %} e mais {{ al.restantes }}{% endif %}
+{% endfor %}{% for linha in al.tabela %}  {{ linha | join(" · ") }}
+{% endfor %}{% else %}- Tudo certo: coleta completa e todos os agendamentos com baixa.
+{% endfor %}{% for nota in a.notas %}{{ nota }}
+{% endfor %}
+--
+Gerado em {{ a.gerado_em }} · Regra de cálculo v{{ a.versao_regra }}{% if a.admin_url %}
+Painel administrativo: {{ a.admin_url }}{% endif %}
+MultiLife · Saúde e Segurança do Trabalho — números agregados, sem dados de pacientes (LGPD).

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="x-apple-disable-message-reformatting">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light only">
+<title>{% block titulo %}{% endblock %}</title>
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<style>table, td, div, p, a, span { font-family: 'Segoe UI', Arial, sans-serif !important; }</style>
+<![endif]-->
+<style>
+  body { margin: 0; padding: 0; width: 100% !important; background: #EEF2F7; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  table { border-collapse: collapse; mso-table-lspace: 0; mso-table-rspace: 0; }
+  img { border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; display: block; }
+  a { color: #164F95; }
+  .fonte { font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+  .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tabela td, .tabela th { border-bottom: 1px solid #E3E8EF; }
+  @media screen and (max-width: 520px) {
+    .container { width: 100% !important; }
+    .px { padding-left: 16px !important; padding-right: 16px !important; }
+    .kpi { max-width: 50% !important; }
+    .kpi-valor { font-size: 24px !important; line-height: 30px !important; }
+    .empilha { display: block !important; width: 100% !important; text-align: left !important; }
+    .empilha-dir { padding-top: 12px !important; }
+    .oculta-mobile { display: none !important; }
+    .tabela td, .tabela th { padding-left: 6px !important; padding-right: 6px !important; }
+  }
+</style>
+</head>
+<body class="fonte" style="margin:0; padding:0; background:#EEF2F7;">
+<div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#EEF2F7;">{% block preheader %}{% endblock %}&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#EEF2F7" style="background:#EEF2F7;">
+<tr><td align="center" style="padding:24px 8px;">
+  <!--[if mso]><table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+  <table role="presentation" class="container" width="640" cellpadding="0" cellspacing="0" border="0" style="width:640px; max-width:640px;">
+
+    {% block faixa_amostra %}{% endblock %}
+
+    <!-- Cabeçalho: faixa da marca (azul com o toque vermelho da cruz da logo) -->
+    <tr>
+      <td style="font-size:0; line-height:0;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td width="86%" height="5" bgcolor="#164F95" style="background:#164F95; height:5px; border-radius:12px 0 0 0; font-size:0; line-height:0;">&nbsp;</td>
+            <td width="14%" height="5" bgcolor="#D0080F" style="background:#D0080F; height:5px; border-radius:0 12px 0 0; font-size:0; line-height:0;">&nbsp;</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:22px 32px 20px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td class="empilha" valign="middle" width="50%">
+              <img src="cid:{{ logo_cid }}" width="200" height="50" alt="MultiLife — Saúde e Segurança do Trabalho" style="width:200px; max-width:200px; height:auto;">
+            </td>
+            <td class="empilha empilha-dir fonte" valign="middle" align="right" style="text-align:right;">
+              {% block cabecalho_direita %}{% endblock %}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    {% block conteudo %}{% endblock %}
+
+    <!-- Rodapé -->
+    <tr>
+      <td bgcolor="#FFFFFF" style="background:#FFFFFF; border-radius:0 0 12px 12px; font-size:0; line-height:0; height:12px;">&nbsp;</td>
+    </tr>
+    <tr>
+      <td class="px fonte" align="center" style="padding:18px 32px 8px; font-size:12px; line-height:18px; color:#6B7280; text-align:center;">
+        {% block rodape %}{% endblock %}
+        <br>MultiLife · Saúde e Segurança do Trabalho — mensagem automática, não responda.
+      </td>
+    </tr>
+  </table>
+  <!--[if mso]></td></tr></table><![endif]-->
+</td></tr>
+</table>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Admin{% endblock %} · Relatório de Atendimentos · MultiLife</title>
+  <link rel="icon" type="image/png" href="/static/brand/favicon.png">
+  <link rel="stylesheet" href="/static/admin/admin.css">
+  <script src="/static/admin/htmx.min.js" defer></script>
+</head>
+<body hx-headers='{"X-CSRF-Token": "{{ csrf }}"}'>
+  <div class="faixa-marca" aria-hidden="true"><span></span><span></span></div>
+  {% if usuario %}
+  <header class="topo">
+    <div class="topo-conteudo">
+      <a href="/admin" class="marca" aria-label="Início do painel">
+        <img src="/static/brand/logo-multilife-admin.png" alt="MultiLife — Saúde e Segurança do Trabalho" height="36">
+        <span class="marca-produto">Relatório de Atendimentos</span>
+      </a>
+      <nav class="menu" aria-label="Principal">
+        <a href="/admin" {% if pagina == "painel" %}aria-current="page"{% endif %}>Painel</a>
+        <a href="/admin/destinatarios" {% if pagina == "destinatarios" %}aria-current="page"{% endif %}>Destinatários</a>
+        <a href="/admin/agendas" {% if pagina == "agendas" %}aria-current="page"{% endif %}>Unidades e agendas</a>
+        <a href="/admin/configuracoes" {% if pagina == "configuracoes" %}aria-current="page"{% endif %}>Configurações</a>
+        <a href="/admin/execucoes" {% if pagina == "execucoes" %}aria-current="page"{% endif %}>Execuções</a>
+      </nav>
+      <form method="post" action="/logout" class="sair">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <span class="usuario">{{ usuario }}</span>
+        <button type="submit" class="btn btn-link">Sair</button>
+      </form>
+    </div>
+  </header>
+  {% endif %}
+  <main class="conteudo">
+    {% if ambiente != "production" and usuario %}
+    <p class="ambiente">Ambiente: <strong>{{ ambiente }}</strong></p>
+    {% endif %}
+    {% for m in mensagens %}
+    <div class="mensagem mensagem-{{ m.tipo }}" role="{{ 'alert' if m.tipo == 'erro' else 'status' }}">{{ m.texto }}</div>
+    {% endfor %}
+    {% block conteudo %}{% endblock %}
+  </main>
+  <footer class="rodape">MultiLife · Saúde e Segurança do Trabalho — dados agregados do SGG, sem dados de pacientes (LGPD).</footer>
+</body>
+</html>

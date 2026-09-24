@@ -1,0 +1,10 @@
+{%- set s = ultimo.status_envio.value -%}
+{%- if s == "enviado" -%}
+<span class="badge badge-ok" title="Enviado em {{ ultimo.enviado_em | datahora_br }}">✓ Enviado {{ ultimo.enviado_em | hora_br }}</span>
+{%- elif s == "falha" -%}
+<span class="badge badge-erro">● Falha no envio</span>
+{%- elif s == "enviando" -%}
+<span class="badge badge-aviso">▲ Enviando</span>
+{%- else -%}
+<span class="badge badge-neutro">Pendente</span>
+{%- endif -%}
