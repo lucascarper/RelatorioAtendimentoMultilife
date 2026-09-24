@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # Uma imagem para os dois serviços (web e worker); muda só o comando de início.
+# Sem RUN --mount=type=cache: a Railway exige um id com o ID do serviço, e os dois
+# serviços usam este mesmo arquivo. O cache de camadas do Docker já cobre as dependências.
 
 FROM python:3.12-slim AS base
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -7,6 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     TZ=America/Sao_Paulo \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
+    UV_NO_CACHE=1 \
     UV_PYTHON_DOWNLOADS=never
 WORKDIR /app
 
@@ -14,11 +17,9 @@ WORKDIR /app
 FROM base AS build
 COPY --from=ghcr.io/astral-sh/uv:0.8 /uv /usr/local/bin/uv
 COPY pyproject.toml uv.lock README.md ./
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
+RUN uv sync --frozen --no-dev --no-install-project
 COPY src ./src
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev
 
 # ---------------------------------------------------------------- execução
 FROM base AS runtime
