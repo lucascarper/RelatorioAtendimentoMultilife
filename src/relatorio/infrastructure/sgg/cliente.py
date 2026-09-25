@@ -38,7 +38,9 @@ log = structlog.get_logger(__name__)
 TAMANHO_PAGINA = 100
 MAX_PAGINAS = 100  # D028: a API não aceita página maior que o tamanho
 MAX_TENTATIVAS_429 = 7
-INTERVALO_MAXIMO_FILTRO = timedelta(days=30)  # AG025: no máximo 1 mês por consulta
+# AG025/AG009: no máximo 1 mês por consulta. O período de agendamento enviado junto
+# (dias inteiros) é um pouco maior que a janela de edição, por isso a folga.
+INTERVALO_MAXIMO_FILTRO = timedelta(days=27)
 CODIGOS_SEM_DADOS = {"D001"}
 CODIGOS_AUTENTICACAO = {"A000", "A001", "S002", "S006"}
 
@@ -193,15 +195,29 @@ class ClienteSgg:
         return list(registros.values())
 
     def agendamentos_editados(self, de: datetime, ate: datetime) -> list[AgendamentoSgg]:
+        """Agendamentos editados em ``[de, ate]`` e marcados para os dias dessa janela.
+
+        O SGG não aceita ``editado_*`` sozinho (AG001): exige também um filtro como o
+        período de agendamento. Enviamos os dias inteiros cobertos pela janela, que
+        são os agendamentos que entram no relatório desses dias.
+        """
         resultado: list[AgendamentoSgg] = []
         inicio = de
         while inicio < ate:
             fim = min(ate, inicio + INTERVALO_MAXIMO_FILTRO)
+            primeiro_dia = inicio.astimezone(FUSO_BRASILIA).date()
+            ultimo_dia = fim.astimezone(FUSO_BRASILIA).date()
             resultado.extend(
                 self._agendamentos(
                     {
                         "editado_aPartirDe": formatar_filtro(inicio),
                         "editado_ate": formatar_filtro(fim),
+                        "data_hora_agendamento_aPartirDe": formatar_filtro(
+                            datetime.combine(primeiro_dia, time.min, tzinfo=FUSO_BRASILIA)
+                        ),
+                        "data_hora_agendamento_ate": formatar_filtro(
+                            datetime.combine(ultimo_dia, time(23, 59, 59), tzinfo=FUSO_BRASILIA)
+                        ),
                     }
                 )
             )
