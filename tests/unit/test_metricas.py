@@ -394,3 +394,59 @@ def test_kpis_de_dict_tolera_campos_ausentes() -> None:
     assert k.taxa_faltas == 0.1
     assert k.tma_s == 600
     assert k.espera_media_s is None
+
+
+AGENDAS_COM_GUICHE = {
+    10: agenda(10, "Clínico", sala="Sala 01"),
+    50: agenda(50, "Recepção", sala="Guichê 1", guiche=True),
+}
+
+
+class TestGuichesETurnos:
+    """Guichês separados na análise por turno; consultórios e agendas por turno."""
+
+    def calcular(self, agendamentos: list[AgendamentoDoDia]):  # type: ignore[no-untyped-def]
+        return calcular_metricas(agendamentos, AGENDAS_COM_GUICHE, REGRAS, INICIO, FIM)
+
+    def dia(self) -> list[AgendamentoDoDia]:
+        return [
+            # Sala 01: médico da manhã atende em 15 min; o da tarde, em 30 min.
+            atendimento(1, hora_agendada="08:00", chegada="07:50", chamada="08:00", fim="08:15"),
+            atendimento(2, hora_agendada="14:00", chegada="13:50", chamada="14:00", fim="14:30"),
+            # Guichê 1: só de manhã, 5 min.
+            atendimento(
+                3,
+                id_agenda=50,
+                agenda_nome="Recepção",
+                hora_agendada="07:30",
+                chegada="07:25",
+                chamada="07:30",
+                fim="07:35",
+            ),
+        ]
+
+    def test_por_turno_separa_guiches_das_demais_agendas(self) -> None:
+        m = self.calcular(self.dia())
+        agendas, guiches = m.por_turno_grupos["agendas"], m.por_turno_grupos["guiches"]
+        assert (agendas["manha"].atendimentos, agendas["tarde"].atendimentos) == (1, 1)
+        assert (guiches["manha"].atendimentos, guiches["tarde"].atendimentos) == (1, 0)
+        assert guiches["manha"].tma_s == 5 * 60
+        assert m.por_turno["manha"].atendimentos == 2  # o total continua com todos
+
+    def test_consultorio_por_turno_diferencia_os_medicos(self) -> None:
+        m = self.calcular(self.dia())
+        manha = {c.consultorio: c.tma_s for c in m.consultorios_por_turno["manha"]}
+        tarde = {c.consultorio: c.tma_s for c in m.consultorios_por_turno["tarde"]}
+        assert manha == {"Guichê 1": 5 * 60, "Sala 01": 15 * 60}
+        assert tarde == {"Sala 01": 30 * 60}  # guichê sem agendamento à tarde não aparece
+        assert [c.consultorio for c in m.consultorios_por_turno["manha"]] == [
+            "Sala 01",
+            "Guichê 1",
+        ]  # do maior para o menor TMA
+        assert m.consultorios_por_turno["manha"][1].guiche is True
+
+    def test_agendas_por_turno(self) -> None:
+        m = self.calcular(self.dia())
+        tarde = m.agendas_por_turno["tarde"]
+        assert [(a.agenda, a.atendimentos, a.media_s) for a in tarde] == [("Clínico", 1, 1800)]
+        assert {a.agenda for a in m.agendas_por_turno["manha"]} == {"Clínico", "Recepção"}

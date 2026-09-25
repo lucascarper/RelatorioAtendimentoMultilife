@@ -32,6 +32,7 @@ def agenda(
     sala: str | None = None,
     unidade: int | None = 1,
     incluir: bool = True,
+    guiche: bool = False,
 ) -> Agenda:
     return Agenda(
         id_agenda=id_agenda,
@@ -40,6 +41,7 @@ def agenda(
         id_unidade_atendimento=unidade,
         unidade_atendimento=f"Unidade {unidade}" if unidade is not None else None,
         incluir_relatorio=incluir,
+        guiche=guiche,
     )
 
 

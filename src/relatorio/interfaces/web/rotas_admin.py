@@ -335,6 +335,25 @@ def alternar_agenda(
     return ctx.render(request, "admin/_linha_agenda.html", {"a": agenda})
 
 
+@router.post("/agendas/{id_agenda}/guiche", response_class=HTMLResponse)
+def alternar_guiche(
+    request: Request,
+    id_agenda: int,
+    ctx: Ctx,
+    _usuario: Usuario,
+    _csrf: Csrf,
+    guiche: Annotated[bool, Form()] = False,
+) -> HTMLResponse:
+    with ctx.container.uow() as uow:
+        uow.agendas.definir_guiche(id_agenda, guiche)
+        uow.commit()
+        agenda = next((a for a in uow.agendas.listar() if a.id_agenda == id_agenda), None)
+    if agenda is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    log.info("agenda_alterada", id_agenda=id_agenda, guiche=guiche)
+    return ctx.render(request, "admin/_linha_agenda.html", {"a": agenda})
+
+
 # ------------------------------------------------------------------ configurações
 
 

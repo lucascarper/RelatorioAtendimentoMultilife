@@ -93,6 +93,9 @@ class ResumoDiario:
             "por_turno": para_json(m.por_turno),
             "consultorios": para_json(m.consultorios),
             "agendas": para_json(m.agendas),
+            "por_turno_grupos": para_json(m.por_turno_grupos),
+            "consultorios_por_turno": para_json(m.consultorios_por_turno),
+            "agendas_por_turno": para_json(m.agendas_por_turno),
             "comparativo": para_json(self.comparativo),
             "alertas": alertas,
         }

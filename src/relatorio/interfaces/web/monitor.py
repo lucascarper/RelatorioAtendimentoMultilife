@@ -90,7 +90,6 @@ class PainelMonitor:
     narrativa: str
     ao_vivo: tuple[CartaoAoVivo, ...]
     kpis: tuple[CartaoKpi, ...]
-    consultorios: tuple[dict[str, Any], ...]
     comparacao: str
     grafico: Grafico
     total_chegadas: int
@@ -286,8 +285,7 @@ def _estado_coleta(coleta: SituacaoColeta, coletor_habilitado: bool) -> tuple[st
 
 
 def montar_painel(m: Monitor, coleta: SituacaoColeta, coletor_habilitado: bool) -> PainelMonitor:
-    dados = _json_ao_vivo(m)
-    a = montar_apresentacao(dados)
+    a = montar_apresentacao(_json_ao_vivo(m))
     v = m.ao_vivo
     ate = m.instante_base.strftime("%H:%M")
     kpis = tuple(
@@ -300,10 +298,6 @@ def montar_painel(m: Monitor, coleta: SituacaoColeta, coletor_habilitado: bool) 
         narrativa=narrativa(v, a),
         ao_vivo=cartoes_ao_vivo(v),
         kpis=kpis,
-        consultorios=tuple(
-            {**linha, "atendimentos": numero(bruto["total"]["atendimentos"])}
-            for linha, bruto in zip(a.consultorios, dados["consultorios"], strict=True)
-        ),
         comparacao=(
             f"comparado com {a.comparativo_base} até {ate}"
             if a.comparativo_disponivel

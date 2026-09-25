@@ -26,19 +26,19 @@
 
 <section class="card">
   <div class="card-titulo">
-    <h2>Agendas (consultórios)</h2>
+    <h2>Agendas (consultórios e guichês)</h2>
     <form method="post" action="/admin/agendas/sincronizar">
       <input type="hidden" name="csrf" value="{{ csrf }}">
       <button type="submit" class="btn btn-secundario">Sincronizar com o SGG agora</button>
     </form>
   </div>
-  <p class="nota">Cada agenda do SGG é um consultório; o nome exibido vem do campo “sala”. Desligue as agendas que não devem entrar no relatório.</p>
+  <p class="nota">Cada agenda do SGG é um consultório; o nome exibido vem do campo “sala”. Desligue as agendas que não devem entrar no relatório e marque como <strong>guichê</strong> as agendas de recepção: na análise por turno elas aparecem separadas das demais.</p>
   <div class="rolagem">
   <table class="tabela">
-    <thead><tr><th>Consultório</th><th>Agenda</th><th>Unidade</th><th>No SGG</th><th>No relatório</th></tr></thead>
+    <thead><tr><th>Consultório</th><th>Agenda</th><th>Unidade</th><th>No SGG</th><th>No relatório</th><th>Tipo</th></tr></thead>
     <tbody>
       {% for a in agendas %}{% include "admin/_linha_agenda.html" %}{% else %}
-      <tr><td colspan="5" class="nota">Nenhuma agenda.</td></tr>
+      <tr><td colspan="6" class="nota">Nenhuma agenda.</td></tr>
       {% endfor %}
     </tbody>
   </table>
