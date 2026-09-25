@@ -1,10 +1,11 @@
+{%- from "admin/_icones.html" import icone -%}
 {%- set s = ultimo.status_envio.value -%}
 {%- if s == "enviado" -%}
-<span class="badge badge-ok" title="Enviado em {{ ultimo.enviado_em | datahora_br }}">✓ Enviado {{ ultimo.enviado_em | hora_br }}</span>
+<span class="badge badge-ok" title="Enviado em {{ ultimo.enviado_em | datahora_br }}">{{ icone("ok") }}Enviado {{ ultimo.enviado_em | hora_br }}</span>
 {%- elif s == "falha" -%}
-<span class="badge badge-erro">● Falha no envio</span>
+<span class="badge badge-erro">{{ icone("erro") }}Falha no envio</span>
 {%- elif s == "enviando" -%}
-<span class="badge badge-aviso">▲ Enviando</span>
+<span class="badge badge-aviso">{{ icone("relogio") }}Enviando</span>
 {%- else -%}
 <span class="badge badge-neutro">Pendente</span>
 {%- endif -%}

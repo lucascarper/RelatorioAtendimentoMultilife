@@ -1,0 +1,4 @@
+{#- Ícones Tabler (static/admin/icones.svg). Decorativos: o texto ao lado já diz o estado. -#}
+{% macro icone(nome) -%}
+<svg class="icone" aria-hidden="true" focusable="false"><use href="/static/admin/icones.svg#i-{{ nome }}"></use></svg>
+{%- endmacro %}

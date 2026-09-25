@@ -285,7 +285,7 @@ class TestReprocessamento:
         assert cliente.get("/admin/relatorios/2020-01-01").status_code == 404
 
         painel = cliente.get("/admin").text
-        assert "✓ Enviado" in painel
+        assert "</svg>Enviado" in painel
 
     def test_data_futura_recusada(self, cliente: TestClient) -> None:
         token = entrar(cliente)

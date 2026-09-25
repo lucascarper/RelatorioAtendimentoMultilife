@@ -37,15 +37,15 @@ CSP = (
 
 
 def _data_br(valor: date | None) -> str:
-    return valor.strftime("%d/%m/%Y") if valor else "—"
+    return valor.strftime("%d/%m/%Y") if valor else "-"
 
 
 def _hora_br(valor: datetime | None) -> str:
-    return valor.astimezone(FUSO_BRASILIA).strftime("%H:%M") if valor else "—"
+    return valor.astimezone(FUSO_BRASILIA).strftime("%H:%M") if valor else "-"
 
 
 def _datahora_br(valor: datetime | None) -> str:
-    return valor.astimezone(FUSO_BRASILIA).strftime("%d/%m/%Y %H:%M:%S") if valor else "—"
+    return valor.astimezone(FUSO_BRASILIA).strftime("%d/%m/%Y %H:%M:%S") if valor else "-"
 
 
 def criar_templates(settings: Settings) -> Jinja2Templates:

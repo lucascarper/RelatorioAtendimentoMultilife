@@ -35,7 +35,7 @@ class TestTurnos:
     def test_corte_configuravel(self) -> None:
         turnos = ConfiguracaoTurnos(tarde_inicio=time(12, 0))
         assert turnos.classificar(time(12, 0)) is Turno.TARDE
-        assert turnos.faixa(Turno.MANHA) == "06:00–11:59"
+        assert turnos.faixa(Turno.MANHA) == "06:00 às 11:59"
 
     def test_configuracao_invalida(self) -> None:
         with pytest.raises(ValueError, match="Turnos inválidos"):
@@ -206,7 +206,7 @@ class TestResumo:
         assert dados["dia_semana"] == "quarta-feira"
         assert dados["sem_movimento"] is False
         assert dados["kpis"]["atendimentos"] == 1
-        assert dados["por_turno"]["manha"]["faixa"] == "06:00–12:59"
+        assert dados["por_turno"]["manha"]["faixa"] == "06:00 às 12:59"
         assert dados["consultorios"][0]["consultorio"] == "Sala 01"
         assert dados["comparativo"]["disponivel"] is False
         assert dados["alertas"]["quantidade"] == 0

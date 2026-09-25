@@ -1,6 +1,7 @@
 {% extends "admin/base.html" %}
 {% block titulo %}Execuções{% endblock %}
 {% block conteudo %}
+{%- from "admin/_icones.html" import icone %}
 <h1>Execuções dos jobs</h1>
 <p class="nota">Últimas 7 execuções de cada job (horário de Brasília).</p>
 {% for job, rotulo, lista in jobs %}
@@ -14,11 +15,11 @@
       <tr>
         <td>{{ e.inicio | datahora_br }}</td>
         {% set ms = e.detalhe.get("duracao_ms", e.duracao_ms) %}
-        <td class="num">{% if ms is not none %}{{ ms | numero }} ms{% else %}—{% endif %}</td>
+        <td class="num">{% if ms is not none %}{{ ms | numero }} ms{% else %}-{% endif %}</td>
         <td>
-          {% if e.status.value == "sucesso" %}<span class="badge badge-ok">✓ Sucesso</span>
-          {% elif e.status.value == "falha" %}<span class="badge badge-erro">● Falha</span>
-          {% elif e.status.value == "executando" %}<span class="badge badge-aviso">▲ Executando</span>
+          {% if e.status.value == "sucesso" %}<span class="badge badge-ok">{{ icone("ok") }}Sucesso</span>
+          {% elif e.status.value == "falha" %}<span class="badge badge-erro">{{ icone("erro") }}Falha</span>
+          {% elif e.status.value == "executando" %}<span class="badge badge-aviso">{{ icone("relogio") }}Executando</span>
           {% else %}<span class="badge badge-neutro">{{ e.status.value }}</span>{% endif %}
         </td>
         <td class="detalhe">

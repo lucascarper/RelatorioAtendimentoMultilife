@@ -34,9 +34,9 @@ SERIES = (
 )
 
 # Geometria do gráfico (viewBox; o SVG escala com a largura do cartão).
-LARGURA, ALTURA = 720, 236
-MARGEM_ESQ, MARGEM_DIR, MARGEM_TOPO, MARGEM_BASE = 40, 8, 14, 30
-LARGURA_BARRA_MAX = 20
+LARGURA, ALTURA = 1080, 260
+MARGEM_ESQ, MARGEM_DIR, MARGEM_TOPO, MARGEM_BASE = 40, 8, 22, 30
+LARGURA_BARRA_MAX = 26
 VAO_BARRAS = 2
 RAIO = 4
 
@@ -82,6 +82,7 @@ class Grafico:
     marcas: tuple[tuple[float, str], ...]
     grupos: tuple[GrupoHora, ...]
     series: tuple[tuple[str, str], ...] = SERIES
+    agora_x: float | None = None  # marcador do instante atual (None fora da janela)
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,8 +150,8 @@ def montar_grafico(por_hora: tuple[MovimentoHora, ...], instante: datetime) -> G
         x_barra = x_faixa + (faixa - largura_grupo) / 2
         atual = h.hora == hora_atual
         futuro = h.hora > hora_atual
-        intervalo = f"{h.hora:02d}h–{h.hora + 1:02d}h"
-        titulo = intervalo + (" · em andamento" if atual else "")
+        intervalo = f"{h.hora:02d}h às {h.hora + 1:02d}h"
+        titulo = intervalo + (", em andamento" if atual else "")
         colunas = tuple(
             Coluna(
                 serie,
@@ -186,7 +187,11 @@ def montar_grafico(por_hora: tuple[MovimentoHora, ...], instante: datetime) -> G
                 atendidos=h.atendidos,
             )
         )
+    local = instante.astimezone(FUSO_BRASILIA)
+    posicao = next((i for i, h in enumerate(por_hora) if h.hora == local.hour), None)
+    agora_x = esquerda + (posicao + local.minute / 60) * faixa if posicao is not None else None
     return Grafico(
+        agora_x=agora_x,
         largura=LARGURA,
         altura=ALTURA,
         esquerda=esquerda,
@@ -308,12 +313,12 @@ def _estado_coleta(
 ) -> tuple[str, str, str]:
     """(texto, estado, horário dos dados) da coleta que alimenta o monitor."""
     if not coletor_habilitado:
-        return "Eventos gravados pelo coletor do painel em tempo real", "neutro", "—"
+        return "Eventos gravados pelo coletor do painel em tempo real", "neutro", "-"
     if coleta.ultima is None:
-        return "Nenhum ciclo de coleta ainda", "erro", "—"
+        return "Nenhum ciclo de coleta ainda", "erro", "-"
     dados_de = coleta.ultima.inicio.astimezone(FUSO_BRASILIA).strftime("%H:%M:%S")
     if coleta.atrasada:
-        return "Coleta atrasada — os números podem estar desatualizados", "erro", dados_de
+        return "Coleta atrasada: os números podem estar desatualizados", "erro", dados_de
     if coleta.em_coleta:
         frequencia = "minuto" if intervalo_coleta_s >= 60 else f"{intervalo_coleta_s} s"
         return f"Coletando do SGG a cada {frequencia}", "ok", dados_de

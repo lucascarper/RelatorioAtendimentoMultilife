@@ -3,10 +3,11 @@
 {% block classe_conteudo %} conteudo-monitor{% endblock %}
 {% block scripts %}<script src="/static/admin/monitor.js" defer></script>{% endblock %}
 {% block conteudo %}
+{%- from "admin/_icones.html" import icone %}
 <div class="monitor-cabecalho">
   <h1>Monitor ao vivo</h1>
   <div class="monitor-acoes">
-    <button type="button" class="btn btn-secundario" data-tela-cheia aria-pressed="false">Tela cheia</button>
+    <button type="button" class="btn btn-secundario" data-tela-cheia aria-pressed="false">{{ icone("tela-cheia") }}<span>Tela cheia</span></button>
   </div>
 </div>
 <div id="monitor" class="monitor" data-url="/admin/monitor/dados" data-intervalo="{{ p.intervalo_s }}" aria-busy="false">

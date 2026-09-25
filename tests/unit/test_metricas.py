@@ -74,8 +74,8 @@ class TestDiaTipico:
     def test_por_turno(self) -> None:
         m = calcular(dia_tipico())
         manha, tarde = m.por_turno["manha"], m.por_turno["tarde"]
-        assert (manha.rotulo, manha.faixa) == ("Manhã", "06:00–12:59")
-        assert (tarde.rotulo, tarde.faixa) == ("Tarde", "13:00–18:00")
+        assert (manha.rotulo, manha.faixa) == ("Manhã", "06:00 às 12:59")
+        assert (tarde.rotulo, tarde.faixa) == ("Tarde", "13:00 às 18:00")
         assert (manha.agendados, manha.atendimentos, manha.faltas) == (2, 2, 0)
         assert manha.espera_media_s == 1050
         assert manha.espera_maxima_s == 1200
