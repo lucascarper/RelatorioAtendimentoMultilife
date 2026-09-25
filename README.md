@@ -181,7 +181,7 @@ railway config plan    # mostra o que mudaria, sem alterar nada
 railway config apply   # aplica, depois de confirmar
 ```
 
-O arquivo é um *partial*: gerencia só o `web` e o `worker`. O PostgreSQL e as variáveis de ambiente ficam no painel da Railway, e o arquivo não os cria, não os altera e não os apaga. Se um `plan` mostrar algo para apagar (`destroy`/`delete`), pare e revise antes de aplicar. Detalhes no [ADR 0008](docs/adr/0008-infraestrutura-como-codigo-na-railway.md).
+O arquivo é um *partial*: gerencia só o `web` e o `worker`, e o PostgreSQL fica de fora. Os **nomes** das variáveis dos dois serviços estão listados no arquivo com `preserve()`: os valores (e os segredos) continuam só no painel. **Criou uma variável nova no painel? Acrescente o nome em `VARIAVEIS`**, senão o próximo `apply` apaga essa variável. Se um `plan` mostrar algo para apagar (`destroy`/`delete`), pare e revise antes de aplicar. Detalhes no [ADR 0008](docs/adr/0008-infraestrutura-como-codigo-na-railway.md).
 
 Instalação do zero:
 
