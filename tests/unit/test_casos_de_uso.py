@@ -19,7 +19,7 @@ from relatorio.application.configuracao import (
 )
 from relatorio.application.consolidacao import JOB_CONSOLIDAR, dia_para_consolidar
 from relatorio.application.envio import RelatorioIndisponivel, dia_do_relatorio
-from relatorio.application.manutencao import subtrair_meses
+from relatorio.application.manutencao import AlertaFalhasColeta, subtrair_meses
 from relatorio.application.metricas import JOB_COLETA
 from relatorio.application.modelos import StatusEnvio, StatusJob
 from relatorio.domain.entidades import OrigemEvento, Situacao
@@ -445,6 +445,41 @@ class TestManutencao:
     )
     def test_subtrair_meses(self, dia: date, meses: int, esperado: date) -> None:
         assert subtrair_meses(dia, meses) == esperado
+
+    def test_compactar_mantem_um_sucesso_por_minuto_nos_dias_anteriores(
+        self, sistema: Sistema
+    ) -> None:
+        uow = sistema.uow()
+        ontem = DIA - timedelta(days=1)
+        for segundos in range(0, 120, 5):  # 2 min de ciclos a cada 5 s, ontem e hoje
+            for dia in (ontem, DIA):
+                inicio = hora("09:00", dia) + timedelta(seconds=segundos)
+                id_exec = uow.execucoes.iniciar(JOB_COLETA, inicio, {})
+                uow.execucoes.finalizar(id_exec, inicio, StatusJob.SUCESSO, {})
+        falha = uow.execucoes.iniciar(JOB_COLETA, hora("09:00:30", ontem), {})
+        uow.execucoes.finalizar(falha, hora("09:00:30", ontem), StatusJob.FALHA, {})
+
+        sistema.relogio.instante = hora("03:20")
+        assert sistema.compactar.executar() == {"referencia": "2026-09-23", "execucoes": 22}
+        restantes = [e for e in sistema.banco.execucoes.values() if e.job == JOB_COLETA]
+        de_ontem = sorted((e.inicio, e.status) for e in restantes if e.inicio.date() == ontem)
+        assert de_ontem == [
+            (hora("09:00", ontem), StatusJob.SUCESSO),
+            (hora("09:00:30", ontem), StatusJob.FALHA),  # falhas ficam
+            (hora("09:01", ontem), StatusJob.SUCESSO),
+        ]
+        assert sum(e.inicio.date() == DIA for e in restantes) == 24  # hoje fica intacto
+
+    def test_alerta_apos_10_min_de_falhas_com_coleta_a_cada_5_s(self, sistema: Sistema) -> None:
+        alerta = AlertaFalhasColeta(sistema.uow, sistema.alertar, timedelta(seconds=5))
+        uow = sistema.uow()
+        enviados = []
+        for n in range(121):
+            inicio = hora("09:00") + timedelta(seconds=5 * n)
+            id_exec = uow.execucoes.iniciar(JOB_COLETA, inicio, {})
+            uow.execucoes.finalizar(id_exec, inicio, StatusJob.FALHA, {"erro": "S000"})
+            enviados.append(alerta.verificar())
+        assert [n for n, enviado in enumerate(enviados) if enviado] == [119]
 
     def test_alerta_na_decima_falha_seguida_de_coleta(self, sistema: Sistema) -> None:
         uow = sistema.uow()

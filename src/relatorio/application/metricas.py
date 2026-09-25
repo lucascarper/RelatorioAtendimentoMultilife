@@ -124,7 +124,14 @@ class ObterMetricasPeriodo:
             limite = min(fim, self._relogio.agora())
             for dia in _dias(dia_inicio, dia_fim):
                 janela_inicio, janela_fim = self._janela.do_dia(dia)
-                falhas.extend(janelas_sem_coleta(sucessos, janela_inicio, min(janela_fim, limite)))
+                falhas.extend(
+                    janelas_sem_coleta(
+                        sucessos,
+                        janela_inicio,
+                        min(janela_fim, limite),
+                        intervalo=self._janela.intervalo,
+                    )
+                )
 
         return DadosPeriodo(
             agendamentos=tuple(configuracao.filtro.aplicar(agendamentos, por_id)),

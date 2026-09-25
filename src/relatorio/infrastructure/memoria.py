@@ -256,6 +256,20 @@ class _Execucoes:
                 break
         return total
 
+    def compactar_sucessos(self, job: str, anteriores_a: datetime) -> int:
+        vistos: set[datetime] = set()
+        removidos = []
+        for chave, e in sorted(self.b.execucoes.items(), key=lambda i: (i[1].inicio, i[0])):
+            if e.job != job or e.status is not StatusJob.SUCESSO or e.inicio >= anteriores_a:
+                continue
+            minuto = e.inicio.replace(second=0, microsecond=0)
+            if minuto in vistos:
+                removidos.append(chave)
+            vistos.add(minuto)
+        for chave in removidos:
+            del self.b.execucoes[chave]
+        return len(removidos)
+
     def apagar_anteriores_a(self, limite: datetime) -> int:
         antigos = [k for k, e in self.b.execucoes.items() if e.inicio < limite]
         for k in antigos:

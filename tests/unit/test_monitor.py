@@ -90,12 +90,12 @@ class TestObterMonitor:
 
     def test_cache_divide_o_calculo_entre_monitores_abertos(self, dia_movimentado: Sistema) -> None:
         primeiro = dia_movimentado.monitor.executar()
-        dia_movimentado.relogio.avancar(seconds=15)
+        dia_movimentado.relogio.avancar(seconds=3)
         assert dia_movimentado.monitor.executar() is primeiro
-        dia_movimentado.relogio.avancar(seconds=10)
+        dia_movimentado.relogio.avancar(seconds=2)
         novo = dia_movimentado.monitor.executar()
         assert novo is not primeiro
-        assert novo.ao_vivo.espera_atual_maxima_s == 30 * 60 + 25
+        assert novo.ao_vivo.espera_atual_maxima_s == 30 * 60 + 5
 
 
 class TestPainel:

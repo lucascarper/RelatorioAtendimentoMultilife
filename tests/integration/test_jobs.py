@@ -97,15 +97,17 @@ def test_agenda_de_jobs_da_documentacao() -> None:
         "enviar_relatorio_3",
         "verificar_envio",
         "limpar_retencao",
+        "compactar_execucoes",
     }
     assert "hour='5', minute='30'" in gatilhos["sync_agendas"]
-    assert "hour='6-18', minute='*', second='0'" in gatilhos["coletar_ciclo"]
+    assert "hour='6-18', minute='*', second='*/5'" in gatilhos["coletar_ciclo"]
     assert "hour='18', minute='30'" in gatilhos["reconciliar_dia_1"]
     assert "hour='23', minute='0'" in gatilhos["consolidar_dia_1"]
     assert "hour='2', minute='0'" in gatilhos["consolidar_dia_2"]
     assert "hour='7', minute='59'" in gatilhos["enviar_relatorio_1"]
     assert "hour='8', minute='3'" in gatilhos["enviar_relatorio_3"]
     assert "day='1-2', hour='3', minute='0'" in gatilhos["limpar_retencao"]
+    assert "hour='3', minute='20'" in gatilhos["compactar_execucoes"]
     jobs = _jobs(Settings(_env_file=None))  # type: ignore[call-arg]
     assert all(str(j.trigger.timezone) == "America/Sao_Paulo" for j in jobs.values())
     assert all(j.max_instances == 1 and j.coalesce for j in jobs.values())
@@ -116,3 +118,14 @@ def test_sem_coletor_proprio_so_le_eventos_do_painel() -> None:
     assert "coletar_ciclo" not in gatilhos
     assert "reconciliar_dia_1" not in gatilhos
     assert "consolidar_dia_1" in gatilhos
+
+
+def test_coleta_uma_vez_por_minuto_quando_configurada() -> None:
+    settings = Settings(_env_file=None, coleta_intervalo_s=60)  # type: ignore[call-arg]
+    assert "minute='*', second='0'" in _gatilhos(settings)["coletar_ciclo"]
+
+
+@pytest.mark.parametrize("intervalo", [4, 7, 90])
+def test_intervalo_de_coleta_invalido(intervalo: int) -> None:
+    with pytest.raises(ValueError, match="COLETA_INTERVALO_S"):
+        Settings(_env_file=None, coleta_intervalo_s=intervalo)  # type: ignore[call-arg]

@@ -154,6 +154,10 @@ class ExecucaoJobRepository(Protocol):
 
     def falhas_consecutivas(self, job: str) -> int: ...
 
+    def compactar_sucessos(self, job: str, anteriores_a: datetime) -> int:
+        """Apaga sucessos de ``job`` antes de ``anteriores_a``, menos o 1º de cada minuto."""
+        ...
+
     def apagar_anteriores_a(self, limite: datetime) -> int: ...
 
 

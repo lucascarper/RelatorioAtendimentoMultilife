@@ -28,7 +28,7 @@ from relatorio.domain.entidades import FUSO_BRASILIA
 from relatorio.domain.metricas import calcular_metricas
 from relatorio.domain.resumo import ResumoDiario
 
-VALIDADE_CACHE = timedelta(seconds=20)
+VALIDADE_CACHE = timedelta(seconds=4)
 
 
 @dataclass(frozen=True, slots=True)

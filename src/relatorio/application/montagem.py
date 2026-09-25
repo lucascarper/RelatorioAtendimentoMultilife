@@ -10,7 +10,12 @@ from relatorio.application.coleta import ColetarCiclo, ReconciliarDia, Sincroniz
 from relatorio.application.configuracao import ConfiguracaoRelatorio, JanelaColeta
 from relatorio.application.consolidacao import ConsolidarDia
 from relatorio.application.envio import EnviarRelatorio, VerificarEnvio
-from relatorio.application.manutencao import AlertaFalhasColeta, LimparRetencao, ReprocessarData
+from relatorio.application.manutencao import (
+    AlertaFalhasColeta,
+    CompactarExecucoes,
+    LimparRetencao,
+    ReprocessarData,
+)
 from relatorio.application.metricas import ObterMetricasPeriodo
 from relatorio.application.monitor import ObterMonitor
 from relatorio.application.ports import (
@@ -35,6 +40,7 @@ class CasosDeUso:
     verificar_envio: VerificarEnvio
     reprocessar: ReprocessarData
     limpar: LimparRetencao
+    compactar: CompactarExecucoes
     alerta_coleta: AlertaFalhasColeta
 
 
@@ -69,5 +75,6 @@ def montar_casos_de_uso(
         verificar_envio=VerificarEnvio(uow, alertar),
         reprocessar=ReprocessarData(consolidar, enviar, reconciliar),
         limpar=LimparRetencao(uow, relogio),
-        alerta_coleta=AlertaFalhasColeta(uow, alertar),
+        compactar=CompactarExecucoes(uow, relogio),
+        alerta_coleta=AlertaFalhasColeta(uow, alertar, janela.intervalo),
     )

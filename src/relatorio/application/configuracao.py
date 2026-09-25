@@ -92,6 +92,7 @@ class JanelaColeta:
 
     inicio: time = time(6, 0)
     fim: time = time(18, 0)
+    intervalo: timedelta = timedelta(minutes=1)  # entre dois ciclos de coleta
 
     def do_dia(self, dia: date) -> tuple[datetime, datetime]:
         return (

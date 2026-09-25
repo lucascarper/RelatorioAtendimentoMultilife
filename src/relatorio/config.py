@@ -6,7 +6,7 @@ e ficam em ``SecretStr``: não aparecem em ``repr``, logs nem mensagens de erro.
 
 from __future__ import annotations
 
-from datetime import time
+from datetime import time, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     # SGG
     sgg_api_key: SecretStr = SecretStr("")
     sgg_base_url: str = "https://app.sgg.net.br/api/v3/"
-    sgg_max_rpm: int = Field(default=20, ge=1, le=60)
+    sgg_max_rpm: int = Field(default=40, ge=1, le=60)
     sgg_timeout_s: float = 15.0
 
     # E-mail (KingHost via SMTP)
@@ -61,6 +61,8 @@ class Settings(BaseSettings):
     coletor_habilitado: bool = True
     coleta_inicio: time = time(6, 0)
     coleta_fim: time = time(18, 0)
+    # Segundos entre ciclos de coleta (1 requisição por ciclo): divisor de 60, de 5 a 60.
+    coleta_intervalo_s: int = 5
     turno_manha_inicio: time = time(6, 0)
     turno_tarde_inicio: time = time(13, 0)
     turno_tarde_fim: time = time(18, 0)
@@ -77,6 +79,13 @@ class Settings(BaseSettings):
         for prefixo in ("postgres://", "postgresql://"):
             if valor.startswith(prefixo):
                 return "postgresql+psycopg://" + valor.removeprefix(prefixo)
+        return valor
+
+    @field_validator("coleta_intervalo_s")
+    @classmethod
+    def _intervalo_coleta(cls, valor: int) -> int:
+        if not 5 <= valor <= 60 or 60 % valor:
+            raise ValueError("COLETA_INTERVALO_S deve dividir 60 e ficar entre 5 e 60")
         return valor
 
     @property
@@ -102,7 +111,11 @@ class Settings(BaseSettings):
 
     @property
     def janela_coleta(self) -> JanelaColeta:
-        return JanelaColeta(inicio=self.coleta_inicio, fim=self.coleta_fim)
+        return JanelaColeta(
+            inicio=self.coleta_inicio,
+            fim=self.coleta_fim,
+            intervalo=timedelta(seconds=self.coleta_intervalo_s),
+        )
 
     def pendencias(self, servico: Literal["web", "worker"]) -> list[str]:
         """Variáveis obrigatórias ausentes para o serviço (checadas no arranque)."""

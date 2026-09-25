@@ -470,6 +470,24 @@ class ExecucaoJobRepositorioSql:
             total += 1
         return total
 
+    def compactar_sucessos(self, job: str, anteriores_a: datetime) -> int:
+        filtro = (
+            ExecucaoJobModel.job == job,
+            ExecucaoJobModel.status == StatusJob.SUCESSO.value,
+            ExecucaoJobModel.inicio < anteriores_a,
+        )
+        primeiros_do_minuto = (
+            select(func.min(ExecucaoJobModel.id))
+            .where(*filtro)
+            .group_by(func.date_trunc("minute", ExecucaoJobModel.inicio))
+        )
+        resultado = self._s.execute(
+            delete(ExecucaoJobModel)
+            .where(*filtro, ExecucaoJobModel.id.not_in(primeiros_do_minuto))
+            .execution_options(synchronize_session=False)
+        )
+        return _afetadas(resultado)
+
     def apagar_anteriores_a(self, limite: datetime) -> int:
         resultado = self._s.execute(
             delete(ExecucaoJobModel).where(ExecucaoJobModel.inicio < limite)

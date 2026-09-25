@@ -227,6 +227,26 @@ class TestExecucoes:
         with uow() as u:
             u.execucoes.finalizar(9999, hora("09:00"), StatusJob.SUCESSO, {})  # inexistente: ignora
 
+    def test_compactar_mantem_o_primeiro_sucesso_de_cada_minuto(self, uow: FabricaUoW) -> None:
+        for segundos in ("00", "05", "10"):
+            self.registrar(uow, "coletar_ciclo", f"08:00:{segundos}", StatusJob.SUCESSO)
+            self.registrar(uow, "coletar_ciclo", f"08:01:{segundos}", StatusJob.SUCESSO)
+        self.registrar(uow, "coletar_ciclo", "08:00:07", StatusJob.FALHA, erro="S000")
+        self.registrar(uow, "coletar_ciclo", "08:01:30", StatusJob.SUCESSO)  # depois do limite
+        self.registrar(uow, "consolidar_dia", "08:00:20", StatusJob.SUCESSO)  # outro job
+        with uow() as u:
+            assert u.execucoes.compactar_sucessos("coletar_ciclo", hora("08:01:20")) == 4
+            u.commit()
+        with uow() as u:
+            restantes = u.execucoes.recentes_por_job(por_job=20)
+        assert sorted(e.inicio for e in restantes["coletar_ciclo"]) == [
+            hora("08:00:00"),
+            hora("08:00:07"),
+            hora("08:01:00"),
+            hora("08:01:30"),
+        ]
+        assert len(restantes["consolidar_dia"]) == 1
+
 
 def test_evento_gravado_preserva_origem(uow: FabricaUoW) -> None:
     e2 = replace(

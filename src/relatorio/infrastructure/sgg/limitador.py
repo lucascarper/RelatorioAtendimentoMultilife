@@ -1,7 +1,7 @@
-"""Limitador de requisições por minuto (RNF01: orçamento de 20 req/min).
+"""Limitador de requisições por minuto (RNF01: orçamento de ``SGG_MAX_RPM``, padrão 40).
 
-A API do SGG aceita 60 req/min entre 05:00 e 20:00. Este sistema se limita a um terço
-disso para deixar folga ao painel e a outras integrações.
+A API do SGG aceita 60 req/min entre 05:00 e 20:00. O orçamento fica abaixo disso para
+sobrar folga à reconciliação e a retentativas.
 """
 
 from __future__ import annotations

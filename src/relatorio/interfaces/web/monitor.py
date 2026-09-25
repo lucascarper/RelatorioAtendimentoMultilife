@@ -25,7 +25,7 @@ from relatorio.infrastructure.email.apresentacao import (
 )
 from relatorio.interfaces.web.dependencias import SituacaoColeta
 
-INTERVALO_ATUALIZACAO_S = 30
+INTERVALO_ATUALIZACAO_S = 5
 
 # Séries do gráfico (paleta validada: azul da marca + laranja, ΔE CVD 25,5).
 SERIES = (
@@ -303,7 +303,9 @@ def _json_ao_vivo(m: Monitor) -> dict[str, Any]:
     return dados
 
 
-def _estado_coleta(coleta: SituacaoColeta, coletor_habilitado: bool) -> tuple[str, str, str]:
+def _estado_coleta(
+    coleta: SituacaoColeta, coletor_habilitado: bool, intervalo_coleta_s: int
+) -> tuple[str, str, str]:
     """(texto, estado, horário dos dados) da coleta que alimenta o monitor."""
     if not coletor_habilitado:
         return "Eventos gravados pelo coletor do painel em tempo real", "neutro", "—"
@@ -313,11 +315,17 @@ def _estado_coleta(coleta: SituacaoColeta, coletor_habilitado: bool) -> tuple[st
     if coleta.atrasada:
         return "Coleta atrasada — os números podem estar desatualizados", "erro", dados_de
     if coleta.em_coleta:
-        return "Coletando do SGG a cada minuto", "ok", dados_de
+        frequencia = "minuto" if intervalo_coleta_s >= 60 else f"{intervalo_coleta_s} s"
+        return f"Coletando do SGG a cada {frequencia}", "ok", dados_de
     return "Fora do horário de coleta", "neutro", dados_de
 
 
-def montar_painel(m: Monitor, coleta: SituacaoColeta, coletor_habilitado: bool) -> PainelMonitor:
+def montar_painel(
+    m: Monitor,
+    coleta: SituacaoColeta,
+    coletor_habilitado: bool,
+    intervalo_coleta_s: int = 60,
+) -> PainelMonitor:
     a = montar_apresentacao(_json_ao_vivo(m))
     v = m.ao_vivo
     ate = m.instante_base.strftime("%H:%M")
@@ -330,7 +338,7 @@ def montar_painel(m: Monitor, coleta: SituacaoColeta, coletor_habilitado: bool) 
     grupos_kpis = tuple(
         {**g, "cartoes": tuple(ate_o_horario(k) for k in g["cartoes"])} for g in a.grupos_kpis
     )
-    texto, estado, dados_de = _estado_coleta(coleta, coletor_habilitado)
+    texto, estado, dados_de = _estado_coleta(coleta, coletor_habilitado, intervalo_coleta_s)
     return PainelMonitor(
         a=a,
         narrativa=narrativa(v, a),
