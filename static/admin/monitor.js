@@ -66,7 +66,10 @@
     document.addEventListener("fullscreenchange", function () {
       var ativo = Boolean(document.fullscreenElement);
       botao.setAttribute("aria-pressed", String(ativo));
-      botao.textContent = ativo ? "Sair da tela cheia" : "Tela cheia";
+      var texto = botao.querySelector("span");
+      var uso = botao.querySelector("use");
+      if (texto) texto.textContent = ativo ? "Sair da tela cheia" : "Tela cheia";
+      if (uso) uso.setAttribute("href", "/static/admin/icones.svg#i-" + (ativo ? "sair-tela-cheia" : "tela-cheia"));
     });
   } else if (botao) {
     botao.hidden = true;

@@ -44,4 +44,4 @@ class ConfiguracaoTurnos:
             inicio, fim = self.manha_inicio, self.manha_fim
         else:
             inicio, fim = self.tarde_inicio, self.tarde_fim
-        return f"{inicio:%H:%M}–{fim:%H:%M}"
+        return f"{inicio:%H:%M} às {fim:%H:%M}"

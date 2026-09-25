@@ -1,13 +1,15 @@
 {#- Fragmento do monitor: trocado a cada atualização (monitor.js). Sem lógica de cálculo. -#}
+{%- from "admin/_icones.html" import icone %}
 <p class="monitor-data"><strong>{{ p.a.titulo_data }}</strong> · {{ p.a.unidades }}</p>
 <div class="monitor-status">
-  <span class="badge badge-{{ p.coleta_estado }}">{% if p.coleta_estado == "ok" %}●{% elif p.coleta_estado == "erro" %}▲{% else %}○{% endif %} {{ p.coleta }}</span>
-  <span class="nota">Dados do SGG de <strong>{{ p.dados_de }}</strong> · tela atualizada às {{ p.atualizado_em }} · atualiza sozinha a cada {{ p.intervalo_s }} s</span>
+  <span class="badge badge-{{ p.coleta_estado }}">
+    {%- if p.coleta_estado == "ok" %}<span class="ponto ao-vivo-pulso" aria-hidden="true"></span>{% elif p.coleta_estado == "erro" %}{{ icone("erro") }}{% else %}{{ icone("relogio") }}{% endif %}{{ p.coleta }}</span>
+  <span class="nota">Dados do SGG de <strong>{{ p.dados_de }}</strong>. Tela atualizada às {{ p.atualizado_em }} (a cada {{ p.intervalo_s }} s).</span>
 </div>
 
 <p class="monitor-narrativa">
   {{ p.narrativa }}
-  {%- if p.a.quantidade_alertas %} <a href="#alertas" class="badge badge-erro">● {{ p.a.quantidade_alertas }} alerta{{ "s" if p.a.quantidade_alertas > 1 }} para revisar</a>{% endif %}
+  {%- if p.a.quantidade_alertas %} <a href="#alertas" class="badge badge-erro">{{ icone("aviso") }}{{ p.a.quantidade_alertas }} alerta{{ "s" if p.a.quantidade_alertas > 1 }} para revisar</a>{% endif %}
 </p>
 
 <section class="ao-vivo{% if p.ao_vivo|length > 3 %} ao-vivo-areas{% endif %}" aria-label="Situação agora">
@@ -16,7 +18,7 @@
     <h2>{{ c.rotulo }}</h2>
     <p class="valor">{{ c.valor }}</p>
     <p class="nota">{{ c.contexto }}</p>
-    {%- if c.atencao %}<p><span class="badge badge-aviso">▲ {{ c.atencao }}</span></p>{% endif %}
+    {%- if c.atencao %}<p class="atencao"><span class="badge badge-aviso">{{ icone("aviso") }}{{ c.atencao }}</span></p>{% endif %}
   </article>
   {%- endfor %}
 </section>
@@ -34,7 +36,7 @@
     <span class="nota">{{ p.comparacao }}</span>
   </div>
   {%- for grupo in p.grupos_kpis %}
-  {%- if grupo.titulo %}<h3 class="subtitulo-turno">{{ grupo.titulo }}</h3>{% endif %}
+  {%- if grupo.titulo %}<h3 class="grupo-titulo">{{ grupo.titulo }}</h3>{% endif %}
   <div class="kpi-grade">
     {%- for k in grupo.cartoes %}
     <article class="card kpi">
@@ -42,7 +44,7 @@
       <p class="valor">{{ k.valor }}</p>
       <p class="nota">{{ k.contexto }}</p>
       <p class="delta">
-        {%- if k.delta %}<strong style="color: {{ k.delta.cor }}">{{ k.delta.seta }} {{ k.delta.texto }}</strong> <span class="nota">{{ k.delta.rotulo }}</span>
+        {%- if k.delta %}<strong class="delta-{{ k.delta.tom }}">{{ k.delta.seta }} {{ k.delta.texto }}</strong> <span class="nota">{{ k.delta.rotulo }}</span>
         {%- else %}<span class="nota">sem base de comparação</span>{% endif -%}
       </p>
     </article>
@@ -51,9 +53,8 @@
   {%- endfor %}
 </section>
 
-<div class="monitor-grade">
-  {%- set g = p.grafico %}
-  <section class="card grafico-card" aria-labelledby="t-movimento">
+{%- set g = p.grafico %}
+<section class="card grafico-card" aria-labelledby="t-movimento">
     <h2 id="t-movimento">Movimento por hora</h2>
     <p class="nota">{{ p.total_chegadas | numero }} chegadas à recepção e {{ p.total_atendidos | numero }} atendimentos finalizados até agora. Quando as chegadas passam dos atendimentos, a fila cresce.</p>
     <ul class="legenda" aria-hidden="true">
@@ -67,6 +68,7 @@
       <line class="grade" x1="{{ g.esquerda }}" x2="{{ g.direita }}" y1="{{ '%.1f' | format(y) }}" y2="{{ '%.1f' | format(y) }}"></line>
       <text class="eixo eixo-y" x="{{ g.esquerda - 8 }}" y="{{ '%.1f' | format(y + 4) }}">{{ rotulo }}</text>
       {%- endfor %}
+      <line class="grade grade-base" x1="{{ g.esquerda }}" x2="{{ g.direita }}" y1="{{ g.base }}" y2="{{ g.base }}"></line>
       {%- for h in g.grupos %}
       <g class="hora{% if h.atual %} hora-atual{% endif %}{% if h.futuro %} hora-futura{% endif %}">
         <rect class="faixa" x="{{ '%.1f' | format(h.x) }}" y="{{ g.topo }}" width="{{ '%.1f' | format(h.largura) }}" height="{{ g.base - g.topo }}" rx="6"></rect>
@@ -77,10 +79,15 @@
         <rect class="alvo" x="{{ '%.1f' | format(h.x) }}" y="0" width="{{ '%.1f' | format(h.largura) }}" height="{{ g.altura }}" tabindex="0" role="img" aria-label="{{ h.descricao }}" data-dica='{{ h.dica | tojson }}'></rect>
       </g>
       {%- endfor %}
+      {%- if g.agora_x is not none %}
+      <line class="agora" x1="{{ '%.1f' | format(g.agora_x) }}" x2="{{ '%.1f' | format(g.agora_x) }}" y1="{{ g.topo }}" y2="{{ g.base }}"></line>
+      <text class="agora-rotulo" x="{{ '%.1f' | format(g.agora_x) }}" y="{{ g.topo - 3 }}">agora</text>
+      {%- endif %}
     </svg>
     </div>
     <details class="tabela-alternativa" id="tabela-movimento">
       <summary>Ver tabela</summary>
+      <div class="rolagem">
       <table class="tabela">
         <thead><tr><th>Hora</th><th class="num">Chegadas</th><th class="num">Atendimentos finalizados</th></tr></thead>
         <tbody>
@@ -89,9 +96,11 @@
         {%- endfor %}
         </tbody>
       </table>
+      </div>
     </details>
   </section>
 
+<div class="monitor-grade">
   <section class="card" aria-labelledby="t-consultorios">
     <h2 id="t-consultorios">TMA por consultório</h2>
     <p class="nota">Um bloco por turno (na troca de turno troca o médico). Barras na mesma escala nos dois turnos.</p>
@@ -120,14 +129,13 @@
     {%- endif %}
     {%- endfor %}
   </section>
-</div>
 
-<div class="monitor-grade">
   <section class="card" aria-labelledby="t-turnos">
     <h2 id="t-turnos">Por turno</h2>
     <p class="nota">Turno definido pela hora agendada.{% if p.a.grupos_turno|length > 1 %} Guichês separados das demais agendas.{% endif %}</p>
     {%- for grupo in p.a.grupos_turno %}
     {%- if grupo.titulo %}<h3 class="subtitulo-turno">{{ grupo.titulo }}</h3>{% endif %}
+    <div class="rolagem">
     <table class="tabela tabela-compacta">
       <thead>
         <tr><th>Indicador</th>{% for t in grupo.turnos %}<th class="num">{{ t.rotulo }}<div class="nota">{{ t.faixa }}</div></th>{% endfor %}</tr>
@@ -138,13 +146,17 @@
       {%- endfor %}
       </tbody>
     </table>
+    </div>
     {%- endfor %}
   </section>
+</div>
 
-  <section class="card" aria-labelledby="t-agendas">
+<section class="card" aria-labelledby="t-agendas">
     <h2 id="t-agendas">Tempo de atendimento por agenda</h2>
     <p class="nota">Um bloco por turno, da agenda mais movimentada para a menos.</p>
+    <div class="blocos-turno">
     {%- for b in p.a.agendas_turnos %}
+    <div>
     <h3 class="subtitulo-turno">{{ b.rotulo }} <span class="nota">{{ b.faixa }}</span></h3>
     {%- if b.linhas %}
     <div class="rolagem">
@@ -163,9 +175,10 @@
     {%- else %}
     <p class="nota">Nenhum agendamento neste turno ainda.</p>
     {%- endif %}
+    </div>
     {%- endfor %}
+    </div>
   </section>
-</div>
 {% endif %}
 
 <section class="card" id="alertas" aria-labelledby="t-alertas">
@@ -173,18 +186,20 @@
   <p class="nota">Qualidade dos dados e da coleta de hoje.</p>
   {%- for al in p.a.alertas %}
   <div class="alerta alerta-{{ al.severidade }}">
-    <div><strong class="alerta-rotulo">{{ al.icone }} {{ al.rotulo }}</strong> · <strong>{{ al.titulo }}</strong></div>
+    <div class="alerta-cabeca"><strong class="alerta-rotulo">{{ icone({"critico": "erro", "atencao": "aviso", "info": "info"}.get(al.severidade, "info")) }}{{ al.rotulo }}</strong><strong>{{ al.titulo }}</strong></div>
     <div class="nota">{{ al.descricao }}</div>
     {%- for item in al.itens %}<div class="nota">{{ item }}{% if al.restantes %} e mais {{ al.restantes }}{% endif %}</div>{% endfor %}
     {%- if al.tabela %}
+    <div class="rolagem">
     <table class="tabela tabela-compacta">
       <thead><tr>{% for h in al.cabecalho %}<th>{{ h }}</th>{% endfor %}</tr></thead>
       <tbody>{% for linha in al.tabela %}<tr>{% for celula in linha %}<td>{{ celula }}</td>{% endfor %}</tr>{% endfor %}</tbody>
     </table>
+    </div>
     {%- endif %}
   </div>
   {%- else %}
-  <div class="alerta alerta-ok"><strong class="alerta-rotulo">✓ Tudo certo</strong> · Coleta em dia e nenhum atendimento atípico até agora.</div>
+  <div class="alerta alerta-ok"><div class="alerta-cabeca"><strong class="alerta-rotulo">{{ icone("ok") }}Tudo certo</strong><span>Coleta em dia e nenhum atendimento atípico até agora.</span></div></div>
   {%- endfor %}
   {%- for nota in p.a.notas %}<p class="nota">{{ nota }}</p>{% endfor %}
 </section>

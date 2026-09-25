@@ -1,3 +1,4 @@
+{%- from "admin/_icones.html" import icone -%}
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -15,7 +16,7 @@
   <header class="topo">
     <div class="topo-conteudo">
       <a href="/admin" class="marca" aria-label="Início do painel">
-        <img src="/static/brand/logo-multilife-admin.png" alt="MultiLife — Saúde e Segurança do Trabalho" height="36">
+        <img src="/static/brand/logo-multilife-admin.png" alt="MultiLife, Saúde e Segurança do Trabalho" height="34">
         <span class="marca-produto">Relatório de Atendimentos</span>
       </a>
       <nav class="menu" aria-label="Principal">
@@ -29,7 +30,7 @@
       <form method="post" action="/logout" class="sair">
         <input type="hidden" name="csrf" value="{{ csrf }}">
         <span class="usuario">{{ usuario }}</span>
-        <button type="submit" class="btn btn-link">Sair</button>
+        <button type="submit" class="btn btn-link">{{ icone("sair") }}Sair</button>
       </form>
     </div>
   </header>
@@ -39,10 +40,10 @@
     <p class="ambiente">Ambiente: <strong>{{ ambiente }}</strong></p>
     {% endif %}
     {% for m in mensagens %}
-    <div class="mensagem mensagem-{{ m.tipo }}" role="{{ 'alert' if m.tipo == 'erro' else 'status' }}">{{ m.texto }}</div>
+    <div class="mensagem mensagem-{{ m.tipo }}" role="{{ 'alert' if m.tipo == 'erro' else 'status' }}">{{ icone({"ok": "ok", "erro": "erro"}.get(m.tipo, "aviso")) }}<span>{{ m.texto }}</span></div>
     {% endfor %}
     {% block conteudo %}{% endblock %}
   </main>
-  <footer class="rodape">MultiLife · Saúde e Segurança do Trabalho — dados agregados do SGG, sem dados de pacientes (LGPD).</footer>
+  <footer class="rodape">MultiLife, Saúde e Segurança do Trabalho. Dados agregados do SGG, sem dados de pacientes (LGPD).</footer>
 </body>
 </html>

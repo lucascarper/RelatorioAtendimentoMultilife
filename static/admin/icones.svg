@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <!-- Tabler Icons 3.48 (MIT, (c) Pawel Kuna), outline. Use com <svg class="icone"><use href="...#i-nome"/></svg>. -->
+  <symbol id="i-ok" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /> <path d="M9 12l2 2l4 -4" /></symbol>
+  <symbol id="i-aviso" viewBox="0 0 24 24"><path d="M12 9v4" /> <path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0" /> <path d="M12 16h.01" /></symbol>
+  <symbol id="i-erro" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /> <path d="M12 8v4" /> <path d="M12 16h.01" /></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /> <path d="M12 9h.01" /> <path d="M11 12h1v4h1" /></symbol>
+  <symbol id="i-tela-cheia" viewBox="0 0 24 24"><path d="M4 8v-2a2 2 0 0 1 2 -2h2" /> <path d="M4 16v2a2 2 0 0 0 2 2h2" /> <path d="M16 4h2a2 2 0 0 1 2 2v2" /> <path d="M16 20h2a2 2 0 0 0 2 -2v-2" /></symbol>
+  <symbol id="i-sair-tela-cheia" viewBox="0 0 24 24"><path d="M15 19v-2a2 2 0 0 1 2 -2h2" /> <path d="M15 5v2a2 2 0 0 0 2 2h2" /> <path d="M5 15h2a2 2 0 0 1 2 2v2" /> <path d="M5 9h2a2 2 0 0 0 2 -2v-2" /></symbol>
+  <symbol id="i-sair" viewBox="0 0 24 24"><path d="M14 8v-2a2 2 0 0 0 -2 -2h-7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2 -2v-2" /> <path d="M9 12h12l-3 -3" /> <path d="M18 15l3 -3" /></symbol>
+  <symbol id="i-seguir" viewBox="0 0 24 24"><path d="M5 12l14 0" /> <path d="M13 18l6 -6" /> <path d="M13 6l6 6" /></symbol>
+  <symbol id="i-relogio" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /> <path d="M12 12l3 2" /> <path d="M12 7v5" /></symbol>
+  <symbol id="i-ao-vivo" viewBox="0 0 24 24"><path d="M3 12h4l3 8l4 -16l3 8h4" /></symbol>
+</svg>

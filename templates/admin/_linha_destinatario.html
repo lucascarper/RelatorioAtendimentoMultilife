@@ -1,6 +1,6 @@
 <tr id="destinatario-{{ d.id }}">
   <td><strong>{{ d.email }}</strong></td>
-  <td>{{ d.nome or "—" }}</td>
+  <td>{{ d.nome or "-" }}</td>
   <td>{{ d.criado_em | data_br }}</td>
   <td>
     <button type="button" class="alternador" role="switch" aria-checked="{{ 'true' if d.ativo else 'false' }}"

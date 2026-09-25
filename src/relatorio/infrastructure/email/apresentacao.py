@@ -45,20 +45,20 @@ MAX_IDS = 20
 
 def numero(valor: float | None) -> str:
     if valor is None:
-        return "—"
+        return "-"
     return f"{round(valor):,}".replace(",", ".")
 
 
 def percentual(valor: float | None, casas: int = 1) -> str:
     if valor is None:
-        return "—"
+        return "-"
     return f"{valor * 100:.{casas}f}%".replace(".", ",")
 
 
 def duracao(segundos: float | None) -> str:
     """600 → "10 min"; 3900 → "1 h 05 min"; 45 → "45 s"."""
     if segundos is None:
-        return "—"
+        return "-"
     total = round(segundos)
     if total < 60:
         return f"{total} s"
@@ -70,7 +70,7 @@ def duracao(segundos: float | None) -> str:
 
 
 def data_curta(texto: str | None) -> str:
-    return date.fromisoformat(texto[:10]).strftime("%d/%m/%Y") if texto else "—"
+    return date.fromisoformat(texto[:10]).strftime("%d/%m/%Y") if texto else "-"
 
 
 def data_extensa(texto: str) -> str:
@@ -79,13 +79,13 @@ def data_extensa(texto: str) -> str:
 
 
 def hora(texto: str | None) -> str:
-    return datetime.fromisoformat(texto).strftime("%H:%M") if texto else "—"
+    return datetime.fromisoformat(texto).strftime("%H:%M") if texto else "-"
 
 
 def _variacao(item: Mapping[str, Any]) -> str:
     valor = item.get("variacao")
     if valor is None:
-        return "—"
+        return "-"
     sinal = "+" if valor > 0 else "−" if valor < 0 else ""
     if item.get("em_pontos"):
         return f"{sinal}{abs(valor) * 100:.1f} p.p.".replace(".", ",", 1)
@@ -109,6 +109,7 @@ class Delta:
     texto: str
     cor: str
     rotulo: str
+    tom: str = "neutro"  # bom | ruim | neutro (classe de cor no admin, que tem tema escuro)
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,7 +206,8 @@ def _delta(comparativo: Mapping[str, Any], chave: str) -> Delta | None:
     seta = {"alta": "▲", "baixa": "▼"}.get(direcao, "■")
     texto = "estável" if direcao == "estavel" else _variacao(item)
     cor = COR_AVALIACAO.get(item.get("avaliacao") or "neutra", TINTA_MUDA)
-    return Delta(seta=seta, texto=texto, cor=cor, rotulo=rotulo)
+    tom = {"positiva": "bom", "negativa": "ruim"}.get(item.get("avaliacao") or "", "neutro")
+    return Delta(seta=seta, texto=texto, cor=cor, rotulo=rotulo, tom=tom)
 
 
 def _kpis(m: Mapping[str, Any]) -> tuple[CartaoKpi, ...]:
@@ -542,7 +544,7 @@ def _alertas(m: Mapping[str, Any]) -> tuple[Alerta, ...]:
                     (
                         str(x["id_agendamento"]),
                         x["consultorio"],
-                        x.get("hora_agendada") or "—",
+                        x.get("hora_agendada") or "-",
                         duracao(x["duracao_s"]),
                     )
                     for x in atipicos[:MAX_ITENS_ALERTA]
@@ -730,6 +732,6 @@ def montar_apresentacao(m: Mapping[str, Any], admin_url: str = "") -> Apresentac
 def _gerado_em(m: Mapping[str, Any]) -> str:
     gerado = m.get("gerado_em")
     if not gerado:
-        return "—"
+        return "-"
     instante = datetime.fromisoformat(gerado)
     return f"{instante:%d/%m/%Y} às {instante:%H:%M}"

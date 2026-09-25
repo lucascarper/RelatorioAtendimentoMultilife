@@ -49,16 +49,16 @@ def renderizador() -> RenderizadorJinja:
 class TestFormatacao:
     @pytest.mark.parametrize(
         ("segundos", "texto"),
-        [(None, "—"), (45, "45 s"), (600, "10 min"), (629, "10 min"), (3900, "1 h 05 min")],
+        [(None, "-"), (45, "45 s"), (600, "10 min"), (629, "10 min"), (3900, "1 h 05 min")],
     )
     def test_duracao(self, segundos: float | None, texto: str) -> None:
         assert duracao(segundos) == texto
 
     def test_numero_e_percentual(self) -> None:
         assert numero(1234) == "1.234"
-        assert numero(None) == "—"
+        assert numero(None) == "-"
         assert percentual(0.0948) == "9,5%"
-        assert percentual(None) == "—"
+        assert percentual(None) == "-"
 
 
 class TestRelatorio:

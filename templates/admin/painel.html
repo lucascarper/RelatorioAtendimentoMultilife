@@ -1,6 +1,7 @@
 {% extends "admin/base.html" %}
 {% block titulo %}Painel{% endblock %}
 {% block conteudo %}
+{%- from "admin/_icones.html" import icone %}
 <h1>Painel</h1>
 
 <section class="status-grade" aria-label="Situação do sistema">
@@ -11,13 +12,13 @@
       <p class="nota">Eventos gravados pelo coletor do painel em tempo real.</p>
     {% elif ultimo_sucesso %}
       <p class="valor">{{ ultimo_sucesso.inicio | hora_br }}</p>
-      <p class="nota">Último ciclo bem-sucedido · {{ ultimo_sucesso.inicio | data_br }}</p>
-      {% if falhas_seguidas %}<p><span class="badge badge-erro">● {{ falhas_seguidas }} falha(s) seguida(s)</span></p>
-      {% elif coleta_atrasada %}<p><span class="badge badge-erro">● Coleta atrasada (worker parado?)</span></p>
-      {% elif em_coleta %}<p><span class="badge badge-ok">✓ Coletando</span></p>
+      <p class="nota">Último ciclo bem-sucedido em {{ ultimo_sucesso.inicio | data_br }}</p>
+      {% if falhas_seguidas %}<p><span class="badge badge-erro">{{ icone("erro") }}{{ falhas_seguidas }} falha(s) seguida(s)</span></p>
+      {% elif coleta_atrasada %}<p><span class="badge badge-erro">{{ icone("erro") }}Coleta atrasada (worker parado?)</span></p>
+      {% elif em_coleta %}<p><span class="badge badge-ok">{{ icone("ok") }}Coletando</span></p>
       {% else %}<p><span class="badge badge-neutro">Fora do horário de coleta</span></p>{% endif %}
     {% else %}
-      <p class="valor">—</p>
+      <p class="valor">-</p>
       <p class="nota">Nenhum ciclo de coleta ainda.</p>
     {% endif %}
   </article>
@@ -29,14 +30,14 @@
       <p class="nota">{{ ultimo.data | dia_semana }}</p>
       <p>{% include "admin/_status_envio.html" %}</p>
     {% else %}
-      <p class="valor">—</p><p class="nota">Nenhum dia consolidado ainda.</p>
+      <p class="valor">-</p><p class="nota">Nenhum dia consolidado ainda.</p>
     {% endif %}
   </article>
   <article class="card status">
     <h2>Destinatários ativos</h2>
     <p class="valor">{{ destinatarios_ativos }}</p>
     <p class="nota">{% if override %}Staging: envio só para {{ override | join(", ") }}{% else %}recebem o e-mail às 07:59{% endif %}</p>
-    <p><a href="/admin/destinatarios">Gerenciar →</a></p>
+    <p class="acao"><a href="/admin/destinatarios">Gerenciar destinatários</a></p>
   </article>
 </section>
 

@@ -3,7 +3,7 @@
 | Horário                  | Job                | Se falhar                              |
 |--------------------------|--------------------|----------------------------------------|
 | 05:30                    | sync_agendas       | usa o cadastro anterior                |
-| 06:00–18:00, a cada 60 s | coletar_ciclo      | próximo ciclo recupera pela sobreposição|
+| 06:00–18:00, a cada 5 s  | coletar_ciclo      | próximo ciclo recupera pela sobreposição|
 | 18:30                    | reconciliar_dia    | reexecuta às 19:00 e 22:00             |
 | 23:00                    | consolidar_dia     | reexecuta às 02:00 e 05:00             |
 | 07:59                    | enviar_relatorio   | 08:01 e 08:03; depois alerta técnico   |
