@@ -9,7 +9,7 @@ from datetime import date, time, timedelta
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Form, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from relatorio.application.configuracao import (
@@ -24,6 +24,7 @@ from relatorio.application.configuracao import (
 from relatorio.application.ports import ErroIntegracao
 from relatorio.domain.metricas import RegrasMetricas
 from relatorio.domain.turnos import ConfiguracaoTurnos
+from relatorio.infrastructure.container import Container
 from relatorio.interfaces.demo import html_para_navegador
 from relatorio.interfaces.web.dependencias import (
     Csrf,
@@ -37,6 +38,7 @@ from relatorio.interfaces.web.dependencias import (
 log = structlog.get_logger(__name__)
 router = APIRouter(prefix="/admin")
 
+JOB_REPROCESSAR = "reprocessar"
 EMAIL_VALIDO = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 JOBS = {
     "coletar_ciclo": "Coleta (a cada 60 s)",
@@ -46,6 +48,7 @@ JOBS = {
     "enviar_relatorio": "Envio do e-mail (07:59)",
     "verificar_envio": "Verificação do envio (08:10)",
     "limpar_retencao": "Retenção de 24 meses (dia 1)",
+    JOB_REPROCESSAR: "Reprocessamento pelo admin",
 }
 ROTULOS_DETALHE = {
     "requisicoes": "requisições",
@@ -61,6 +64,8 @@ ROTULOS_DETALHE = {
     "snapshots": "snapshots apagados",
     "resumos": "resumos apagados",
     "execucoes": "execuções apagadas",
+    "reconciliacao": "reconciliação",
+    "envio": "envio",
 }
 CSP_PREVIA = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; frame-ancestors 'self'"
 
@@ -112,6 +117,7 @@ def reprocessar(
     ctx: Ctx,
     _usuario: Usuario,
     _csrf: Csrf,
+    tarefas: BackgroundTasks,
     dia: Annotated[date, Form(alias="data")],
     reconciliar: Annotated[bool, Form()] = False,
     enviar: Annotated[bool, Form()] = False,
@@ -119,27 +125,44 @@ def reprocessar(
     if dia > ctx.hoje():
         mensagem(request, "Não é possível reprocessar uma data futura.", "erro")
         return redirecionar("/admin")
-    try:
-        detalhe = ctx.container.casos.reprocessar.executar(
-            dia, reconciliar=reconciliar, enviar=enviar
+    # Reconciliar com o SGG (limitado a SGG_MAX_RPM) e enviar por SMTP pode levar
+    # minutos: roda depois da resposta, para o proxy da Railway não derrubar a requisição.
+    tarefas.add_task(reprocessar_em_segundo_plano, ctx.container, dia, reconciliar, enviar)
+    log.info("reprocessamento_agendado_pelo_admin", referencia=dia.isoformat(), enviar=enviar)
+    mensagem(
+        request,
+        f"Reprocessamento de {dia:%d/%m/%Y} iniciado. O resultado aparece em Execuções"
+        " (Reprocessamento pelo admin) assim que terminar.",
+    )
+    return redirecionar("/admin")
+
+
+def reprocessar_em_segundo_plano(
+    container: Container, dia: date, reconciliar: bool, enviar: bool
+) -> None:
+    def tarefa() -> dict[str, object]:
+        detalhe = container.casos.reprocessar.executar(dia, reconciliar=reconciliar, enviar=enviar)
+        return resumir_reprocessamento(detalhe)
+
+    container.executor.executar(JOB_REPROCESSAR, tarefa)
+
+
+def resumir_reprocessamento(detalhe: dict[str, object]) -> dict[str, object]:
+    """Detalhe plano para a tela de execuções (os casos de uso devolvem dicts aninhados)."""
+    resumo: dict[str, object] = {"referencia": detalhe["referencia"]}
+    reconciliacao = detalhe.get("reconciliacao")
+    if reconciliacao is not None:
+        resumo["reconciliacao"] = (
+            "SGG indisponível, recalculado com os eventos já coletados"
+            if isinstance(reconciliacao, str)
+            else "ok"
         )
-    except Exception as erro:
-        log.exception("reprocessar_falhou", referencia=dia.isoformat())
-        mensagem(request, f"Falha ao reprocessar {dia:%d/%m/%Y}: {erro}", "erro")
-        return redirecionar("/admin")
-    texto = f"{dia:%d/%m/%Y} reprocessado."
     envio = detalhe.get("envio")
     if isinstance(envio, dict):
-        texto += (
-            f" E-mail enviado para {envio.get('destinatarios', 0)} destinatário(s)."
-            if envio.get("status") == "enviado"
-            else f" Envio: {envio.get('status')}."
-        )
-    if isinstance(detalhe.get("reconciliacao"), str):
-        texto += " SGG indisponível: recalculado com os eventos já coletados."
-    log.info("reprocessado_pelo_admin", referencia=dia.isoformat(), enviar=enviar)
-    mensagem(request, texto)
-    return redirecionar("/admin")
+        resumo["envio"] = envio.get("status")
+        if envio.get("status") == "enviado":
+            resumo["destinatarios"] = envio.get("destinatarios", 0)
+    return resumo
 
 
 # ------------------------------------------------------------------ destinatários

@@ -261,10 +261,16 @@ class TestReprocessamento:
             "/admin/relatorios/reprocessar",
             data={"data": DIA.isoformat(), "enviar": "true", "reconciliar": "true", "csrf": token},
         )
-        assert "23/09/2026 reprocessado." in resposta.text
-        assert "E-mail enviado para 1 destinatário(s)." in resposta.text
-        assert "SGG indisponível" in resposta.text
+        # Responde na hora; o trabalho roda depois da resposta (o TestClient espera).
+        assert "Reprocessamento de 23/09/2026 iniciado." in resposta.text
         assert len(list((tmp_path / "emails").glob("*.eml"))) == 1
+        with uow() as u:
+            [execucao] = u.execucoes.recentes_por_job(1)["reprocessar"]
+        assert execucao.status is StatusJob.SUCESSO
+        assert execucao.detalhe["envio"] == "enviado"
+        assert execucao.detalhe["destinatarios"] == 1
+        assert execucao.detalhe["reconciliacao"].startswith("SGG indisponível")
+        assert "Reprocessamento pelo admin" in cliente.get("/admin/execucoes").text
 
         previa = cliente.get(f"/admin/relatorios/{DIA.isoformat()}")
         assert previa.status_code == 200
