@@ -166,16 +166,29 @@ Turnos, limites de atípico, e-mail técnico, unidades e agendas incluídas tamb
 
 Um projeto com **3 serviços**, todos a partir deste repositório (deploy automático a cada merge na `main`):
 
-| Serviço | Config as code | Início | Observação |
-| --- | --- | --- | --- |
-| `web` | `railway.json` | `uvicorn relatorio.interfaces.web.app:app …` | Admin + `/health`; gere um domínio |
-| `worker` | `railway.worker.json` | `python -m relatorio.infrastructure.scheduler` | 1 réplica fixa, sem domínio |
-| `postgres` | plugin PostgreSQL | — | Ative os backups |
+| Serviço | Início | Observação |
+| --- | --- | --- |
+| `web` | `uvicorn relatorio.interfaces.web.app:app …` | Admin, monitor ao vivo e `/health`; gere um domínio |
+| `worker` | `python -m relatorio.infrastructure.scheduler` | 1 réplica fixa, sempre ligado, sem domínio |
+| `Postgres` | modelo PostgreSQL | Ative os backups |
 
-1. Crie o projeto e adicione o plugin **PostgreSQL**.
-2. Crie o serviço `web` apontando para o repositório (usa `railway.json`).
-3. Crie o serviço `worker` no mesmo repositório e, em *Settings → Config-as-code*, aponte para `/railway.worker.json`.
-4. Em *Variables* dos dois serviços, cadastre as variáveis acima (`DATABASE_URL=${{Postgres.DATABASE_URL}}`).
+A configuração de build e deploy do `web` e do `worker` fica em **[`.railway/railway.ts`](.railway/railway.ts)**, o formato Infrastructure as Code da Railway. Ele guarda Dockerfile, comando de início, pre-deploy, health check, réplicas e política de reinício. Diferente do antigo `railway.json`, **esse arquivo não é lido no deploy**. Toda vez que ele mudar, aplique com a CLI da Railway (versão 5.42.1 ou mais nova):
+
+```bash
+npm install            # SDK "railway" que a CLI usa para ler o arquivo (é o único Node do projeto)
+railway link           # escolha o projeto e o ambiente (production)
+railway config plan    # mostra o que mudaria, sem alterar nada
+railway config apply   # aplica, depois de confirmar
+```
+
+O arquivo é um *partial*: gerencia só o `web` e o `worker`. O PostgreSQL e as variáveis de ambiente ficam no painel da Railway, e o arquivo não os cria, não os altera e não os apaga. Se um `plan` mostrar algo para apagar (`destroy`/`delete`), pare e revise antes de aplicar. Detalhes no [ADR 0008](docs/adr/0008-infraestrutura-como-codigo-na-railway.md).
+
+Instalação do zero:
+
+1. Crie o projeto e adicione o **PostgreSQL**.
+2. Crie os serviços `web` e `worker` a partir deste repositório (GitHub).
+3. Em *Variables* dos dois serviços, cadastre as variáveis acima (`DATABASE_URL=${{Postgres.DATABASE_URL}}`).
+4. Rode `railway config apply` (acima) para configurar os dois serviços.
 5. O **pre-deploy** (`alembic upgrade head`) roda nos dois serviços. As migrações têm trava própria, então as duas execuções simultâneas não competem.
 6. Use os *Environments* da Railway: `staging` (com `EMAIL_DESTINATARIOS_OVERRIDE` para o time de TI) e `production`.
 
@@ -221,3 +234,4 @@ O ambiente em que o código foi desenvolvido não tinha acesso à rede do `app.s
 - [0005 — Conferência final antes da consolidação](docs/adr/0005-conferencia-final-antes-da-consolidacao.md)
 - [0006 — Interpretações das regras](docs/adr/0006-interpretacoes-das-regras.md)
 - [0007 — Monitor em tempo real lendo só o banco](docs/adr/0007-monitor-em-tempo-real.md)
+- [0008 — Infraestrutura como código na Railway](docs/adr/0008-infraestrutura-como-codigo-na-railway.md)

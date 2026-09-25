@@ -26,3 +26,6 @@ previa-email.txt
 .idea/
 .vscode/
 .DS_Store
+
+# Node (só o SDK da Railway, ver package.json)
+node_modules/
