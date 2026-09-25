@@ -12,3 +12,7 @@ htmlcov
 saida_emails
 tests
 docs
+node_modules
+.railway
+package.json
+package-lock.json

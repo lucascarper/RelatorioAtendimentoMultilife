@@ -1,0 +1,9 @@
+{
+  "name": "relatorio-atendimentos-infra",
+  "private": true,
+  "type": "module",
+  "description": "Só para a Railway: SDK usado pela CLI para avaliar .railway/railway.ts. O sistema é Python.",
+  "devDependencies": {
+    "railway": "3.11.0"
+  }
+}

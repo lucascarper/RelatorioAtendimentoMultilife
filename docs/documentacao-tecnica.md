@@ -286,7 +286,7 @@ relatorio-atendimentos/
 │   ├── integration/       # repositórios com Postgres de teste, cliente SGG com respx
 │   └── fixtures/          # respostas reais anonimizadas da API
 ├── Dockerfile
-├── railway.json
+├── .railway/railway.ts    # infraestrutura na Railway (IaC; aplicada com a CLI)
 ├── pyproject.toml
 └── README.md
 ```
@@ -312,6 +312,8 @@ Um projeto Railway com três serviços, todos a partir do mesmo repositório Git
 | `postgres` | Plugin PostgreSQL | — | Backups ativados na Railway |
 
 **Pre-deploy command** (nos dois serviços de app): `alembic upgrade head`.
+
+A configuração dos dois serviços de app (Dockerfile, início, pre-deploy, health check, réplicas e reinício) está em `.railway/railway.ts` (Infrastructure as Code da Railway, aplicada com `railway config apply`). Ela substituiu o `railway.json` (Config as Code, descontinuado em 01/12/2026). Ver o ADR 0008.
 
 **Health check:** `web` expõe `/health`, que responde 200 e informa o horário do último ciclo de coleta; se o último ciclo tiver mais de 5 min em horário de coleta, responde 503.
 
