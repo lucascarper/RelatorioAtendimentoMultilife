@@ -62,11 +62,24 @@ Leitura em até 1 minuto, em pirâmide de atenção:
 
 Tecnicamente: layout em tabelas compatível com Outlook e Gmail, CSS inline (premailer), logo anexada via CID (Outlook não bloqueia), responsivo (KPIs em 2×2 no celular), versão em texto puro e contraste WCAG AA (texto ≥ 4,5:1). O template recebe só o JSON de `resumo_diario.metricas`, e nenhuma regra de cálculo fica nele.
 
+### Monitor ao vivo (tela do gerente)
+
+`/admin/monitor`, dentro do login do admin. São os mesmos indicadores do e-mail, calculados para **hoje até agora** e atualizados sozinhos a cada 30 s:
+
+1. **Topo:** situação da coleta ("Dados do SGG de 10:40:00"), uma frase-resumo e os cartões de agora: **na recepção** (com a maior espera em curso), **em atendimento** e **ainda não chegaram** (com os de horário vencido).
+2. **Hoje até agora:** atendimentos, faltas, espera média e TMA, comparados com o mesmo dia da semana anterior **até o mesmo horário**.
+3. **Meio:** movimento por hora (chegadas × atendimentos finalizados, com dica ao passar o mouse e tabela alternativa) e TMA por consultório.
+4. **Base:** por turno, tempos por agenda e alertas da coleta.
+
+![Monitor ao vivo (dados simulados)](docs/img/monitor-ao-vivo.png)
+
+O monitor **não faz nenhuma requisição ao SGG**. Ele lê os eventos que o coletor já grava a cada minuto, então pode ficar aberto em quantas telas for sem gastar a cota da API. O botão **Tela cheia** esconde o menu, para deixar numa TV. Detalhes no [ADR 0007](docs/adr/0007-monitor-em-tempo-real.md).
+
 ## Estrutura
 
 ```
 src/relatorio/
-├── domain/            # entidades, turnos, detecção de transição, métricas (funções puras)
+├── domain/            # entidades, turnos, detecção de transição, métricas, fila ao vivo (funções puras)
 ├── application/       # casos de uso + portas (interfaces) + montagem
 ├── infrastructure/
 │   ├── sgg/           # cliente HTTP (httpx+tenacity), DTO → domínio, limitador, simulador
@@ -76,15 +89,15 @@ src/relatorio/
 │   ├── scheduler.py   # worker (APScheduler, America/Sao_Paulo)
 │   └── container.py   # raiz de composição
 ├── interfaces/
-│   ├── web/           # FastAPI: admin (Jinja2+HTMX) e /health
+│   ├── web/           # FastAPI: admin (Jinja2+HTMX), monitor ao vivo e /health
 │   ├── cli.py         # relatorio reprocessar | enviar | previa | demo | spike-sgg …
 │   └── demo.py        # simulação de dias completos (prévia, demo e teste ponta a ponta)
 └── config.py          # pydantic-settings
 templates/email/       # resumo_diario.html/.txt, alerta.html/.txt
 templates/admin/       # telas do admin
-static/                # logos da marca, CSS do admin, htmx (sem CDN)
+static/                # logos da marca, CSS e JS do admin, htmx (sem CDN)
 migrations/            # Alembic
-tests/unit|integration # 210+ testes; fixtures sintéticas (sem dados reais)
+tests/unit|integration # 240+ testes; fixtures sintéticas (sem dados reais)
 docs/adr/              # registro de decisões
 ```
 
@@ -207,3 +220,4 @@ O ambiente em que o código foi desenvolvido não tinha acesso à rede do `app.s
 - [0004 — E-mail via SMTP da KingHost](docs/adr/0004-email-smtp-kinghost.md)
 - [0005 — Conferência final antes da consolidação](docs/adr/0005-conferencia-final-antes-da-consolidacao.md)
 - [0006 — Interpretações das regras](docs/adr/0006-interpretacoes-das-regras.md)
+- [0007 — Monitor em tempo real lendo só o banco](docs/adr/0007-monitor-em-tempo-real.md)

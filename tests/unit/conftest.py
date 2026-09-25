@@ -44,6 +44,7 @@ class Sistema:
         self.reconciliar = casos.reconciliar
         self.sincronizar = casos.sincronizar
         self.metricas = casos.metricas
+        self.monitor = casos.monitor
         self.consolidar = casos.consolidar
         self.enviar = casos.enviar
         self.verificar_envio = casos.verificar_envio

@@ -1,0 +1,15 @@
+{% extends "admin/base.html" %}
+{% block titulo %}Monitor ao vivo{% endblock %}
+{% block classe_conteudo %} conteudo-monitor{% endblock %}
+{% block scripts %}<script src="/static/admin/monitor.js" defer></script>{% endblock %}
+{% block conteudo %}
+<div class="monitor-cabecalho">
+  <h1>Monitor ao vivo</h1>
+  <div class="monitor-acoes">
+    <button type="button" class="btn btn-secundario" data-tela-cheia aria-pressed="false">Tela cheia</button>
+  </div>
+</div>
+<div id="monitor" class="monitor" data-url="/admin/monitor/dados" data-intervalo="{{ p.intervalo_s }}" aria-busy="false">
+  {% include "admin/_monitor.html" %}
+</div>
+{% endblock %}

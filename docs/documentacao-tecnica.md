@@ -152,6 +152,8 @@ A arquitetura já foi pensada para essa evolução: os eventos em `agendamento_e
 - Quando fizer sentido, adicionar um endpoint (ou WebSocket) em `interfaces/web` que chama esse caso de uso sob demanda — sem novo coletor, sem nova tabela de eventos, só uma nova forma de consultar os mesmos dados.
 - `resumo_diario` continua existindo como cache do fechamento do dia; uma consulta em tempo real simplesmente não passaria por essa etapa de cache.
 
+**Implementado (25/09/2026):** monitor ao vivo em `/admin/monitor`, com `ObterMetricasPeriodo` sobre `[hoje 00:00, agora]`, comparação com a semana anterior até o mesmo horário e atualização por HTMX a cada 30 s, sem nenhuma chamada extra ao SGG. Ver o [ADR 0007](adr/0007-monitor-em-tempo-real.md).
+
 ## 8. Stack tecnológica
 
 | Camada | Tecnologia | Motivo |

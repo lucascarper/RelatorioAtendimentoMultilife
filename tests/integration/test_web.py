@@ -287,3 +287,52 @@ class TestReprocessamento:
             "/admin/relatorios/reprocessar", data={"data": "2030-01-01", "csrf": token}
         )
         assert "data futura" in resposta.text
+
+
+class TestMonitor:
+    HOJE = DIA + timedelta(days=1)
+
+    def semear(self, uow: FabricaUoW) -> None:
+        with uow() as u:
+            for e in (
+                evento(1, None, Situacao.AGUARDANDO, "08:00", self.HOJE),
+                evento(1, Situacao.AGUARDANDO, Situacao.EM_ATENDIMENTO, "08:10", self.HOJE),
+                evento(1, Situacao.EM_ATENDIMENTO, Situacao.ATENDIDO, "08:25", self.HOJE),
+                evento(2, None, Situacao.AGUARDANDO, "09:40", self.HOJE),
+            ):
+                u.eventos.inserir(e)
+            u.snapshots.salvar(snapshot(1, Situacao.ATENDIDO, data_agendamento=self.HOJE))
+            u.snapshots.salvar(snapshot(2, Situacao.AGUARDANDO, data_agendamento=self.HOJE))
+            u.commit()
+
+    def test_exige_login(self, cliente: TestClient) -> None:
+        pagina = cliente.get("/admin/monitor", follow_redirects=False)
+        assert pagina.status_code == 303
+        assert pagina.headers["location"] == "/login"
+        fragmento = cliente.get("/admin/monitor/dados", headers={"HX-Request": "true"})
+        assert fragmento.status_code == 401
+        assert fragmento.headers["HX-Redirect"] == "/login"
+
+    def test_pagina_e_fragmento(self, cliente: TestClient, uow: FabricaUoW) -> None:
+        self.semear(uow)
+        entrar(cliente)
+        pagina = cliente.get("/admin/monitor")
+        assert pagina.status_code == 200
+        assert 'aria-current="page">Monitor</a>' in pagina.text
+        assert "/static/admin/monitor.js" in pagina.text
+        assert "1 pessoa na recepção agora; a maior espera é de 20 min." in pagina.text
+        assert "Movimento por hora" in pagina.text
+
+        fragmento = cliente.get("/admin/monitor/dados", headers={"HX-Request": "true"})
+        assert fragmento.status_code == 200
+        assert fragmento.headers["Cache-Control"] == "no-store"
+        assert "<html" not in fragmento.text
+        assert "Na recepção agora" in fragmento.text
+        assert "data-dica=" in fragmento.text
+        assert cliente.get("/static/admin/monitor.js").status_code == 200
+
+    def test_dia_sem_agendamentos(self, cliente: TestClient) -> None:
+        entrar(cliente)
+        texto = cliente.get("/admin/monitor").text
+        assert "Ainda não há agendamentos hoje" in texto
+        assert "Ninguém aguardando na recepção agora." in texto

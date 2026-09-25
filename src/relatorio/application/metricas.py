@@ -1,8 +1,8 @@
 """Caso de uso genérico de leitura: métricas de qualquer período.
 
-A consolidação noturna usa ``inicio = ontem 00:00`` e ``fim = ontem 23:59``; uma futura
-consulta em tempo real usará ``inicio = hoje 00:00`` e ``fim = agora`` — mesmo coletor,
-mesma tabela de eventos, mesmo cálculo (seção 7, "Evolução futura").
+A consolidação noturna usa ``inicio = ontem 00:00`` e ``fim = ontem 23:59``; o monitor em
+tempo real usa ``inicio = hoje 00:00`` e ``fim = agora`` — mesmo coletor, mesma tabela de
+eventos, mesmo cálculo (seção 7, "Evolução futura").
 """
 
 from __future__ import annotations
@@ -24,6 +24,17 @@ from relatorio.domain.metricas import (
 )
 
 JOB_COLETA = "coletar_ciclo"
+
+
+@dataclass(frozen=True, slots=True)
+class DadosPeriodo:
+    """Agendamentos do período já filtrados pelas unidades do relatório."""
+
+    agendamentos: tuple[AgendamentoDoDia, ...]
+    agendas: dict[int, Agenda]
+    configuracao: ConfiguracaoRelatorio
+    unidades: tuple[str, ...]
+    falhas_coleta: tuple[FalhaColeta, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,14 +83,7 @@ class ObterMetricasPeriodo:
         with self._uow() as uow:
             return self._padrao.mesclar(uow.configuracoes.obter_todas())
 
-    def executar(
-        self,
-        inicio: datetime,
-        fim: datetime,
-        *,
-        faltas_confirmadas: Iterable[int] = (),
-        verificacao_faltas_indisponivel: bool = False,
-    ) -> ResultadoMetricas:
+    def carregar(self, inicio: datetime, fim: datetime) -> DadosPeriodo:
         dia_inicio = inicio.astimezone(FUSO_BRASILIA).date()
         dia_fim = fim.astimezone(FUSO_BRASILIA).date()
         with self._uow() as uow:
@@ -114,27 +118,43 @@ class ObterMetricasPeriodo:
             )
             for s in snapshots
         ]
-        filtrados = configuracao.filtro.aplicar(agendamentos, por_id)
 
         falhas: list[FalhaColeta] = []
         if self._coletor_habilitado:
-            agora = self._relogio.agora()
+            limite = min(fim, self._relogio.agora())
             for dia in _dias(dia_inicio, dia_fim):
                 janela_inicio, janela_fim = self._janela.do_dia(dia)
-                falhas.extend(janelas_sem_coleta(sucessos, janela_inicio, min(janela_fim, agora)))
+                falhas.extend(janelas_sem_coleta(sucessos, janela_inicio, min(janela_fim, limite)))
 
+        return DadosPeriodo(
+            agendamentos=tuple(configuracao.filtro.aplicar(agendamentos, por_id)),
+            agendas=por_id,
+            configuracao=configuracao,
+            unidades=descrever_unidades(configuracao, agendas),
+            falhas_coleta=tuple(falhas),
+        )
+
+    def executar(
+        self,
+        inicio: datetime,
+        fim: datetime,
+        *,
+        faltas_confirmadas: Iterable[int] = (),
+        verificacao_faltas_indisponivel: bool = False,
+    ) -> ResultadoMetricas:
+        dados = self.carregar(inicio, fim)
         metricas = calcular_metricas(
-            filtrados,
-            por_id,
-            configuracao.regras,
+            dados.agendamentos,
+            dados.agendas,
+            dados.configuracao.regras,
             inicio,
             fim,
             faltas_confirmadas=faltas_confirmadas,
-            falhas_coleta=falhas,
+            falhas_coleta=dados.falhas_coleta,
             verificacao_faltas_indisponivel=verificacao_faltas_indisponivel,
         )
         return ResultadoMetricas(
             metricas=metricas,
-            unidades=descrever_unidades(configuracao, agendas),
-            configuracao=configuracao,
+            unidades=dados.unidades,
+            configuracao=dados.configuracao,
         )
