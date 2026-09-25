@@ -2,7 +2,8 @@
 
 Toda métrica sai das transições de status gravadas em ``agendamento_evento``:
 
-* tempo de espera na recepção = "Em Atendimento" − "Aguardando";
+* tempo de espera = "Em Atendimento" − "Aguardando" (nos consultórios, a última espera
+  quando há guichês: a do guichê não entra);
 * tempo de atendimento = "Atendido" − "Em Atendimento";
 * TMA = média dos tempos de atendimento válidos (não atípicos, sem salto de status).
 
@@ -26,7 +27,7 @@ from zoneinfo import ZoneInfo
 from relatorio.domain.entidades import FUSO_BRASILIA, Agenda, Evento, Situacao, Turno
 from relatorio.domain.turnos import ConfiguracaoTurnos
 
-VERSAO_REGRA = "1.1.0"  # 1.1: guichês e consultórios/agendas por turno
+VERSAO_REGRA = "1.2.0"  # 1.1: guichês e turnos; 1.2: espera do consultório = última espera
 
 
 # --------------------------------------------------------------------------- entradas
@@ -286,18 +287,25 @@ class Tempos:
     atendimento: timedelta | None
 
 
-def medir_tempos(eventos: Sequence[Evento], ate: datetime) -> Tempos:
+def medir_tempos(
+    eventos: Sequence[Evento], ate: datetime, *, ultima_espera: bool = False
+) -> Tempos:
     """Mede espera e atendimento a partir das transições observadas até ``ate``.
 
     * Espera: da primeira chegada ("Aguardando") até a primeira chamada vinda da espera
       ("Aguardando" → "Em Atendimento").
+    * Com ``ultima_espera`` (agendas de consultório quando há guichês): da **última**
+      entrada em "Aguardando" até a chamada seguinte. Se o agendamento foi chamado
+      antes (no guichê) e devolvido à espera, só conta a espera pelo consultório; se
+      ainda está aguardando de novo, a espera ainda não terminou (None).
     * Atendimento: da última chamada até "Atendido", apenas quando o evento de
       finalização veio de "Em Atendimento". Se o status pulou etapas, o tempo não é
       medido (o atendimento conta nos totais, mas fica fora das médias).
     """
     validos = [e for e in ordenar_eventos(eventos) if e.ocorrido_em <= ate]
 
-    chegada = next((e for e in validos if e.status_novo is Situacao.AGUARDANDO), None)
+    entradas = [e for e in validos if e.status_novo is Situacao.AGUARDANDO]
+    chegada = (entradas[-1] if ultima_espera else entradas[0]) if entradas else None
     espera: timedelta | None = None
     if chegada is not None:
         chamada = next(
@@ -404,6 +412,7 @@ def _classificar(
     regras: RegrasMetricas,
     fim: datetime,
     faltas_confirmadas: frozenset[int],
+    tem_guiche: bool = False,
 ) -> tuple[_Linha, bool]:
     """Classifica um agendamento. Devolve a linha e se a falta veio da conferência (RF11)."""
     agenda = agendas.get(agendamento.id_agenda) if agendamento.id_agenda is not None else None
@@ -442,7 +451,7 @@ def _classificar(
         for e in agendamento.eventos
         if _local(e.ocorrido_em, regras.fuso).date() == agendamento.data_agendamento
     ]
-    tempos = medir_tempos(do_dia, fim)
+    tempos = medir_tempos(do_dia, fim, ultima_espera=not linha.guiche and tem_guiche)
     if tempos.espera is not None:
         linha.espera_s = tempos.espera.total_seconds()
     if situacao is Situacao.ATENDIDO and tempos.atendimento is not None:
@@ -564,8 +573,9 @@ def calcular_metricas(
     confirmadas = frozenset(faltas_confirmadas)
     linhas: list[_Linha] = []
     reclassificadas: list[int] = []
+    tem_guiche = any(a.guiche for a in agendas.values())
     for agendamento in agendamentos:
-        linha, confirmada = _classificar(agendamento, agendas, regras, fim, confirmadas)
+        linha, confirmada = _classificar(agendamento, agendas, regras, fim, confirmadas, tem_guiche)
         linhas.append(linha)
         if confirmada:
             reclassificadas.append(linha.id_agendamento)

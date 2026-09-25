@@ -73,7 +73,7 @@ class TestRelatorio:
             "Tempo de atendimento por agenda",
             "Comparativo com a semana anterior",
             "Alertas",
-            "Regra de cálculo v1.1.0",
+            "Regra de cálculo v1.2.0",
             "Prévia com dados fictícios",
             "https://admin.exemplo",
         ):

@@ -9,6 +9,7 @@ Pontos em que a documentação técnica não era explícita e a escolha feita:
 | --- | --- | --- |
 | Agendamento sem hora (agenda por ordem de chegada) | Turno pela hora da chegada ("Aguardando"); sem chegada, pelo primeiro evento do dia. Sem nenhum dos dois, entra só nos totais (o e-mail avisa) | O turno é "pela hora agendada", mas essas agendas não têm hora |
 | Paciente volta para a espera | Espera = da 1ª chegada até a 1ª chamada; atendimento = da última chamada até "Atendido" | Mede a espera percebida e o atendimento efetivo |
+| Espera no consultório (com guichês marcados) | Da **última** entrada em "Aguardando" até a chamada seguinte ("Em Atendimento") no agendamento do consultório. Se ele foi chamado antes (no guichê) e devolvido à espera, essa passagem não entra; enquanto aguarda de novo, a espera ainda não terminou. Regra v1.2.0 | A espera do consultório é a do paciente pelo médico, não a da recepção |
 | Tempos com eventos de outro dia | Espera e atendimento usam só eventos do próprio dia do agendamento | Evita "esperas de vários dias" (remarcações, criação antiga) |
 | "Em Atendimento" no fim do dia | Não entra em "sem baixa" (que é Agendado ou Aguardando, pela spec); vira o alerta "atendimentos não finalizados" | Fiel à spec, sem esconder o problema |
 | Base da taxa de faltas | Faltas ÷ agendados do dia, excluindo cancelados | Um cancelamento não é oportunidade de falta |

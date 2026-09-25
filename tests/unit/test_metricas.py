@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import time, timedelta
 
 import pytest
@@ -366,6 +367,22 @@ class TestReconstrucaoPorEventos:
         assert tempos.espera == timedelta(minutes=10)
         assert tempos.atendimento == timedelta(minutes=15)
 
+    def test_consultorio_mede_a_ultima_espera(self) -> None:
+        """Chamado no guichê e devolvido à espera: conta só a espera pelo consultório."""
+        eventos = (
+            evento(1, None, Situacao.AGENDADO, "06:00"),
+            evento(1, Situacao.AGENDADO, Situacao.AGUARDANDO, "08:00"),
+            evento(1, Situacao.AGUARDANDO, Situacao.EM_ATENDIMENTO, "08:05"),  # guichê
+            evento(1, Situacao.EM_ATENDIMENTO, Situacao.AGUARDANDO, "08:10"),
+            evento(1, Situacao.AGUARDANDO, Situacao.EM_ATENDIMENTO, "08:40"),  # médico
+            evento(1, Situacao.EM_ATENDIMENTO, Situacao.ATENDIDO, "08:55"),
+        )
+        tempos = medir_tempos(eventos, hora("23:00"), ultima_espera=True)
+        assert tempos.espera == timedelta(minutes=30)
+        assert tempos.atendimento == timedelta(minutes=15)
+        # Ainda aguardando o médico: a espera do consultório não terminou.
+        assert medir_tempos(eventos, hora("08:20"), ultima_espera=True).espera is None
+
     def test_chamada_sem_passar_pela_espera_nao_mede_espera(self) -> None:
         eventos = (
             evento(1, None, Situacao.AGENDADO, "06:00"),
@@ -458,6 +475,20 @@ class TestGuichesETurnos:
         assert k.espera_consultorio_s == 10 * 60  # 07:50→08:00 e 13:50→14:00
         assert (k.tma_consultorios_s, k.tma_guiches_s) == (round(22.5 * 60), 5 * 60)
         assert k.tem_guiche
+
+    def test_espera_do_consultorio_nao_inclui_a_passagem_pelo_guiche(self) -> None:
+        """Agendamento do consultório chamado no guichê e devolvido à espera do médico."""
+        ida = atendimento(4, hora_agendada="09:00", chegada="08:30", chamada="08:35", fim=None)
+        volta = (
+            evento(4, Situacao.EM_ATENDIMENTO, Situacao.AGUARDANDO, "08:40"),
+            evento(4, Situacao.AGUARDANDO, Situacao.EM_ATENDIMENTO, "09:00"),
+            evento(4, Situacao.EM_ATENDIMENTO, Situacao.ATENDIDO, "09:15"),
+        )
+        passou_no_guiche = replace(ida, eventos=(*ida.eventos, *volta))
+        k = self.calcular([*self.dia(), passou_no_guiche]).kpis
+        # (10 + 10 + 20) / 3: a espera do agendamento 4 é 08:40→09:00, não 08:30→08:35.
+        assert k.espera_consultorio_s == round(40 * 60 / 3)
+        assert k.espera_recepcao_s == 5 * 60
 
     def test_sem_guiche_nao_ha_separacao(self) -> None:
         k = calcular(dia_tipico()).kpis
