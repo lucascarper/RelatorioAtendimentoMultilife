@@ -47,6 +47,7 @@ class SggFake:
     falhar: bool = False
     chamadas: list[tuple[str, object, object]] = field(default_factory=list)
     requisicoes_realizadas: int = 0
+    ignorados_na_ultima_consulta: dict[int, str] = field(default_factory=dict)
 
     def _registrar(self, nome: str, a: object, b: object) -> None:
         self.chamadas.append((nome, a, b))

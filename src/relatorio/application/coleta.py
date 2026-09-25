@@ -13,14 +13,25 @@ desligar este (``COLETOR_HABILITADO=false``) e o relatório passa a só ler a ta
 from __future__ import annotations
 
 import unicodedata
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from collections.abc import Collection, Iterable, Sequence
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
+
+import structlog
 
 from relatorio.application.configuracao import inicio_do_dia
 from relatorio.application.ports import FabricaUoW, Relogio, SggGateway, UnidadeDeTrabalho
 from relatorio.domain.deteccao import detectar_transicao
-from relatorio.domain.entidades import FUSO_BRASILIA, Agenda, AgendamentoSgg, OrigemEvento
+from relatorio.domain.entidades import (
+    FUSO_BRASILIA,
+    Agenda,
+    AgendamentoSgg,
+    Evento,
+    OrigemEvento,
+    Situacao,
+)
+
+log = structlog.get_logger(__name__)
 
 CURSOR_AGENDAMENTOS = "agendamentos_editados"
 SOBREPOSICAO_CURSOR = timedelta(minutes=2)
@@ -137,8 +148,54 @@ class ColetarCiclo:
         }
 
 
+SITUACOES_EM_ABERTO = frozenset({Situacao.AGENDADO, Situacao.AGUARDANDO, Situacao.EM_ATENDIMENTO})
+MAXIMO_IDS_NO_DETALHE = 20
+
+
+def fechar_fora_do_dia(
+    uow: UnidadeDeTrabalho,
+    dia: date,
+    presentes: Collection[int],
+    observado_em: datetime,
+) -> list[int]:
+    """Fecha os agendamentos do dia, ainda em aberto aqui, que sumiram da lista do SGG.
+
+    Quem é remarcado para outro dia ou excluído deixa de vir na consulta do dia, e o
+    polling por edição nunca mais o vê: sem isso ele ficaria "Aguardando" para sempre
+    na fila do monitor. Vira "Cancelado" (fora das contas do dia) com origem
+    reconciliação. Se ele voltar a aparecer, a detecção registra a nova situação.
+    O mesmo vale para quem veio com uma situação que o sistema não conhece.
+    """
+    fechados = []
+    for snapshot in uow.snapshots.listar_por_data(dia, dia):
+        if (
+            snapshot.situacao_atual not in SITUACOES_EM_ABERTO
+            or snapshot.id_agendamento in presentes
+        ):
+            continue
+        uow.eventos.inserir(
+            Evento(
+                id_agendamento=snapshot.id_agendamento,
+                status_anterior=snapshot.situacao_atual,
+                status_novo=Situacao.CANCELADO,
+                ocorrido_em=observado_em,
+                observado_em=observado_em,
+                origem=OrigemEvento.RECONCILIACAO,
+            )
+        )
+        uow.snapshots.salvar(
+            replace(snapshot, situacao_atual=Situacao.CANCELADO, atualizado_em=observado_em)
+        )
+        fechados.append(snapshot.id_agendamento)
+    return fechados
+
+
 class ReconciliarDia:
-    """RF03 — varredura do dia inteiro por ``data_hora_agendamento``."""
+    """RF03: varredura do dia inteiro por ``data_hora_agendamento``.
+
+    Roda às 18:30 e, durante o expediente, a cada poucos minutos: o polling só enxerga
+    o que teve a data de edição alterada, e a varredura acerta o que escapou.
+    """
 
     def __init__(self, sgg: SggGateway, uow: FabricaUoW, relogio: Relogio) -> None:
         self._sgg = sgg
@@ -148,18 +205,35 @@ class ReconciliarDia:
     def executar(self, dia: date) -> dict[str, object]:
         antes = self._sgg.requisicoes_realizadas
         registros = self._sgg.agendamentos_do_dia(dia)
+        ignorados = dict(self._sgg.ignorados_na_ultima_consulta)
+        agora = self._relogio.agora()
         with self._uow() as uow:
-            resultado = registrar_observacoes(
-                uow, registros, self._relogio.agora(), OrigemEvento.RECONCILIACAO
-            )
+            resultado = registrar_observacoes(uow, registros, agora, OrigemEvento.RECONCILIACAO)
+            fechados: list[int] = []
+            # Lista vazia quase sempre é falha da API: nunca fecha o dia inteiro por isso.
+            # Quem veio com situação desconhecida (ex.: "Remarcado") também sai da fila:
+            # seja qual for a situação nova, não é mais "Aguardando". O motivo fica no
+            # detalhe da execução para a situação ser mapeada.
+            if registros:
+                presentes = {r.id_agendamento for r in registros}
+                fechados = fechar_fora_do_dia(uow, dia, presentes, agora)
             uow.commit()
-        return {
+        if fechados:
+            log.info("agendamentos_fora_do_dia", referencia=dia.isoformat(), ids=fechados)
+        detalhe: dict[str, object] = {
             "referencia": dia.isoformat(),
             "requisicoes": self._sgg.requisicoes_realizadas - antes,
             "registros": resultado.registros,
             "eventos_novos": resultado.eventos_novos,
             "saltos": resultado.saltos,
         }
+        if fechados:
+            detalhe["fora_do_dia"] = len(fechados)
+            detalhe["ids_fora_do_dia"] = ", ".join(map(str, fechados[:MAXIMO_IDS_NO_DETALHE]))
+        if ignorados:
+            detalhe["ignorados"] = len(ignorados)
+            detalhe["motivos_ignorados"] = "; ".join(sorted(set(ignorados.values())))
+        return detalhe
 
 
 class SincronizarAgendas:

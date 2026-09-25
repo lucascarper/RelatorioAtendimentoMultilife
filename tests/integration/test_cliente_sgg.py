@@ -107,6 +107,7 @@ def test_paginacao_segue_tem_proxima_pagina_e_descarta_invalidos(cliente: Client
     )
     registros = cliente.agendamentos_do_dia(date(2026, 9, 23))
     assert [r.id_agendamento for r in registros] == [1001, 1002, 1003]  # 1004 é inválido
+    assert cliente.ignorados_na_ultima_consulta == {1004: "Situação desconhecida: 'Remarcado'"}
     assert [c.request.url.params["paginador[pagina]"] for c in rota.calls] == ["0", "1"]
     params = rota.calls[0].request.url.params
     assert params["data_hora_agendamento_aPartirDe"] == "2026-09-23 00:00:00"

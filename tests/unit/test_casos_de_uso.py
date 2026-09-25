@@ -144,6 +144,50 @@ class TestReconciliacaoESync:
         evento = next(e for e in sistema.banco.eventos if e.id_agendamento == 2)
         assert evento.origem is OrigemEvento.RECONCILIACAO
 
+    def aguardando_desde_cedo(self, sistema: Sistema, *ids: int) -> None:
+        """Agendamentos que o polling viu chegar e depois nunca mais viu mudar."""
+        sistema.sgg.editados.append([registro_sgg(i, Situacao.AGUARDANDO, "07:10") for i in ids])
+        sistema.relogio.instante = hora("07:11")
+        sistema.coletar.executar()
+
+    def test_varredura_fecha_quem_saiu_do_dia_no_sgg(self, sistema: Sistema) -> None:
+        self.aguardando_desde_cedo(sistema, 1, 2, 3)
+        # O 1 foi atendido sem mudar a data de edição; o 2 foi remarcado para outro dia
+        # (sumiu da lista de hoje); o 3 continua aguardando.
+        sistema.sgg.do_dia = [
+            registro_sgg(1, ATENDIDO, "07:10"),
+            registro_sgg(3, Situacao.AGUARDANDO, "07:10"),
+        ]
+        sistema.relogio.instante = hora("13:15")
+        resultado = sistema.reconciliar.executar(DIA)
+        assert (resultado["fora_do_dia"], resultado["ids_fora_do_dia"]) == (1, "2")
+        situacoes = {i: s.situacao_atual for i, s in sistema.banco.snapshots.items()}
+        assert situacoes == {1: ATENDIDO, 2: Situacao.CANCELADO, 3: Situacao.AGUARDANDO}
+        fechamento = next(
+            e
+            for e in sistema.banco.eventos
+            if e.id_agendamento == 2 and e.status_novo is Situacao.CANCELADO
+        )
+        assert (fechamento.status_anterior, fechamento.ocorrido_em) == (
+            Situacao.AGUARDANDO,
+            hora("13:15"),
+        )
+
+    def test_varredura_nunca_fecha_o_dia_com_lista_vazia(self, sistema: Sistema) -> None:
+        self.aguardando_desde_cedo(sistema, 1, 2)
+        sistema.relogio.instante = hora("13:15")
+        assert "fora_do_dia" not in sistema.reconciliar.executar(DIA)  # API devolveu vazio
+        assert sistema.banco.snapshots[2].situacao_atual is Situacao.AGUARDANDO
+
+    def test_situacao_desconhecida_sai_da_fila_e_fica_registrada(self, sistema: Sistema) -> None:
+        self.aguardando_desde_cedo(sistema, 1, 2)
+        sistema.sgg.do_dia = [registro_sgg(1, Situacao.AGUARDANDO, "07:10")]
+        sistema.sgg.ignorados_na_ultima_consulta = {2: "Situação desconhecida: 'Remarcado'"}
+        sistema.relogio.instante = hora("13:15")
+        resultado = sistema.reconciliar.executar(DIA)
+        assert resultado["ids_fora_do_dia"] == "2"
+        assert resultado["motivos_ignorados"] == "Situação desconhecida: 'Remarcado'"
+
     def test_sync_preserva_inclusao_e_desativa_ausentes(self, sistema: Sistema) -> None:
         sistema.banco.agendas[10] = agenda(10, "Clínico", incluir=False)
         sistema.banco.agendas[30] = agenda(30, "Antiga")

@@ -33,6 +33,11 @@ class SggGateway(Protocol):
     @property
     def requisicoes_realizadas(self) -> int: ...
 
+    @property
+    def ignorados_na_ultima_consulta(self) -> Mapping[int, str]:
+        """IDs que vieram na última consulta mas não puderam ser lidos (id → motivo)."""
+        ...
+
     def agendamentos_editados(self, de: datetime, ate: datetime) -> list[AgendamentoSgg]: ...
 
     def agendamentos_do_dia(

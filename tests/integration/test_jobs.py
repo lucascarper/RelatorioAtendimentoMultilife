@@ -86,6 +86,7 @@ def test_agenda_de_jobs_da_documentacao() -> None:
     assert set(gatilhos) == {
         "sync_agendas",
         "coletar_ciclo",
+        "varrer_dia",
         "reconciliar_dia_1",
         "reconciliar_dia_2",
         "reconciliar_dia_3",
@@ -101,6 +102,7 @@ def test_agenda_de_jobs_da_documentacao() -> None:
     }
     assert "hour='5', minute='30'" in gatilhos["sync_agendas"]
     assert "hour='6-18', minute='*', second='*/5'" in gatilhos["coletar_ciclo"]
+    assert "hour='6-18', minute='*/5', second='2'" in gatilhos["varrer_dia"]
     assert "hour='18', minute='30'" in gatilhos["reconciliar_dia_1"]
     assert "hour='23', minute='0'" in gatilhos["consolidar_dia_1"]
     assert "hour='2', minute='0'" in gatilhos["consolidar_dia_2"]
