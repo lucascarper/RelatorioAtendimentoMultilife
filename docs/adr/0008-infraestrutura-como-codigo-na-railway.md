@@ -13,8 +13,9 @@ O `web` e o `worker` eram configurados por Config as Code: o `railway.json` e o 
 ## Decisão
 
 - `.railway/railway.ts` declara o `web` e o `worker` com **exatamente** os mesmos valores dos dois JSON: builder Dockerfile, comando de início, `alembic upgrade head` no pre-deploy, `/health/live` com timeout de 60 s no `web`, 1 réplica e política de reinício (`ON_FAILURE`/5 no `web`, `ALWAYS` no `worker`). A equivalência foi conferida campo a campo avaliando o arquivo com o SDK.
-- O arquivo é um **partial** (`export const partial = "relatorio-atendimentos"`). Ele só é dono do `web` e do `worker`. O PostgreSQL e as variáveis de ambiente (com os segredos) continuam no painel e ficam fora do arquivo, então um `apply` não pode apagá-los por omissão. É o mesmo formato que o `railway config migrate` gera para Config as Code por serviço.
-- Os serviços não declaram `source`: a conexão com o GitHub e o deploy automático a cada merge continuam como estão no painel.
+- O arquivo é um **partial** (`export const partial = "relatorio-atendimentos"`). Ele só é dono do `web` e do `worker`, e o PostgreSQL fica de fora.
+- **Um serviço declarado tem todas as variáveis gerenciadas pelo arquivo.** Variável que não estiver na lista é apagada no `apply`, como mostrou o primeiro `plan` (40 exclusões). Por isso os 20 nomes estão em `VARIAVEIS` com `preserve()`: o valor continua só no painel e nenhum segredo vai para o código. Variável nova precisa entrar na lista antes do próximo `apply`.
+- A origem GitHub é declarada (`github(..., { checkSuites: true })`) para manter o repositório conectado e o "Wait for CI".
 - O SDK `railway` (TypeScript) entra como dependência de desenvolvimento num `package.json` na raiz, com versão fixa, porque o SDK está em beta. É o único Node do projeto, e a imagem Docker ignora esses arquivos.
 
 ## Consequências
