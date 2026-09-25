@@ -91,15 +91,17 @@
 
   <section class="card" aria-labelledby="t-consultorios">
     <h2 id="t-consultorios">TMA por consultório</h2>
-    <p class="nota">Do maior para o menor TMA de hoje. Barra proporcional ao maior TMA.</p>
-    {%- if p.consultorios %}
+    <p class="nota">Um bloco por turno (na troca de turno troca o médico). Barras na mesma escala nos dois turnos.</p>
+    {%- for b in p.a.consultorios_turnos %}
+    <h3 class="subtitulo-turno">{{ b.rotulo }} <span class="nota">{{ b.faixa }}</span></h3>
+    {%- if b.linhas %}
     <div class="rolagem">
     <table class="tabela tabela-compacta">
       <thead><tr><th>Consultório</th><th class="num">Atend.</th><th>TMA</th></tr></thead>
       <tbody>
-      {%- for c in p.consultorios %}
+      {%- for c in b.linhas %}
         <tr>
-          <td><strong>{{ c.consultorio }}</strong>{% if c.agenda %}<div class="nota">{{ c.agenda }}</div>{% endif %}</td>
+          <td><strong>{{ c.consultorio }}</strong>{% if c.guiche %} <span class="badge badge-neutro">guichê</span>{% endif %}{% if c.agenda %}<div class="nota">{{ c.agenda }}</div>{% endif %}</td>
           <td class="num">{{ c.atendimentos }}</td>
           <td class="celula-barra">
             <span class="num">{{ c.tma }}</span>
@@ -111,43 +113,54 @@
     </table>
     </div>
     {%- else %}
-    <p class="nota">Nenhum atendimento finalizado ainda.</p>
+    <p class="nota">Nenhum agendamento neste turno ainda.</p>
     {%- endif %}
+    {%- endfor %}
   </section>
 </div>
 
 <div class="monitor-grade">
   <section class="card" aria-labelledby="t-turnos">
     <h2 id="t-turnos">Por turno</h2>
-    <p class="nota">Turno definido pela hora agendada.</p>
+    <p class="nota">Turno definido pela hora agendada.{% if p.a.grupos_turno|length > 1 %} Guichês separados das demais agendas.{% endif %}</p>
+    {%- for grupo in p.a.grupos_turno %}
+    {%- if grupo.titulo %}<h3 class="subtitulo-turno">{{ grupo.titulo }}</h3>{% endif %}
     <table class="tabela tabela-compacta">
       <thead>
-        <tr><th>Indicador</th>{% for t in p.a.turnos %}<th class="num">{{ t.rotulo }}<div class="nota">{{ t.faixa }}</div></th>{% endfor %}</tr>
+        <tr><th>Indicador</th>{% for t in grupo.turnos %}<th class="num">{{ t.rotulo }}<div class="nota">{{ t.faixa }}</div></th>{% endfor %}</tr>
       </thead>
       <tbody>
-      {%- for linha in p.a.linhas_turno %}
+      {%- for linha in grupo.linhas %}
         <tr{% if linha.destaque %} class="linha-destaque"{% endif %}><td>{{ linha.rotulo }}</td>{% for v in linha.valores %}<td class="num">{{ v }}</td>{% endfor %}</tr>
       {%- endfor %}
       </tbody>
     </table>
+    {%- endfor %}
   </section>
 
   <section class="card" aria-labelledby="t-agendas">
     <h2 id="t-agendas">Tempo de atendimento por agenda</h2>
-    <p class="nota">Da agenda mais movimentada para a menos.</p>
+    <p class="nota">Um bloco por turno, da agenda mais movimentada para a menos.</p>
+    {%- for b in p.a.agendas_turnos %}
+    <h3 class="subtitulo-turno">{{ b.rotulo }} <span class="nota">{{ b.faixa }}</span></h3>
+    {%- if b.linhas %}
     <div class="rolagem">
     <table class="tabela tabela-compacta">
       <thead><tr><th>Agenda</th><th class="num">Qtd.</th><th class="num">Média</th><th class="num">Mediana</th><th class="num">Maior</th></tr></thead>
       <tbody>
-      {%- for ag in p.a.agendas %}
+      {%- for ag in b.linhas %}
         <tr>
-          <td><strong>{{ ag.agenda }}</strong>{% if ag.consultorio %}<div class="nota">{{ ag.consultorio }}</div>{% endif %}</td>
+          <td><strong>{{ ag.agenda }}</strong>{% if ag.guiche %} <span class="badge badge-neutro">guichê</span>{% endif %}{% if ag.consultorio %}<div class="nota">{{ ag.consultorio }}</div>{% endif %}</td>
           <td class="num">{{ ag.atendimentos }}</td><td class="num">{{ ag.media }}</td><td class="num">{{ ag.mediana }}</td><td class="num">{{ ag.maximo }}</td>
         </tr>
       {%- endfor %}
       </tbody>
     </table>
     </div>
+    {%- else %}
+    <p class="nota">Nenhum agendamento neste turno ainda.</p>
+    {%- endif %}
+    {%- endfor %}
   </section>
 </div>
 {% endif %}

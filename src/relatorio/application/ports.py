@@ -65,13 +65,15 @@ class AgendaRepository(Protocol):
     def listar(self) -> list[Agenda]: ...
 
     def sincronizar(self, agendas: Sequence[Agenda]) -> tuple[int, int, int]:
-        """Upsert preservando ``incluir_relatorio``; desativa as que sumiram.
+        """Upsert preservando ``incluir_relatorio`` e ``guiche``; desativa as que sumiram.
 
         Retorna (novas, atualizadas, desativadas).
         """
         ...
 
     def definir_inclusao(self, id_agenda: int, incluir: bool) -> None: ...
+
+    def definir_guiche(self, id_agenda: int, guiche: bool) -> None: ...
 
 
 class SnapshotRepository(Protocol):

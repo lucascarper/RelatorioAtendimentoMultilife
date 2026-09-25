@@ -59,6 +59,7 @@ class AgendaModel(Base):
     unidade_atendimento: Mapped[str | None] = mapped_column(String(200))
     ativa: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     incluir_relatorio: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    guiche: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     atualizado_em: Mapped[datetime] = mapped_column(server_default=func.now())
 
 

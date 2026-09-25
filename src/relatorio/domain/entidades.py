@@ -104,7 +104,7 @@ class Evento:
 
 @dataclass(frozen=True, slots=True)
 class Agenda:
-    """Agenda do SGG. Cada agenda corresponde a um consultório."""
+    """Agenda do SGG: um consultório ou um guichê (recepção, marcado no admin)."""
 
     id_agenda: int
     nome: str
@@ -113,6 +113,7 @@ class Agenda:
     unidade_atendimento: str | None
     ativa: bool = True
     incluir_relatorio: bool = True
+    guiche: bool = False
 
     @property
     def consultorio(self) -> str:

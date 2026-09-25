@@ -158,7 +158,7 @@ class TestPaginas:
         [
             ("/admin", "Reprocessar ou reenviar uma data"),
             ("/admin/destinatarios", "Cadastrar"),
-            ("/admin/agendas", "Agendas (consultórios)"),
+            ("/admin/agendas", "Agendas (consultórios e guichês)"),
             ("/admin/configuracoes", "Início da tarde (corte)"),
             ("/admin/execucoes", "Execuções dos jobs"),
         ],
@@ -238,6 +238,12 @@ class TestConfiguracoesEUnidades:
             "/admin/agendas/10/incluir", data={"incluir": "false"}, headers={"X-CSRF-Token": token}
         )
         assert "Fora" in linha.text
+        guiche = cliente.post(
+            "/admin/agendas/10/guiche", data={"guiche": "true"}, headers={"X-CSRF-Token": token}
+        )
+        assert 'aria-checked="true"' in guiche.text and "Guichê" in guiche.text
+        with uow() as u:
+            assert next(a for a in u.agendas.listar() if a.id_agenda == 10).guiche is True
         sem_chave = cliente.post("/admin/agendas/sincronizar", data={"csrf": token})
         assert "SGG indisponível" in sem_chave.text
 

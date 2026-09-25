@@ -53,7 +53,7 @@ class _Agendas:
             else:
                 atualizadas += 1
                 self.b.agendas[agenda.id_agenda] = replace(
-                    agenda, incluir_relatorio=existente.incluir_relatorio
+                    agenda, incluir_relatorio=existente.incluir_relatorio, guiche=existente.guiche
                 )
         desativadas = 0
         for id_agenda, agenda in list(self.b.agendas.items()):
@@ -64,6 +64,9 @@ class _Agendas:
 
     def definir_inclusao(self, id_agenda: int, incluir: bool) -> None:
         self.b.agendas[id_agenda] = replace(self.b.agendas[id_agenda], incluir_relatorio=incluir)
+
+    def definir_guiche(self, id_agenda: int, guiche: bool) -> None:
+        self.b.agendas[id_agenda] = replace(self.b.agendas[id_agenda], guiche=guiche)
 
 
 class _Snapshots:

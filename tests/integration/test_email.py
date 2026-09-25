@@ -12,6 +12,9 @@ from typing import Any
 import pytest
 
 from relatorio.application.modelos import ConteudoEmail, ImagemInline
+from relatorio.domain.comparativo import comparar
+from relatorio.domain.metricas import RegrasMetricas, calcular_metricas
+from relatorio.domain.resumo import ResumoDiario
 from relatorio.infrastructure.email.apresentacao import (
     duracao,
     montar_apresentacao,
@@ -27,6 +30,7 @@ from relatorio.infrastructure.email.envio import (
 from relatorio.infrastructure.email.renderizador import LOGO_CID, RenderizadorJinja
 from relatorio.infrastructure.sgg.simulado import gerar_dia
 from relatorio.interfaces.demo import gerar_previa, html_para_navegador, volume_do_dia
+from tests.fabricas import agenda, atendimento, hora
 
 RAIZ = Path(__file__).resolve().parents[2]
 DIA = date(2026, 9, 23)
@@ -69,7 +73,7 @@ class TestRelatorio:
             "Tempo de atendimento por agenda",
             "Comparativo com a semana anterior",
             "Alertas",
-            "Regra de cálculo v1.0.0",
+            "Regra de cálculo v1.1.0",
             "Prévia com dados fictícios",
             "https://admin.exemplo",
         ):
@@ -264,3 +268,66 @@ def test_enviador_arquivo(tmp_path: Path) -> None:
     assert len(list(tmp_path.glob("*.eml"))) == 1
     [html] = tmp_path.glob("*.html")
     assert html.read_text(encoding="utf-8") == CONTEUDO.html
+
+
+class TestTurnosEGuiches:
+    """Blocos por turno (consultórios e agendas) e guichês separados na análise por turno."""
+
+    def resumo(self, guiche: bool) -> dict[str, Any]:
+        agendas = {
+            10: agenda(10, "Clínico", sala="Sala 01"),
+            50: agenda(50, "Recepção", sala="Guichê 1", guiche=guiche),
+        }
+        m = calcular_metricas(
+            [
+                atendimento(1, hora_agendada="08:00", chamada="08:00", fim="08:15"),
+                atendimento(
+                    2, hora_agendada="14:00", chegada="13:50", chamada="14:00", fim="14:30"
+                ),
+                atendimento(
+                    3,
+                    id_agenda=50,
+                    hora_agendada="07:30",
+                    chegada="07:25",
+                    chamada="07:30",
+                    fim="07:35",
+                ),
+            ],
+            agendas,
+            RegrasMetricas(),
+            hora("00:00"),
+            hora("23:59:59"),
+        )
+        return ResumoDiario(
+            DIA, ("Todas as unidades",), hora("23:00"), m, comparar(m.kpis, None, DIA)
+        ).para_json()
+
+    def test_guiches_separados_so_quando_ha_guiche(self) -> None:
+        assert [g["titulo"] for g in montar_apresentacao(self.resumo(False)).grupos_turno] == [""]
+        a = montar_apresentacao(self.resumo(True))
+        assert [g["titulo"] for g in a.grupos_turno] == ["Consultórios e demais agendas", "Guichês"]
+
+    def test_blocos_por_turno_com_escala_comum(self, renderizador: RenderizadorJinja) -> None:
+        a = montar_apresentacao(self.resumo(True))
+        manha, tarde = a.consultorios_turnos
+        assert (manha["rotulo"], tarde["rotulo"]) == ("Manhã", "Tarde")
+        assert [(c["consultorio"], c["tma"]) for c in manha["linhas"]] == [
+            ("Sala 01", "15 min"),
+            ("Guichê 1", "5 min"),
+        ]
+        assert [(c["consultorio"], c["tma"], c["barra"]) for c in tarde["linhas"]] == [
+            ("Sala 01", "30 min", 100)
+        ]
+        assert manha["linhas"][0]["barra"] == 50  # mesma escala nos dois turnos
+        assert [b["rotulo"] for b in a.agendas_turnos] == ["Manhã", "Tarde"]
+        conteudo = renderizador.relatorio(self.resumo(True))
+        assert "Guichês" in conteudo.html and "(guichê)" in conteudo.html
+        assert "TMA POR CONSULTÓRIO — TARDE" in conteudo.texto
+
+    def test_resumo_antigo_usa_celulas_de_turno(self) -> None:
+        antigo = self.resumo(False)
+        for chave in ("por_turno_grupos", "consultorios_por_turno", "agendas_por_turno"):
+            del antigo[chave]
+        a = montar_apresentacao(antigo)
+        assert [len(b["linhas"]) for b in a.consultorios_turnos] == [2, 1]
+        assert [b["rotulo"] for b in a.agendas_turnos] == ["Dia"]

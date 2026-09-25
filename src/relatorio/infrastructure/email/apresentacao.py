@@ -166,6 +166,9 @@ class Apresentacao:
     linhas_turno: tuple[dict[str, Any], ...]
     consultorios: tuple[dict[str, Any], ...]
     agendas: tuple[dict[str, Any], ...]
+    grupos_turno: tuple[dict[str, Any], ...]
+    consultorios_turnos: tuple[dict[str, Any], ...]
+    agendas_turnos: tuple[dict[str, Any], ...]
     comparativo_disponivel: bool
     comparativo_base: str
     coluna_atual: str
@@ -238,8 +241,10 @@ def _kpis(m: Mapping[str, Any]) -> tuple[CartaoKpi, ...]:
     )
 
 
-def _turnos(m: Mapping[str, Any]) -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
-    por_turno = m.get("por_turno", {})
+def _turnos(
+    m: Mapping[str, Any], por_turno: Mapping[str, Any] | None = None
+) -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
+    por_turno = m.get("por_turno", {}) if por_turno is None else por_turno
     chaves = [c for c in ("manha", "tarde") if c in por_turno]
     cabecalho = tuple(
         {"rotulo": por_turno[c]["rotulo"], "faixa": por_turno[c]["faixa"]} for c in chaves
@@ -261,6 +266,114 @@ def _turnos(m: Mapping[str, Any]) -> tuple[tuple[dict[str, Any], ...], tuple[dic
         linha("TMA", [duracao(x.get("tma_s")) for x in t], destaque=True),
     )
     return cabecalho, linhas
+
+
+TURNOS = ("manha", "tarde")
+
+
+def _faixas(m: Mapping[str, Any]) -> dict[str, dict[str, str]]:
+    por_turno = m.get("por_turno", {})
+    padrao = {"manha": "Manhã", "tarde": "Tarde"}
+    return {
+        c: {
+            "rotulo": por_turno.get(c, {}).get("rotulo", padrao[c]),
+            "faixa": por_turno.get(c, {}).get("faixa", ""),
+        }
+        for c in TURNOS
+    }
+
+
+def _grupos_turno(m: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
+    """Análise por turno; com guichês marcados, guichês e demais agendas separados."""
+    grupos = m.get("por_turno_grupos") or {}
+    guiches = grupos.get("guiches", {})
+    tem_guiche = any(guiches.get(c, {}).get("agendados") for c in TURNOS)
+    if not tem_guiche:
+        cabecalho, linhas = _turnos(m)
+        return ({"titulo": "", "turnos": cabecalho, "linhas": linhas},)
+    resultado = []
+    for titulo, chave in (("Consultórios e demais agendas", "agendas"), ("Guichês", "guiches")):
+        cabecalho, linhas = _turnos(m, grupos.get(chave, {}))
+        resultado.append({"titulo": titulo, "turnos": cabecalho, "linhas": linhas})
+    return tuple(resultado)
+
+
+def _barra(tma: float | None, maior: float) -> int:
+    largura = round(tma / maior * 100) if tma and maior else 0
+    # Largura mínima visível para valores pequenos, sem distorcer a leitura.
+    return max(largura, 3) if largura else 0
+
+
+def _consultorios_turnos(m: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
+    """TMA por consultório, um bloco por turno (na troca de turno troca o médico).
+
+    A barra usa a mesma escala nos dois turnos, para comparar manhã com tarde.
+    """
+    faixas = _faixas(m)
+    por_turno = m.get("consultorios_por_turno")
+    if por_turno is None:  # resumo antigo (regra 1.0): células manhã/tarde por consultório
+        por_turno = {
+            c: [
+                {
+                    "consultorio": x["consultorio"],
+                    "agenda": x["agenda"],
+                    "guiche": False,
+                    "atendimentos": x[c]["atendimentos"],
+                    "tma_s": x[c]["tma_s"],
+                }
+                for x in m.get("consultorios", [])
+                if x[c]["atendimentos"]
+            ]
+            for c in TURNOS
+        }
+    maior = max((x["tma_s"] or 0 for c in TURNOS for x in por_turno.get(c, [])), default=0)
+    blocos = []
+    for c in TURNOS:
+        linhas = sorted(
+            por_turno.get(c, []),
+            key=lambda x: (x["tma_s"] is None, -(x["tma_s"] or 0), x["consultorio"].lower()),
+        )
+        blocos.append(
+            {
+                **faixas[c],
+                "linhas": tuple(
+                    {
+                        "consultorio": x["consultorio"],
+                        "agenda": x["agenda"] if x["agenda"] != x["consultorio"] else "",
+                        "guiche": bool(x.get("guiche")),
+                        "atendimentos": numero(x["atendimentos"]),
+                        "tma": duracao(x["tma_s"]),
+                        "barra": _barra(x["tma_s"], maior),
+                    }
+                    for x in linhas
+                ),
+            }
+        )
+    return tuple(blocos)
+
+
+def _linhas_agenda(linhas: Sequence[Mapping[str, Any]]) -> tuple[dict[str, Any], ...]:
+    return tuple(
+        {
+            "agenda": a["agenda"],
+            "consultorio": a["consultorio"] if a["consultorio"] != a["agenda"] else "",
+            "guiche": bool(a.get("guiche")),
+            "atendimentos": numero(a["atendimentos"]),
+            "media": duracao(a.get("media_s")),
+            "mediana": duracao(a.get("mediana_s")),
+            "maximo": duracao(a.get("maximo_s")),
+        }
+        for a in linhas
+    )
+
+
+def _agendas_turnos(m: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
+    """Tempo de atendimento por agenda, um bloco por turno."""
+    por_turno = m.get("agendas_por_turno")
+    if por_turno is None:  # resumo antigo: só o total do dia
+        return ({"rotulo": "Dia", "faixa": "", "linhas": _linhas_agenda(m.get("agendas", []))},)
+    faixas = _faixas(m)
+    return tuple({**faixas[c], "linhas": _linhas_agenda(por_turno.get(c, []))} for c in TURNOS)
 
 
 def _consultorios(m: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
@@ -456,6 +569,9 @@ def montar_apresentacao(m: Mapping[str, Any], admin_url: str = "") -> Apresentac
             linhas_turno=(),
             consultorios=(),
             agendas=(),
+            grupos_turno=(),
+            consultorios_turnos=(),
+            agendas_turnos=(),
             comparativo_disponivel=False,
             comparativo_base="",
             coluna_atual="",
@@ -501,6 +617,9 @@ def montar_apresentacao(m: Mapping[str, Any], admin_url: str = "") -> Apresentac
         linhas_turno=linhas_turno,
         consultorios=_consultorios(m),
         agendas=_agendas(m),
+        grupos_turno=_grupos_turno(m),
+        consultorios_turnos=_consultorios_turnos(m),
+        agendas_turnos=_agendas_turnos(m),
         comparativo_disponivel=bool(comp.get("disponivel")),
         comparativo_base=(
             f"{DIAS_CURTOS[date.fromisoformat(base).weekday()]} {data_curta(base)}" if base else ""

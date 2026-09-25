@@ -57,7 +57,7 @@ Leitura em até 1 minuto, em pirâmide de atenção:
 
 1. **Topo:** manchete em uma frase ("102 atendimentos e 11 faltas… espera média 15 min, +93,7% sobre a semana anterior") e selo de alertas.
 2. **KPIs:** atendimentos, faltas (% dos agendados), espera média e TMA, cada um com variação contra o mesmo dia da semana anterior. A seta sempre vem com o valor e o rótulo, nunca só a cor. Verde e vermelho aparecem só quando subir é claramente bom ou ruim; o TMA é neutro. Taxas variam em pontos percentuais (p.p.).
-3. **Meio (evidência):** tabela por turno, TMA por consultório com barras proporcionais (uma única cor, a azul da marca, ordenado do maior para o menor) e tempos por agenda (qtd., média, mediana, maior).
+3. **Meio (evidência):** tabela por turno (com os **guichês** separados das demais agendas, quando houver agendas marcadas como guichê em *Unidades e agendas*), TMA por consultório e tempos por agenda (qtd., média, mediana, maior), **um bloco por turno**, porque na troca de turno troca o médico. As barras de TMA usam uma única cor, a azul da marca, e a mesma escala nos dois turnos.
 4. **Base:** comparativo semanal completo, alertas por severidade (ícone + rótulo + cor) e rodapé com a versão da regra e o link do admin.
 
 Tecnicamente: layout em tabelas compatível com Outlook e Gmail, CSS inline (premailer), logo anexada via CID (Outlook não bloqueia), responsivo (KPIs em 2×2 no celular), versão em texto puro e contraste WCAG AA (texto ≥ 4,5:1). O template recebe só o JSON de `resumo_diario.metricas`, e nenhuma regra de cálculo fica nele.

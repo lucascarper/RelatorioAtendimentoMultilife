@@ -232,6 +232,9 @@ td .nota, .par .nota { margin: 0; }
 .dica-chave { display: inline-block; width: 12px; height: 3px; border-radius: 2px; }
 
 .tabela-compacta td { padding: 8px 10px; }
+.subtitulo-turno { font-size: 14px; margin: 16px 0 6px; color: var(--tinta); }
+.subtitulo-turno:first-of-type { margin-top: 8px; }
+.subtitulo-turno .nota { font-weight: 400; margin: 0; }
 .tabela th .nota { font-weight: 400; color: var(--secundaria); margin: 0; }
 .linha-destaque td { font-weight: 700; }
 .celula-barra { min-width: 150px; }

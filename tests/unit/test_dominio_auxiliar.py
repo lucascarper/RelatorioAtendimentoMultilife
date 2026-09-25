@@ -202,7 +202,7 @@ class TestResumo:
         )
         dados = resumo.para_json()
         json.dumps(dados)  # não pode lançar
-        assert dados["versao_regra"] == "1.0.0"
+        assert dados["versao_regra"] == "1.1.0"
         assert dados["dia_semana"] == "quarta-feira"
         assert dados["sem_movimento"] is False
         assert dados["kpis"]["atendimentos"] == 1

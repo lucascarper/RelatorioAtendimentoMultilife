@@ -26,7 +26,7 @@ from zoneinfo import ZoneInfo
 from relatorio.domain.entidades import FUSO_BRASILIA, Agenda, Evento, Situacao, Turno
 from relatorio.domain.turnos import ConfiguracaoTurnos
 
-VERSAO_REGRA = "1.0.0"
+VERSAO_REGRA = "1.1.0"  # 1.1: guichês e consultórios/agendas por turno
 
 
 # --------------------------------------------------------------------------- entradas
@@ -145,6 +145,19 @@ class LinhaConsultorio:
 
 
 @dataclass(frozen=True, slots=True)
+class LinhaConsultorioTurno:
+    """TMA de um consultório num turno (na troca de turno costuma trocar o médico)."""
+
+    id_agenda: int | None
+    consultorio: str
+    agenda: str
+    guiche: bool
+    atendimentos: int
+    atendimentos_medidos: int
+    tma_s: int | None
+
+
+@dataclass(frozen=True, slots=True)
 class LinhaAgenda:
     id_agenda: int | None
     agenda: str
@@ -155,6 +168,7 @@ class LinhaAgenda:
     media_s: int | None
     mediana_s: int | None
     maximo_s: int | None
+    guiche: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -213,6 +227,12 @@ class MetricasPeriodo:
     consultorios: tuple[LinhaConsultorio, ...]
     agendas: tuple[LinhaAgenda, ...]
     alertas: Alertas
+    # "agendas" (consultórios e demais) e "guiches" → turno → resumo.
+    por_turno_grupos: dict[str, dict[str, ResumoTurno]] = field(default_factory=dict)
+    consultorios_por_turno: dict[str, tuple[LinhaConsultorioTurno, ...]] = field(
+        default_factory=dict
+    )
+    agendas_por_turno: dict[str, tuple[LinhaAgenda, ...]] = field(default_factory=dict)
 
     @property
     def sem_movimento(self) -> bool:
@@ -352,6 +372,7 @@ class _Linha:
     hora_agendada: str | None
     turno: Turno | None
     situacao: Situacao
+    guiche: bool = False
     espera_s: float | None = None
     atendimento_s: float | None = None
     atipico: str | None = None
@@ -392,6 +413,7 @@ def _classificar(
         ),
         turno=definir_turno(agendamento, regras.turnos, regras.fuso),
         situacao=situacao,
+        guiche=bool(agenda and agenda.guiche),
     )
 
     # Espera e atendimento só com eventos do próprio dia do agendamento: um evento
@@ -436,6 +458,66 @@ def _celula(linhas: Sequence[_Linha]) -> CelulaTma:
     atendidas = [x for x in linhas if x.situacao is Situacao.ATENDIDO]
     duracoes = [x.atendimento_s for x in atendidas if x.medido and x.atendimento_s is not None]
     return CelulaTma(atendimentos=len(atendidas), tma_s=_media(duracoes))
+
+
+def _linha_agenda(grupo: Sequence[_Linha]) -> LinhaAgenda:
+    referencia = grupo[0]
+    atendidas = [x for x in grupo if x.situacao is Situacao.ATENDIDO]
+    duracoes = [x.atendimento_s for x in atendidas if x.medido and x.atendimento_s is not None]
+    return LinhaAgenda(
+        id_agenda=referencia.id_agenda,
+        agenda=referencia.agenda,
+        consultorio=referencia.consultorio,
+        agendados=len(grupo),
+        atendimentos=len(atendidas),
+        atendimentos_medidos=len(duracoes),
+        media_s=_media(duracoes),
+        mediana_s=_mediana(duracoes),
+        maximo_s=_maximo(duracoes),
+        guiche=referencia.guiche,
+    )
+
+
+def _ordem_agenda(linha: LinhaAgenda) -> tuple[int, str]:
+    return (-linha.atendimentos, linha.agenda.lower())
+
+
+def _ordem_tma_turno(linha: LinhaConsultorioTurno) -> tuple[int, float, str]:
+    return (1 if linha.tma_s is None else 0, -(linha.tma_s or 0), linha.consultorio.lower())
+
+
+def _por_turno(
+    grupos: Mapping[str, Sequence[_Linha]],
+) -> tuple[dict[str, tuple[LinhaConsultorioTurno, ...]], dict[str, tuple[LinhaAgenda, ...]]]:
+    """Consultórios (TMA) e agendas (tempos) separados por turno.
+
+    Um consultório só aparece no turno em que teve agendamento.
+    """
+    consultorios: dict[str, tuple[LinhaConsultorioTurno, ...]] = {}
+    agendas: dict[str, tuple[LinhaAgenda, ...]] = {}
+    for turno in Turno:
+        linhas_c: list[LinhaConsultorioTurno] = []
+        linhas_a: list[LinhaAgenda] = []
+        for grupo in grupos.values():
+            do_turno = [x for x in grupo if x.turno is turno]
+            if not do_turno:
+                continue
+            agenda = _linha_agenda(do_turno)
+            linhas_a.append(agenda)
+            linhas_c.append(
+                LinhaConsultorioTurno(
+                    id_agenda=agenda.id_agenda,
+                    consultorio=agenda.consultorio,
+                    agenda=agenda.agenda,
+                    guiche=agenda.guiche,
+                    atendimentos=agenda.atendimentos,
+                    atendimentos_medidos=agenda.atendimentos_medidos,
+                    tma_s=agenda.media_s,
+                )
+            )
+        consultorios[turno.value] = tuple(sorted(linhas_c, key=_ordem_tma_turno))
+        agendas[turno.value] = tuple(sorted(linhas_a, key=_ordem_agenda))
+    return consultorios, agendas
 
 
 def _chave_ordem_tma(linha: LinhaConsultorio) -> tuple[int, float, str]:
@@ -496,23 +578,21 @@ def calcular_metricas(
                 total=_celula(grupo),
             )
         )
-        atendidas = [x for x in grupo if x.situacao is Situacao.ATENDIDO]
-        duracoes = [x.atendimento_s for x in atendidas if x.medido and x.atendimento_s is not None]
-        tabela_agendas.append(
-            LinhaAgenda(
-                id_agenda=referencia.id_agenda,
-                agenda=referencia.agenda,
-                consultorio=referencia.consultorio,
-                agendados=len(grupo),
-                atendimentos=len(atendidas),
-                atendimentos_medidos=len(duracoes),
-                media_s=_media(duracoes),
-                mediana_s=_mediana(duracoes),
-                maximo_s=_maximo(duracoes),
-            )
-        )
+        tabela_agendas.append(_linha_agenda(grupo))
     consultorios.sort(key=_chave_ordem_tma)
-    tabela_agendas.sort(key=lambda a: (-a.atendimentos, a.agenda.lower()))
+    tabela_agendas.sort(key=_ordem_agenda)
+    consultorios_por_turno, agendas_por_turno = _por_turno(grupos)
+    por_turno_grupos = {
+        nome: {
+            turno.value: _resumo_turno(
+                [x for x in linhas if x.turno is turno and x.guiche is guiche],
+                turno.rotulo,
+                regras.turnos.faixa(turno),
+            )
+            for turno in Turno
+        }
+        for nome, guiche in (("agendas", False), ("guiches", True))
+    }
 
     atipicos = tuple(
         sorted(
@@ -577,4 +657,7 @@ def calcular_metricas(
         consultorios=tuple(consultorios),
         agendas=tuple(tabela_agendas),
         alertas=alertas,
+        por_turno_grupos=por_turno_grupos,
+        consultorios_por_turno=consultorios_por_turno,
+        agendas_por_turno=agendas_por_turno,
     )

@@ -85,6 +85,7 @@ class TestAgendas:
                 0,
             )
             u.agendas.definir_inclusao(10, False)
+            u.agendas.definir_guiche(10, True)
             u.commit()
         with uow() as u:
             resultado = u.agendas.sincronizar(
@@ -97,6 +98,8 @@ class TestAgendas:
         assert agendas[10].nome == "Clínico Geral"
         assert agendas[10].consultorio == "Sala 01"
         assert agendas[10].incluir_relatorio is False
+        assert agendas[10].guiche is True  # o sync não desfaz a marcação do admin
+        assert agendas[20].guiche is False
         assert agendas[30].ativa is False
 
 

@@ -10,4 +10,11 @@
       <span class="alternador-trilho" aria-hidden="true"></span>{{ "Incluída" if a.incluir_relatorio else "Fora" }}
     </button>
   </td>
+  <td>
+    <button type="button" class="alternador" role="switch" aria-checked="{{ 'true' if a.guiche else 'false' }}" aria-label="Guichê: {{ a.consultorio }}"
+            hx-post="/admin/agendas/{{ a.id_agenda }}/guiche" hx-vals='{"guiche": "{{ 'false' if a.guiche else 'true' }}"}'
+            hx-target="#agenda-{{ a.id_agenda }}" hx-swap="outerHTML">
+      <span class="alternador-trilho" aria-hidden="true"></span>{{ "Guichê" if a.guiche else "Consultório" }}
+    </button>
+  </td>
 </tr>
