@@ -8,11 +8,13 @@ import pytest
 
 from relatorio.application.metricas import JOB_COLETA
 from relatorio.application.modelos import ExecucaoJob, StatusJob
+from relatorio.domain.ao_vivo import FilaArea, SituacaoAoVivo
 from relatorio.domain.entidades import Situacao
 from relatorio.interfaces.web.dependencias import SituacaoColeta
 from relatorio.interfaces.web.monitor import (
     PainelMonitor,
     caminho_coluna,
+    cartoes_ao_vivo,
     escala,
     montar_painel,
 )
@@ -118,7 +120,7 @@ class TestPainel:
         assert "Hoje até agora: 1 atendimentos" in p.narrativa
         assert [c.valor for c in p.ao_vivo] == ["1", "0", "0"]
         assert p.comparacao == "comparado com qua 16/09/2026 até 10:00"
-        atendimentos = p.kpis[0]
+        atendimentos = p.grupos_kpis[0]["cartoes"][0]
         assert atendimentos.delta is not None
         assert atendimentos.delta.rotulo == "vs qua 16/09 até 10:00"
         assert (p.dados_de, p.coleta_estado) == ("09:59:30", "ok")
@@ -162,3 +164,17 @@ def test_coluna_vazia_e_ponta_arredondada() -> None:
     caminho = caminho_coluna(10, 20, 50, 100)
     assert caminho.startswith("M10.0,100.0V54.0Q10.0,50.0 14.0,50.0")
     assert caminho.endswith("V100.0Z")
+
+
+def test_cartoes_separados_por_area() -> None:
+    recepcao = FilaArea(2, 300, 600, 1, 120)
+    consultorio = FilaArea(0, None, None, 3, 1500)
+    v = SituacaoAoVivo(hora("10:00"), 2, 300, 600, 4, 1500, 5, 1, (), True, recepcao, consultorio)
+    rotulos = [(c.rotulo, c.valor) for c in cartoes_ao_vivo(v)]
+    assert rotulos == [
+        ("Espera recepção", "2"),
+        ("Espera consultório", "0"),
+        ("Em atendimento no guichê", "1"),
+        ("Em atendimento no consultório", "3"),
+        ("Ainda não chegaram", "5"),
+    ]

@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Any
 
 from relatorio.application.monitor import Monitor
-from relatorio.domain.ao_vivo import MovimentoHora, SituacaoAoVivo
+from relatorio.domain.ao_vivo import FilaArea, MovimentoHora, SituacaoAoVivo
 from relatorio.domain.entidades import FUSO_BRASILIA
 from relatorio.infrastructure.email.apresentacao import (
     Apresentacao,
@@ -89,7 +89,7 @@ class PainelMonitor:
     a: Apresentacao
     narrativa: str
     ao_vivo: tuple[CartaoAoVivo, ...]
-    kpis: tuple[CartaoKpi, ...]
+    grupos_kpis: tuple[dict[str, Any], ...]
     comparacao: str
     grafico: Grafico
     total_chegadas: int
@@ -205,43 +205,76 @@ def _plural(n: int, singular: str, plural: str) -> str:
     return f"{numero(n)} {singular if n == 1 else plural}"
 
 
-def cartoes_ao_vivo(v: SituacaoAoVivo) -> tuple[CartaoAoVivo, ...]:
-    return (
-        CartaoAoVivo(
-            rotulo="Na recepção agora",
-            valor=numero(v.aguardando),
-            contexto=(
-                f"maior espera {duracao(v.espera_atual_maxima_s)} · "
-                f"média {duracao(v.espera_atual_media_s)}"
-                if v.aguardando
-                else "ninguém aguardando atendimento"
-            ),
-            destaque=True,
+def _espera(rotulo: str, fila: FilaArea, vazio: str) -> CartaoAoVivo:
+    return CartaoAoVivo(
+        rotulo=rotulo,
+        valor=numero(fila.aguardando),
+        contexto=(
+            f"maior espera {duracao(fila.espera_maxima_s)} · média {duracao(fila.espera_media_s)}"
+            if fila.aguardando
+            else vazio
         ),
-        CartaoAoVivo(
-            rotulo="Em atendimento",
-            valor=numero(v.em_atendimento),
-            contexto=(
-                f"o mais longo começou há {duracao(v.atendimento_atual_maximo_s)}"
-                if v.em_atendimento
-                else "nenhum atendimento em andamento"
-            ),
-        ),
-        CartaoAoVivo(
-            rotulo="Ainda não chegaram",
-            valor=numero(v.a_chegar),
-            contexto="agendados de hoje sem chegada registrada",
-            atencao=(
-                f"{numero(v.a_chegar_atrasados)} com horário vencido há mais de 15 min"
-                if v.a_chegar_atrasados
-                else ""
-            ),
+        destaque=True,
+    )
+
+
+def _atendimento(rotulo: str, fila: FilaArea, vazio: str) -> CartaoAoVivo:
+    return CartaoAoVivo(
+        rotulo=rotulo,
+        valor=numero(fila.em_atendimento),
+        contexto=(
+            f"o mais longo começou há {duracao(fila.atendimento_maximo_s)}"
+            if fila.em_atendimento
+            else vazio
         ),
     )
 
 
+def cartoes_ao_vivo(v: SituacaoAoVivo) -> tuple[CartaoAoVivo, ...]:
+    a_chegar = CartaoAoVivo(
+        rotulo="Ainda não chegaram",
+        valor=numero(v.a_chegar),
+        contexto="agendados de hoje sem chegada registrada",
+        atencao=(
+            f"{numero(v.a_chegar_atrasados)} com horário vencido há mais de 15 min"
+            if v.a_chegar_atrasados
+            else ""
+        ),
+    )
+    if v.recepcao is not None and v.consultorio is not None:
+        # Com guichês marcados: onde está a espera, recepção ou consultório.
+        return (
+            _espera("Espera recepção", v.recepcao, "ninguém aguardando no guichê"),
+            _espera("Espera consultório", v.consultorio, "ninguém aguardando o médico"),
+            _atendimento("Em atendimento no guichê", v.recepcao, "nenhum guichê atendendo"),
+            _atendimento(
+                "Em atendimento no consultório", v.consultorio, "nenhum consultório atendendo"
+            ),
+            a_chegar,
+        )
+    geral = FilaArea(
+        aguardando=v.aguardando,
+        espera_media_s=v.espera_atual_media_s,
+        espera_maxima_s=v.espera_atual_maxima_s,
+        em_atendimento=v.em_atendimento,
+        atendimento_maximo_s=v.atendimento_atual_maximo_s,
+    )
+    return (
+        _espera("Na recepção agora", geral, "ninguém aguardando atendimento"),
+        _atendimento("Em atendimento", geral, "nenhum atendimento em andamento"),
+        a_chegar,
+    )
+
+
 def narrativa(v: SituacaoAoVivo, a: Apresentacao) -> str:
-    if v.aguardando:
+    if v.recepcao is not None and v.consultorio is not None:
+        partes = [
+            f"{_plural(fila.aguardando, 'pessoa', 'pessoas')} na espera {onde}"
+            + (f" (maior espera {duracao(fila.espera_maxima_s)})" if fila.aguardando else "")
+            for onde, fila in (("da recepção", v.recepcao), ("do consultório", v.consultorio))
+        ]
+        agora = f"Agora: {partes[0]} e {partes[1]}."
+    elif v.aguardando:
         agora = (
             f"{_plural(v.aguardando, 'pessoa', 'pessoas')} na recepção agora; "
             f"a maior espera é de {duracao(v.espera_atual_maxima_s)}."
@@ -288,16 +321,21 @@ def montar_painel(m: Monitor, coleta: SituacaoColeta, coletor_habilitado: bool) 
     a = montar_apresentacao(_json_ao_vivo(m))
     v = m.ao_vivo
     ate = m.instante_base.strftime("%H:%M")
-    kpis = tuple(
-        replace(k, delta=replace(k.delta, rotulo=f"{k.delta.rotulo} até {ate}")) if k.delta else k
-        for k in a.kpis
+
+    def ate_o_horario(k: CartaoKpi) -> CartaoKpi:
+        if k.delta is None:
+            return k
+        return replace(k, delta=replace(k.delta, rotulo=f"{k.delta.rotulo} até {ate}"))
+
+    grupos_kpis = tuple(
+        {**g, "cartoes": tuple(ate_o_horario(k) for k in g["cartoes"])} for g in a.grupos_kpis
     )
     texto, estado, dados_de = _estado_coleta(coleta, coletor_habilitado)
     return PainelMonitor(
         a=a,
         narrativa=narrativa(v, a),
         ao_vivo=cartoes_ao_vivo(v),
-        kpis=kpis,
+        grupos_kpis=grupos_kpis,
         comparacao=(
             f"comparado com {a.comparativo_base} até {ate}"
             if a.comparativo_disponivel

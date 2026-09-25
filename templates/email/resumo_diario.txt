@@ -8,8 +8,9 @@
 Não houve agendamentos nas unidades e agendas incluídas no relatório.
 {% else %}
 INDICADORES DO DIA
-{% for k in a.kpis %}- {{ k.rotulo }}: {{ k.valor }} ({{ k.contexto }}){% if k.delta %} — {{ k.delta.seta }} {{ k.delta.texto }} {{ k.delta.rotulo }}{% endif %}
-{% endfor %}
+{% for grupo in a.grupos_kpis %}{% if grupo.titulo %}{{ grupo.titulo | upper }}
+{% endif %}{% for k in grupo.cartoes %}- {{ k.rotulo }}: {{ k.valor }} ({{ k.contexto }}){% if k.delta %} — {{ k.delta.seta }} {{ k.delta.texto }} {{ k.delta.rotulo }}{% endif %}
+{% endfor %}{% endfor %}
 {% for g in a.grupos_turno %}POR TURNO{% if g.titulo %} — {{ g.titulo | upper }}{% endif %}{% for t in g.turnos %} | {{ t.rotulo }} ({{ t.faixa }}){% endfor %}
 {% for linha in g.linhas %}- {{ linha.rotulo }}:{% for v in linha.valores %} {{ v }}{% if not loop.last %} |{% endif %}{% endfor %}
 {% endfor %}

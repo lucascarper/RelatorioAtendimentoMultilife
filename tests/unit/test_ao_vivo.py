@@ -67,3 +67,28 @@ def test_volta_para_a_espera_conta_do_novo_aguardando() -> None:
     v = calcular_ao_vivo([agendamento], hora("08:30"))
     assert (v.aguardando, v.espera_atual_maxima_s) == (1, 600)
     assert {h.hora: h.chegadas for h in v.por_hora}[8] == 1  # a chegada conta uma vez
+
+
+def test_espera_separada_entre_recepcao_e_consultorio() -> None:
+    guiche = 50
+    agendamentos = [
+        # Recepção: um aguardando o guichê desde 09:40, outro sendo atendido desde 09:55.
+        atendimento(1, id_agenda=guiche, chegada="09:40", chamada=None, fim=None),
+        atendimento(2, id_agenda=guiche, chegada="09:45", chamada="09:55", fim=None),
+        # Consultório: dois aguardando o médico (desde 09:30 e 09:50).
+        atendimento(3, chegada="09:30", chamada=None, fim=None),
+        atendimento(4, chegada="09:50", chamada=None, fim=None),
+    ]
+    v = calcular_ao_vivo(agendamentos, hora("10:00"), guiches={guiche})
+    assert v.tem_guiche
+    assert v.recepcao is not None and v.consultorio is not None
+    assert (v.recepcao.aguardando, v.recepcao.espera_maxima_s) == (1, 20 * 60)
+    assert (v.recepcao.em_atendimento, v.recepcao.atendimento_maximo_s) == (1, 5 * 60)
+    assert (v.consultorio.aguardando, v.consultorio.espera_maxima_s) == (2, 30 * 60)
+    assert v.consultorio.em_atendimento == 0
+    assert (v.aguardando, v.em_atendimento) == (3, 1)  # o total continua somando tudo
+
+
+def test_sem_guiche_nao_separa() -> None:
+    v = calcular_ao_vivo([atendimento(1, chegada="09:40", chamada=None, fim=None)], hora("10:00"))
+    assert (v.tem_guiche, v.recepcao, v.consultorio) == (False, None, None)

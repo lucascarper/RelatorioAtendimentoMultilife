@@ -97,6 +97,7 @@ class ObterMonitor:
                 agora,
                 abertura=self._janela.inicio,
                 fechamento=self._janela.fim,
+                guiches={i for i, agenda in dados.agendas.items() if agenda.guiche},
             ),
             instante_base=instante_base,
         )
