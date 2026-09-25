@@ -64,6 +64,9 @@ def test_autenticacao_barra_final_e_filtros(cliente: ClienteSgg) -> None:
     params = requisicao.url.params
     assert params["editado_aPartirDe"] == "2026-09-23 07:58:00"
     assert params["editado_ate"] == "2026-09-23 08:01:00"
+    # AG001: o SGG exige um filtro obrigatório junto com editado_* (período de agendamento).
+    assert params["data_hora_agendamento_aPartirDe"] == "2026-09-23 00:00:00"
+    assert params["data_hora_agendamento_ate"] == "2026-09-23 23:59:59"
     assert params["paginador[pagina]"] == "0"
     assert params["paginador[tamanho]"] == "100"
     assert cliente.requisicoes_realizadas == 1
@@ -77,6 +80,21 @@ def test_filtro_convertido_para_horario_de_brasilia(cliente: ClienteSgg) -> None
     ate = datetime(2026, 9, 23, 11, 0, tzinfo=UTC)  # 08:00 em Brasília
     cliente.agendamentos_editados(ate - timedelta(minutes=5), ate)
     assert rota.calls.last.request.url.params["editado_ate"] == "2026-09-23 08:00:00"
+
+
+@respx.mock
+def test_janela_de_edicao_longa_respeita_limite_de_um_mes(cliente: ClienteSgg) -> None:
+    rota = respx.get(BASE + "agendamento/").mock(
+        return_value=httpx.Response(200, json={"resultado": []})
+    )
+    cliente.agendamentos_editados(instante("2026-08-01 23:00:00"), instante("2026-09-23 08:00:00"))
+    for chamada in rota.calls:
+        p = chamada.request.url.params
+        de = datetime.fromisoformat(p["data_hora_agendamento_aPartirDe"])
+        ate = datetime.fromisoformat(p["data_hora_agendamento_ate"])
+        assert ate - de < timedelta(days=31)  # AG009
+        assert p["data_hora_agendamento_aPartirDe"][:10] == p["editado_aPartirDe"][:10]
+        assert p["data_hora_agendamento_ate"][:10] == p["editado_ate"][:10]
 
 
 @respx.mock
