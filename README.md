@@ -32,6 +32,7 @@ flowchart LR
 | --- | --- | --- |
 | 05:30 | `sync_agendas`: cadastro de agendas/consultórios | usa o cadastro anterior |
 | 06:00–18:00, a cada 5 s (`COLETA_INTERVALO_S`) | `coletar_ciclo`: polling incremental com cursor no banco | o próximo ciclo recupera (2 min de sobreposição); alerta após 10 min falhando |
+| 06:00–18:00, a cada 5 min | `varrer_dia`: varredura do dia inteiro; fecha quem sumiu do dia no SGG (remarcado, excluído ou com situação desconhecida) | a próxima varredura recupera |
 | 18:30 | `reconciliar_dia`: varredura do dia inteiro | 19:00 e 22:00 |
 | 23:00 | `consolidar_dia`: métricas + conferência final no SGG (RF11) | 02:00 e 05:00; na 3ª falha, alerta técnico |
 | 07:59 | `enviar_relatorio`: e-mail do dia anterior | 08:01 e 08:03; depois, alerta técnico |

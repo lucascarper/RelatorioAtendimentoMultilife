@@ -94,10 +94,15 @@ class ClienteSgg:
         self._limitador = limitador or LimitadorTaxa(max_rpm)
         self._dormir: Callable[[float], None] = dormir or time_module.sleep
         self._requisicoes = 0
+        self._ignorados: dict[int, str] = {}
 
     @property
     def requisicoes_realizadas(self) -> int:
         return self._requisicoes
+
+    @property
+    def ignorados_na_ultima_consulta(self) -> Mapping[int, str]:
+        return dict(self._ignorados)
 
     def fechar(self) -> None:
         self._http.close()
@@ -186,6 +191,9 @@ class ClienteSgg:
                 log.warning(
                     "sgg_agendamento_ignorado", id=item.get("id_agendamento"), motivo=str(erro)
                 )
+                id_item = item.get("id_agendamento")
+                if isinstance(id_item, int) or (isinstance(id_item, str) and id_item.isdigit()):
+                    self._ignorados[int(id_item)] = str(erro)
                 continue
             # A mesma linha pode aparecer em duas páginas se a lista mudar no meio da
             # paginação; fica a versão com a edição mais recente.
@@ -201,6 +209,7 @@ class ClienteSgg:
         período de agendamento. Enviamos os dias inteiros cobertos pela janela, que
         são os agendamentos que entram no relatório desses dias.
         """
+        self._ignorados = {}
         resultado: list[AgendamentoSgg] = []
         inicio = de
         while inicio < ate:
@@ -237,6 +246,7 @@ class ClienteSgg:
         }
         if situacao is not None:
             filtros["situacao"] = situacao.value
+        self._ignorados = {}
         return self._agendamentos(filtros)
 
     def agendas(self) -> list[Agenda]:

@@ -83,3 +83,12 @@ def test_sincronizacao_e_retencao_uma_vez_por_mes(sistema: Sistema, jobs: JobsAg
     jobs.limpar_retencao()  # dia 2 é só retentativa
     assert execucoes(sistema, "sync_agendas") == [(StatusJob.SUCESSO, None)]
     assert execucoes(sistema, "limpar_retencao") == [(StatusJob.SUCESSO, "2026-09")]
+
+
+def test_varredura_do_dia_so_no_expediente(sistema: Sistema, jobs: JobsAgendados) -> None:
+    sistema.relogio.instante = hora("19:00")
+    jobs.varrer_dia()
+    assert execucoes(sistema, "varrer_dia") == []
+    sistema.relogio.instante = hora("10:00")
+    jobs.varrer_dia()
+    assert execucoes(sistema, "varrer_dia") == [(StatusJob.SUCESSO, "2026-09-23")]

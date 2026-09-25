@@ -205,6 +205,10 @@ class SggSimulado:
     lista_agendas: Sequence[Agenda] = field(default_factory=lambda: [p.agenda for p in PERFIS])
     requisicoes_realizadas: int = 0
 
+    @property
+    def ignorados_na_ultima_consulta(self) -> dict[int, str]:
+        return {}
+
     def _requisicao(self) -> datetime:
         self.requisicoes_realizadas += 1
         agora = self.agora()

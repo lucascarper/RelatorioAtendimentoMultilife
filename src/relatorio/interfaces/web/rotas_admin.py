@@ -44,6 +44,7 @@ JOB_REPROCESSAR = "reprocessar"
 EMAIL_VALIDO = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 JOBS = {
     "coletar_ciclo": "Coleta do SGG (a cada poucos segundos)",
+    "varrer_dia": "Varredura do dia (a cada 5 min)",
     "reconciliar_dia": "Reconciliação do dia (18:30)",
     "sync_agendas": "Sincronização de agendas (05:30)",
     "consolidar_dia": "Consolidação (23:00)",
@@ -68,6 +69,10 @@ ROTULOS_DETALHE = {
     "resumos": "resumos apagados",
     "execucoes": "execuções apagadas",
     "reconciliacao": "reconciliação",
+    "fora_do_dia": "fechados (saíram do dia no SGG)",
+    "ids_fora_do_dia": "IDs fechados",
+    "ignorados": "ignorados (situação desconhecida)",
+    "motivos_ignorados": "motivo",
     "envio": "envio",
 }
 CSP_PREVIA = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; frame-ancestors 'self'"

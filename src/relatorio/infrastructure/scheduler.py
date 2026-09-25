@@ -4,6 +4,7 @@
 |--------------------------|--------------------|----------------------------------------|
 | 05:30                    | sync_agendas       | usa o cadastro anterior                |
 | 06:00–18:00, a cada 5 s  | coletar_ciclo      | próximo ciclo recupera pela sobreposição|
+| 06:00–18:00, a cada 5 min| varrer_dia         | a próxima varredura recupera            |
 | 18:30                    | reconciliar_dia    | reexecuta às 19:00 e 22:00             |
 | 23:00                    | consolidar_dia     | reexecuta às 02:00 e 05:00             |
 | 07:59                    | enviar_relatorio   | 08:01 e 08:03; depois alerta técnico   |
@@ -39,6 +40,7 @@ from relatorio.infrastructure.logs import configurar_logs
 log = structlog.get_logger(__name__)
 
 TRAVA_COLETOR = "coletor"  # polling e reconciliação nunca rodam ao mesmo tempo
+MINUTOS_VARREDURA = 5  # varredura do dia inteiro: 1 a 2 requisições a cada 5 min
 
 
 class JobsAgendados:
@@ -68,6 +70,15 @@ class JobsAgendados:
             self._casos.coletar.executar,
             trava=TRAVA_COLETOR,
             ao_falhar=self._casos.alerta_coleta.verificar,
+        )
+
+    def varrer_dia(self) -> None:
+        """Varredura do dia inteiro durante o expediente (acerta o que o polling perdeu)."""
+        if not self._janela.contem(self._c.relogio.agora()):
+            return
+        dia = self._hoje()
+        self._executor.executar(
+            "varrer_dia", lambda: self._casos.reconciliar.executar(dia), trava=TRAVA_COLETOR
         )
 
     def reconciliar_dia(self, tentativa: int) -> None:
@@ -147,6 +158,16 @@ def registrar_jobs(agendador: BlockingScheduler, jobs: JobsAgendados, settings: 
                 second=_segundos_do_ciclo(settings.coleta_intervalo_s),
             ),
             tolerancia_s=min(30, settings.coleta_intervalo_s),
+        )
+        adicionar(
+            "varrer_dia",
+            jobs.varrer_dia,
+            _cron(
+                hour=f"{janela.inicio.hour}-{janela.fim.hour}",
+                minute=f"*/{MINUTOS_VARREDURA}",
+                second=2,
+            ),
+            tolerancia_s=60,
         )
         for tentativa, (hora, minuto) in enumerate(((18, 30), (19, 0), (22, 0)), start=1):
             adicionar(

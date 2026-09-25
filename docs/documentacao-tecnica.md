@@ -236,6 +236,7 @@ Todos os horários são de Brasília (`America/Sao_Paulo`), configurados no APSc
 | --- | --- | --- | --- |
 | 05:30 | `sync_agendas` | Atualiza cadastro de agendas/consultórios | Usa o cadastro anterior |
 | 06:00–18:00, a cada 5 s | `coletar_ciclo` | Polling incremental e gravação de eventos | Próximo ciclo recupera pela sobreposição do cursor |
+| 06:00–18:00, a cada 5 min | `varrer_dia` | Varredura do dia inteiro durante o expediente. Acerta mudanças que o polling por data de edição não viu e fecha (como cancelados) os agendamentos em aberto que sumiram do dia no SGG (remarcados, excluídos ou com situação desconhecida) | A próxima varredura recupera |
 | 18:30 | `reconciliar_dia` | Varredura completa do dia para eventos perdidos | Reexecuta às 19:00 e 22:00 |
 | 23:00 | `consolidar_dia` | Calcula métricas e grava `resumo_diario` | Reexecuta às 02:00 e 05:00 |
 | 07:59 | `enviar_relatorio` | Envia e-mail do dia anterior | 3 tentativas com 2 min de intervalo; depois alerta técnico |
