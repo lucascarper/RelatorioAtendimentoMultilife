@@ -12,8 +12,12 @@
   var ultima = Date.now();
   var abertos = {};
 
+  var buscando = false;
+
   function atualizar() {
-    if (document.hidden || !window.htmx) return;
+    // Uma busca por vez: se a rede estiver lenta, a próxima espera a anterior terminar.
+    if (document.hidden || !window.htmx || buscando) return;
+    buscando = true;
     ultima = Date.now();
     window.htmx.ajax("GET", raiz.getAttribute("data-url"), {
       source: raiz,
@@ -44,8 +48,13 @@
     });
     raiz.setAttribute("aria-busy", "false");
   });
-  raiz.addEventListener("htmx:responseError", function () { raiz.setAttribute("aria-busy", "false"); });
-  raiz.addEventListener("htmx:sendError", function () { raiz.setAttribute("aria-busy", "false"); });
+  function liberar() {
+    buscando = false;
+    raiz.setAttribute("aria-busy", "false");
+  }
+  raiz.addEventListener("htmx:afterRequest", liberar);
+  raiz.addEventListener("htmx:responseError", liberar);
+  raiz.addEventListener("htmx:sendError", liberar);
 
   // ------------------------------------------------------------ tela cheia
   var botao = document.querySelector("[data-tela-cheia]");

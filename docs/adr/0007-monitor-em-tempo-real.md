@@ -1,6 +1,6 @@
 # ADR 0007 — Monitor em tempo real lendo só o banco
 
-- **Status:** aceita
+- **Status:** aceita (intervalos revistos no [ADR 0009](0009-coleta-a-cada-5-segundos.md): coleta e tela a cada 5 s, cache de 4 s)
 - **Data:** 2026-09-25
 
 ## Contexto

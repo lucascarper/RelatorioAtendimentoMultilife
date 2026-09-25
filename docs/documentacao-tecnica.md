@@ -104,13 +104,13 @@ Onde c é o consultório, t o turno e n o número de atendimentos válidos (não
 
 | ID | Categoria | Requisito |
 | --- | --- | --- |
-| RNF01 | Limite da API | Nunca passar de 60 req/min entre 05:00 e 20:00 (120 req/min fora disso). Orçamento do sistema: no máximo 20 req/min, deixando folga para o painel e outras integrações. Tratar HTTP 429 com backoff exponencial |
+| RNF01 | Limite da API | Nunca passar de 60 req/min entre 05:00 e 20:00 (120 req/min fora disso). Orçamento do sistema: no máximo 40 req/min (a chave é exclusiva deste sistema); a coleta a cada 5 s usa 12 req/min por página. Tratar HTTP 429 com backoff exponencial |
 | RNF02 | Pontualidade | E-mail entregue às 07:59 (tolerância de 2 min), horário de Brasília |
 | RNF03 | Idempotência | Reexecutar coleta, consolidação ou envio não pode duplicar eventos nem e-mails (controle por data + status de envio) |
 | RNF04 | Confiabilidade | Coletor retoma de onde parou após reinício (cursor persistido no banco) |
 | RNF05 | Segurança | Chave da API do SGG e credenciais de e-mail só em variáveis de ambiente; nunca no código ou em logs |
 | RNF06 | Privacidade (LGPD) | Não armazenar CPF nem nome de paciente; guardar apenas IDs do SGG. E-mail só com números agregados |
-| RNF07 | Retenção | Eventos e resumos mantidos por 24 meses; job mensal apaga o excedente |
+| RNF07 | Retenção | Eventos e resumos mantidos por 24 meses; job mensal apaga o excedente. O histórico da coleta dos dias anteriores é compactado para 1 ciclo bem-sucedido por minuto |
 | RNF08 | Observabilidade | Logs estruturados (JSON) e registro de cada execução de job com status e duração |
 | RNF09 | Manutenibilidade | Cobertura de testes ≥ 80% no módulo de cálculo de métricas |
 | RNF10 | Custo | Rodar no plano Hobby/Pro da Railway com 1 serviço + 1 PostgreSQL |
@@ -152,7 +152,7 @@ A arquitetura já foi pensada para essa evolução: os eventos em `agendamento_e
 - Quando fizer sentido, adicionar um endpoint (ou WebSocket) em `interfaces/web` que chama esse caso de uso sob demanda — sem novo coletor, sem nova tabela de eventos, só uma nova forma de consultar os mesmos dados.
 - `resumo_diario` continua existindo como cache do fechamento do dia; uma consulta em tempo real simplesmente não passaria por essa etapa de cache.
 
-**Implementado (25/09/2026):** monitor ao vivo em `/admin/monitor`, com `ObterMetricasPeriodo` sobre `[hoje 00:00, agora]`, comparação com a semana anterior até o mesmo horário e atualização por HTMX a cada 30 s, sem nenhuma chamada extra ao SGG. Ver o [ADR 0007](adr/0007-monitor-em-tempo-real.md).
+**Implementado (25/09/2026):** monitor ao vivo em `/admin/monitor`, com `ObterMetricasPeriodo` sobre `[hoje 00:00, agora]`, comparação com a semana anterior até o mesmo horário e atualização por HTMX a cada 5 s (coleta a cada 5 s, [ADR 0009](adr/0009-coleta-a-cada-5-segundos.md)), sem nenhuma chamada extra ao SGG. Ver o [ADR 0007](adr/0007-monitor-em-tempo-real.md).
 
 ## 8. Stack tecnológica
 
@@ -235,11 +235,12 @@ Todos os horários são de Brasília (`America/Sao_Paulo`), configurados no APSc
 | Horário | Job | O que faz | Se falhar |
 | --- | --- | --- | --- |
 | 05:30 | `sync_agendas` | Atualiza cadastro de agendas/consultórios | Usa o cadastro anterior |
-| 06:00–18:00, a cada 60 s | `coletar_ciclo` | Polling incremental e gravação de eventos | Próximo ciclo recupera pela sobreposição do cursor |
+| 06:00–18:00, a cada 5 s | `coletar_ciclo` | Polling incremental e gravação de eventos | Próximo ciclo recupera pela sobreposição do cursor |
 | 18:30 | `reconciliar_dia` | Varredura completa do dia para eventos perdidos | Reexecuta às 19:00 e 22:00 |
 | 23:00 | `consolidar_dia` | Calcula métricas e grava `resumo_diario` | Reexecuta às 02:00 e 05:00 |
 | 07:59 | `enviar_relatorio` | Envia e-mail do dia anterior | 3 tentativas com 2 min de intervalo; depois alerta técnico |
 | Dia 1, 03:00 | `limpar_retencao` | Remove dados com mais de 24 meses | Reexecuta no dia seguinte |
+| 03:20 | `compactar_execucoes` | Deixa 1 ciclo de coleta bem-sucedido por minuto nos dias anteriores | Reexecuta no dia seguinte |
 
 **Regras de execução:**
 
@@ -324,7 +325,8 @@ A configuração dos dois serviços de app (Dockerfile, início, pre-deploy, hea
 | `DATABASE_URL` | referência `${{Postgres.DATABASE_URL}}` | Conexão com o banco |
 | `SGG_API_KEY` | (secreta) | Chave de 32 caracteres do SGG |
 | `SGG_BASE_URL` | `https://app.sgg.net.br/api/v3/` | URL base |
-| `SGG_MAX_RPM` | `20` | Orçamento de requisições por minuto |
+| `SGG_MAX_RPM` | `40` | Orçamento de requisições por minuto |
+| `COLETA_INTERVALO_S` | `5` | Segundos entre ciclos de coleta (divisor de 60, de 5 a 60) |
 | `SMTP_HOST` | mail.kinghost.net (confirmar com o provedor) | Endereço do servidor SMTP da KingHost |
 | `SMTP_PORT` | 587 | Porta do servidor SMTP (confirmar STARTTLS x SSL direto com a KingHost) |
 | `SMTP_USER` | relatorios@multilife.com.br | Login da caixa usada para envio |

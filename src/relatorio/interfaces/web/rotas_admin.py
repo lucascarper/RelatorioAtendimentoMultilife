@@ -43,13 +43,14 @@ router = APIRouter(prefix="/admin")
 JOB_REPROCESSAR = "reprocessar"
 EMAIL_VALIDO = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 JOBS = {
-    "coletar_ciclo": "Coleta (a cada 60 s)",
+    "coletar_ciclo": "Coleta do SGG (a cada poucos segundos)",
     "reconciliar_dia": "Reconciliação do dia (18:30)",
     "sync_agendas": "Sincronização de agendas (05:30)",
     "consolidar_dia": "Consolidação (23:00)",
     "enviar_relatorio": "Envio do e-mail (07:59)",
     "verificar_envio": "Verificação do envio (08:10)",
     "limpar_retencao": "Retenção de 24 meses (dia 1)",
+    "compactar_execucoes": "Compactação do histórico de coleta (03:20)",
     JOB_REPROCESSAR: "Reprocessamento pelo admin",
 }
 ROTULOS_DETALHE = {
@@ -122,6 +123,7 @@ def _painel_monitor(ctx: ContextoWeb) -> PainelMonitor:
         ctx.container.casos.monitor.executar(),
         situacao_coleta(ctx),
         ctx.settings.coletor_habilitado,
+        ctx.settings.coleta_intervalo_s,
     )
 
 

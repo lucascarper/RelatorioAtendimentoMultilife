@@ -16,7 +16,7 @@ A API do SGG devolve só o **status atual** de cada agendamento. Por isso o sist
 
 ```mermaid
 flowchart LR
-    SGG[API SGG v3] -->|GET /agendamento a cada 60 s| COL[Coletor<br/>compartilhado com o painel]
+    SGG[API SGG v3] -->|GET /agendamento a cada 5 s| COL[Coletor<br/>compartilhado com o painel]
     SGG -->|GET /agenda 05:30| SYNC[Sync de agendas]
     COL --> DB[(PostgreSQL<br/>agendamento_evento)]
     SYNC --> DB
@@ -31,12 +31,13 @@ flowchart LR
 | Horário | Job | Se falhar |
 | --- | --- | --- |
 | 05:30 | `sync_agendas`: cadastro de agendas/consultórios | usa o cadastro anterior |
-| 06:00–18:00, a cada 60 s | `coletar_ciclo`: polling incremental com cursor no banco | o próximo ciclo recupera (2 min de sobreposição) |
+| 06:00–18:00, a cada 5 s (`COLETA_INTERVALO_S`) | `coletar_ciclo`: polling incremental com cursor no banco | o próximo ciclo recupera (2 min de sobreposição); alerta após 10 min falhando |
 | 18:30 | `reconciliar_dia`: varredura do dia inteiro | 19:00 e 22:00 |
 | 23:00 | `consolidar_dia`: métricas + conferência final no SGG (RF11) | 02:00 e 05:00; na 3ª falha, alerta técnico |
 | 07:59 | `enviar_relatorio`: e-mail do dia anterior | 08:01 e 08:03; depois, alerta técnico |
 | 08:10 | `verificar_envio`: rede de segurança | alerta se não foi entregue |
 | Dia 1, 03:00 | `limpar_retencao`: apaga o que tiver mais de 24 meses | dia 2 |
+| 03:20 | `compactar_execucoes`: deixa 1 ciclo de coleta bem-sucedido por minuto nos dias anteriores | dia seguinte |
 
 Todos os jobs usam `max_instances=1` e `coalesce=True`, com **advisory lock** do PostgreSQL (dois containers nunca rodam o mesmo job), e cada execução fica registrada em `execucao_job`.
 
@@ -64,7 +65,7 @@ Tecnicamente: layout em tabelas compatível com Outlook e Gmail, CSS inline (pre
 
 ### Monitor ao vivo (tela do gerente)
 
-`/admin/monitor`, dentro do login do admin. São os mesmos indicadores do e-mail, calculados para **hoje até agora** e atualizados sozinhos a cada 30 s:
+`/admin/monitor`, dentro do login do admin. São os mesmos indicadores do e-mail, calculados para **hoje até agora** e atualizados sozinhos a cada 5 s:
 
 1. **Topo:** situação da coleta ("Dados do SGG de 10:40:00"), uma frase-resumo e os cartões de agora. Com guichês marcados, a espera e o atendimento aparecem por área: **espera recepção** (no guichê), **espera consultório** (aguardando o médico), **em atendimento no guichê** e **no consultório**, cada um com a maior espera ou atendimento em curso. Também mostra quem **ainda não chegou**, destacando os de horário vencido.
 2. **Hoje até agora:** atendimentos, faltas, espera média e TMA, comparados com o mesmo dia da semana anterior **até o mesmo horário**. Com guichês marcados, os cartões ficam em duas linhas: **Consultórios** (atendimentos, espera no consultório, TMA e faltas) e **Recepção** (atendimentos nos guichês, espera na recepção e TMA dos guichês). O e-mail diário segue o mesmo padrão.
@@ -73,7 +74,7 @@ Tecnicamente: layout em tabelas compatível com Outlook e Gmail, CSS inline (pre
 
 ![Monitor ao vivo (dados simulados)](docs/img/monitor-ao-vivo.png)
 
-O monitor **não faz nenhuma requisição ao SGG**. Ele lê os eventos que o coletor já grava a cada minuto, então pode ficar aberto em quantas telas for sem gastar a cota da API. O botão **Tela cheia** esconde o menu, para deixar numa TV. Detalhes no [ADR 0007](docs/adr/0007-monitor-em-tempo-real.md).
+O monitor **não faz nenhuma requisição ao SGG**. Ele lê os eventos que o coletor já grava a cada 5 s, então pode ficar aberto em quantas telas for sem gastar a cota da API. O botão **Tela cheia** esconde o menu, para deixar numa TV. Detalhes no [ADR 0007](docs/adr/0007-monitor-em-tempo-real.md).
 
 ## Estrutura
 
@@ -150,7 +151,8 @@ Veja [`.env.example`](.env.example). Segredos só em variáveis de ambiente (RNF
 | --- | --- | --- |
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` | Conexão com o banco |
 | `SGG_API_KEY` | (secreta) | Chave de 32 caracteres do SGG |
-| `SGG_BASE_URL` / `SGG_MAX_RPM` | `https://app.sgg.net.br/api/v3/` / `20` | API e orçamento de requisições por minuto |
+| `SGG_BASE_URL` / `SGG_MAX_RPM` | `https://app.sgg.net.br/api/v3/` / `40` | API e orçamento de requisições por minuto (a API aceita 60) |
+| `COLETA_INTERVALO_S` | `5` | Segundos entre ciclos de coleta (divisor de 60, de 5 a 60); cada ciclo é 1 requisição |
 | `COLETOR_HABILITADO` | `true` | `false` quando o painel em tempo real grava os eventos |
 | `SMTP_HOST` / `SMTP_PORT` | `mail.kinghost.net` / `587` | KingHost: 587 = STARTTLS, 465 = SSL direto (`SMTP_SSL` força) |
 | `SMTP_USER` / `SMTP_PASSWORD` | (secretas) | Caixa usada no envio |
@@ -219,7 +221,7 @@ O ambiente em que o código foi desenvolvido não tinha acesso à rede do `app.s
 
 - [ ] Mudar a situação atualiza `data_hora_edicao` e faz o registro aparecer em `editado_aPartirDe`.
 - [ ] O fuso de `data_hora_edicao` é o de Brasília (o spike mostra a diferença para a hora atual).
-- [ ] O volume diário e as páginas por ciclo cabem no orçamento de 20 req/min.
+- [ ] O volume diário e as páginas por ciclo cabem no orçamento de 40 req/min (12 req/min com coleta a cada 5 s).
 - [ ] Faltas registradas na agenda aparecem como `situacao = Faltou` em `GET /agendamento/`.
 - [ ] O `resultado` vem como lista (o cliente aceita lista ou objeto) e `sala`/`id_unidade_atendimento` estão preenchidos.
 - [ ] A Railway libera saída SMTP (587/465) para a KingHost. Se não liberar, veja o [ADR 0004](docs/adr/0004-email-smtp-kinghost.md).

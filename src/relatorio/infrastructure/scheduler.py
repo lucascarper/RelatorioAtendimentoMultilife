@@ -96,6 +96,9 @@ class JobsAgendados:
             "verificar_envio", lambda: self._casos.verificar_envio.executar(dia)
         )
 
+    def compactar_execucoes(self) -> None:
+        self._executor.executar("compactar_execucoes", self._casos.compactar.executar)
+
     def limpar_retencao(self) -> None:
         mes = f"{self._hoje():%Y-%m}"
         if self._ja_executado("limpar_retencao", mes):
@@ -105,6 +108,11 @@ class JobsAgendados:
 
 def _cron(**campos: Any) -> CronTrigger:
     return CronTrigger(timezone=FUSO_BRASILIA, **campos)
+
+
+def _segundos_do_ciclo(intervalo_s: int) -> str:
+    """Segundos do minuto em que a coleta roda: ``0`` (1×/min) ou ``*/5`` (a cada 5 s)."""
+    return "0" if intervalo_s >= 60 else f"*/{intervalo_s}"
 
 
 def registrar_jobs(agendador: BlockingScheduler, jobs: JobsAgendados, settings: Settings) -> None:
@@ -133,8 +141,12 @@ def registrar_jobs(agendador: BlockingScheduler, jobs: JobsAgendados, settings: 
         adicionar(
             "coletar_ciclo",
             jobs.coletar_ciclo,
-            _cron(hour=f"{janela.inicio.hour}-{janela.fim.hour}", minute="*", second=0),
-            tolerancia_s=30,
+            _cron(
+                hour=f"{janela.inicio.hour}-{janela.fim.hour}",
+                minute="*",
+                second=_segundos_do_ciclo(settings.coleta_intervalo_s),
+            ),
+            tolerancia_s=min(30, settings.coleta_intervalo_s),
         )
         for tentativa, (hora, minuto) in enumerate(((18, 30), (19, 0), (22, 0)), start=1):
             adicionar(
@@ -163,6 +175,7 @@ def registrar_jobs(agendador: BlockingScheduler, jobs: JobsAgendados, settings: 
         )
     adicionar("verificar_envio", jobs.verificar_envio, _cron(hour=8, minute=10))
     adicionar("limpar_retencao", jobs.limpar_retencao, _cron(day="1-2", hour=3, minute=0))
+    adicionar("compactar_execucoes", jobs.compactar_execucoes, _cron(hour=3, minute=20))
 
 
 def main() -> None:

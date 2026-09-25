@@ -50,6 +50,7 @@ class Sistema:
         self.verificar_envio = casos.verificar_envio
         self.reprocessar = casos.reprocessar
         self.limpar = casos.limpar
+        self.compactar = casos.compactar
         self.alerta_coleta = casos.alerta_coleta
 
     def alertas_enviados(self) -> list[str]:

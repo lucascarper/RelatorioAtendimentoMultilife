@@ -2,7 +2,7 @@
 
 Casos de uso que escrevem o log ``agendamento_evento``:
 
-* ``ColetarCiclo`` — polling incremental a cada 60 s durante o expediente;
+* ``ColetarCiclo`` — polling incremental a cada ``COLETA_INTERVALO_S`` (5 s) no expediente;
 * ``ReconciliarDia`` — varredura do dia inteiro às 18:30 para pegar o que escapou;
 * ``SincronizarAgendas`` — cadastro de agendas/consultórios (nomes e unidades).
 
