@@ -331,3 +331,38 @@ class TestTurnosEGuiches:
         a = montar_apresentacao(antigo)
         assert [len(b["linhas"]) for b in a.consultorios_turnos] == [2, 1]
         assert [b["rotulo"] for b in a.agendas_turnos] == ["Dia"]
+
+
+class TestConsultoriosERecepcao:
+    """Com guichês, KPIs, manchete e comparativo separam consultórios e recepção."""
+
+    def test_cartoes_em_dois_grupos(self) -> None:
+        a = montar_apresentacao(TestTurnosEGuiches().resumo(True))
+        assert [g["titulo"] for g in a.grupos_kpis] == ["Consultórios", "Recepção (guichês)"]
+        consultorios, recepcao = (g["cartoes"] for g in a.grupos_kpis)
+        assert [c.rotulo for c in consultorios] == [
+            "Atendimentos nos consultórios",
+            "Espera no consultório",
+            "TMA dos consultórios",
+            "Faltas",
+        ]
+        assert [(c.rotulo, c.valor) for c in recepcao] == [
+            ("Atendimentos nos guichês", "1"),
+            ("Espera na recepção", "5 min"),
+            ("TMA dos guichês", "5 min"),
+        ]
+        assert a.manchete.startswith("2 atendimentos nos consultórios e 1 nos guichês")
+        assert "Espera média de 5 min na recepção e 10 min no consultório." in a.manchete
+
+    def test_sem_guiche_fica_como_antes(self) -> None:
+        a = montar_apresentacao(TestTurnosEGuiches().resumo(False))
+        assert [g["titulo"] for g in a.grupos_kpis] == [""]
+        assert a.grupos_kpis[0]["cartoes"][0].rotulo == "Atendimentos realizados"
+        # Indicadores de guichê sem dado nos dois dias não entram no comparativo.
+        assert all("guich" not in linha["rotulo"] for linha in a.comparativo)
+
+    def test_email_com_grupos(self, renderizador: RenderizadorJinja) -> None:
+        conteudo = renderizador.relatorio(TestTurnosEGuiches().resumo(True))
+        assert "Recepção (guichês)" in conteudo.html
+        assert "Espera na recepção" in conteudo.html
+        assert "RECEPÇÃO (GUICHÊS)" in conteudo.texto

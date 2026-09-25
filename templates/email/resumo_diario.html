@@ -77,11 +77,17 @@
 </tr>
 {% else %}
 
-<!-- KPIs do dia -->
+<!-- KPIs do dia (com guichês: consultórios e recepção em linhas separadas) -->
+{%- for grupo in a.grupos_kpis %}
+{%- if grupo.titulo %}
+<tr>
+  <td bgcolor="#FFFFFF" class="px fonte" style="background:#FFFFFF; padding:16px 32px 0; font-size:12px; line-height:16px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:#4A5568;">{{ grupo.titulo }}</td>
+</tr>
+{%- endif %}
 <tr>
   <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:18px 24px 0; font-size:0; text-align:center;">
     <!--[if mso]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><![endif]-->
-    {%- for k in a.kpis %}
+    {%- for k in grupo.cartoes %}
     <!--[if mso]><td width="25%" valign="top"><![endif]-->
     <div class="kpi" style="display:inline-block; width:100%; max-width:146px; vertical-align:top;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -106,6 +112,7 @@
     <!--[if mso]></tr></table><![endif]-->
   </td>
 </tr>
+{%- endfor %}
 
 <!-- Por turno -->
 {{ titulo_secao("Por turno", "Turno definido pela hora agendada." ~ (" Guichês separados das demais agendas." if a.grupos_turno|length > 1 else "")) }}

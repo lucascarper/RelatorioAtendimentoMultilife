@@ -85,6 +85,17 @@ class Kpis:
     tma_s: int | None
     atendimentos_medidos: int
     sem_turno: int
+    # Com guichês marcados (senão None): consultórios × recepção (guichês).
+    atendimentos_consultorios: int | None = None
+    atendimentos_guiches: int | None = None
+    espera_consultorio_s: int | None = None
+    espera_recepcao_s: int | None = None
+    tma_consultorios_s: int | None = None
+    tma_guiches_s: int | None = None
+
+    @property
+    def tem_guiche(self) -> bool:
+        return self.atendimentos_guiches is not None
 
     @classmethod
     def de_dict(cls, dados: Mapping[str, object]) -> Kpis:
@@ -110,6 +121,12 @@ class Kpis:
             tma_s=opcional("tma_s"),
             atendimentos_medidos=inteiro("atendimentos_medidos"),
             sem_turno=inteiro("sem_turno"),
+            atendimentos_consultorios=opcional("atendimentos_consultorios"),
+            atendimentos_guiches=opcional("atendimentos_guiches"),
+            espera_consultorio_s=opcional("espera_consultorio_s"),
+            espera_recepcao_s=opcional("espera_recepcao_s"),
+            tma_consultorios_s=opcional("tma_consultorios_s"),
+            tma_guiches_s=opcional("tma_guiches_s"),
         )
 
 
@@ -229,6 +246,8 @@ class MetricasPeriodo:
     alertas: Alertas
     # "agendas" (consultórios e demais) e "guiches" → turno → resumo.
     por_turno_grupos: dict[str, dict[str, ResumoTurno]] = field(default_factory=dict)
+    # "agendas" (consultórios e demais) e "guiches" → resumo do período inteiro.
+    por_grupo: dict[str, ResumoTurno] = field(default_factory=dict)
     consultorios_por_turno: dict[str, tuple[LinhaConsultorioTurno, ...]] = field(
         default_factory=dict
     )
@@ -630,6 +649,12 @@ def calcular_metricas(
         verificacao_faltas_indisponivel=verificacao_faltas_indisponivel,
     )
 
+    por_grupo = {
+        "agendas": _resumo_turno([x for x in linhas if not x.guiche], "Consultórios", ""),
+        "guiches": _resumo_turno([x for x in linhas if x.guiche], "Guichês", ""),
+    }
+    consultorios_grupo, guiches_grupo = por_grupo["agendas"], por_grupo["guiches"]
+    tem_guiche = guiches_grupo.agendados > 0
     kpis = Kpis(
         agendados=geral.agendados,
         cancelados=sum(1 for x in linhas if x.situacao is Situacao.CANCELADO),
@@ -645,6 +670,12 @@ def calcular_metricas(
         sem_turno=sum(
             1 for x in linhas if x.turno is None and x.situacao is not Situacao.CANCELADO
         ),
+        atendimentos_consultorios=consultorios_grupo.atendimentos if tem_guiche else None,
+        atendimentos_guiches=guiches_grupo.atendimentos if tem_guiche else None,
+        espera_consultorio_s=consultorios_grupo.espera_media_s if tem_guiche else None,
+        espera_recepcao_s=guiches_grupo.espera_media_s if tem_guiche else None,
+        tma_consultorios_s=consultorios_grupo.tma_s if tem_guiche else None,
+        tma_guiches_s=guiches_grupo.tma_s if tem_guiche else None,
     )
 
     return MetricasPeriodo(
@@ -658,6 +689,7 @@ def calcular_metricas(
         agendas=tuple(tabela_agendas),
         alertas=alertas,
         por_turno_grupos=por_turno_grupos,
+        por_grupo=por_grupo,
         consultorios_por_turno=consultorios_por_turno,
         agendas_por_turno=agendas_por_turno,
     )

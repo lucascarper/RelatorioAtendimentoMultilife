@@ -450,3 +450,17 @@ class TestGuichesETurnos:
         tarde = m.agendas_por_turno["tarde"]
         assert [(a.agenda, a.atendimentos, a.media_s) for a in tarde] == [("Clínico", 1, 1800)]
         assert {a.agenda for a in m.agendas_por_turno["manha"]} == {"Clínico", "Recepção"}
+
+    def test_kpis_separam_consultorios_e_recepcao(self) -> None:
+        k = self.calcular(self.dia()).kpis
+        assert (k.atendimentos, k.atendimentos_consultorios, k.atendimentos_guiches) == (3, 2, 1)
+        assert k.espera_recepcao_s == 5 * 60  # só a espera no guichê
+        assert k.espera_consultorio_s == 10 * 60  # 07:50→08:00 e 13:50→14:00
+        assert (k.tma_consultorios_s, k.tma_guiches_s) == (round(22.5 * 60), 5 * 60)
+        assert k.tem_guiche
+
+    def test_sem_guiche_nao_ha_separacao(self) -> None:
+        k = calcular(dia_tipico()).kpis
+        assert not k.tem_guiche
+        assert k.atendimentos_consultorios is None
+        assert k.espera_recepcao_s is None

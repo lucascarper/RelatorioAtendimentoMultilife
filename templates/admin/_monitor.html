@@ -10,7 +10,7 @@
   {%- if p.a.quantidade_alertas %} <a href="#alertas" class="badge badge-erro">● {{ p.a.quantidade_alertas }} alerta{{ "s" if p.a.quantidade_alertas > 1 }} para revisar</a>{% endif %}
 </p>
 
-<section class="ao-vivo" aria-label="Situação agora">
+<section class="ao-vivo{% if p.ao_vivo|length > 3 %} ao-vivo-areas{% endif %}" aria-label="Situação agora">
   {%- for c in p.ao_vivo %}
   <article class="card cartao-vivo{% if c.destaque %} cartao-vivo-destaque{% endif %}">
     <h2>{{ c.rotulo }}</h2>
@@ -33,8 +33,10 @@
     <h2 id="t-dia">Hoje até agora</h2>
     <span class="nota">{{ p.comparacao }}</span>
   </div>
+  {%- for grupo in p.grupos_kpis %}
+  {%- if grupo.titulo %}<h3 class="subtitulo-turno">{{ grupo.titulo }}</h3>{% endif %}
   <div class="kpi-grade">
-    {%- for k in p.kpis %}
+    {%- for k in grupo.cartoes %}
     <article class="card kpi">
       <h3>{{ k.rotulo }}</h3>
       <p class="valor">{{ k.valor }}</p>
@@ -46,6 +48,7 @@
     </article>
     {%- endfor %}
   </div>
+  {%- endfor %}
 </section>
 
 <div class="monitor-grade">

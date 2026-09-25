@@ -66,8 +66,8 @@ Tecnicamente: layout em tabelas compatível com Outlook e Gmail, CSS inline (pre
 
 `/admin/monitor`, dentro do login do admin. São os mesmos indicadores do e-mail, calculados para **hoje até agora** e atualizados sozinhos a cada 30 s:
 
-1. **Topo:** situação da coleta ("Dados do SGG de 10:40:00"), uma frase-resumo e os cartões de agora: **na recepção** (com a maior espera em curso), **em atendimento** e **ainda não chegaram** (com os de horário vencido).
-2. **Hoje até agora:** atendimentos, faltas, espera média e TMA, comparados com o mesmo dia da semana anterior **até o mesmo horário**.
+1. **Topo:** situação da coleta ("Dados do SGG de 10:40:00"), uma frase-resumo e os cartões de agora. Com guichês marcados, a espera e o atendimento aparecem por área: **espera recepção** (no guichê), **espera consultório** (aguardando o médico), **em atendimento no guichê** e **no consultório**, cada um com a maior espera ou atendimento em curso. Também mostra quem **ainda não chegou**, destacando os de horário vencido.
+2. **Hoje até agora:** atendimentos, faltas, espera média e TMA, comparados com o mesmo dia da semana anterior **até o mesmo horário**. Com guichês marcados, os cartões ficam em duas linhas: **Consultórios** (atendimentos, espera no consultório, TMA e faltas) e **Recepção** (atendimentos nos guichês, espera na recepção e TMA dos guichês). O e-mail diário segue o mesmo padrão.
 3. **Meio:** movimento por hora (chegadas × atendimentos finalizados, com dica ao passar o mouse e tabela alternativa) e TMA por consultório.
 4. **Base:** por turno, tempos por agenda e alertas da coleta.
 
