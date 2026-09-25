@@ -12,6 +12,7 @@ from relatorio.application.consolidacao import ConsolidarDia
 from relatorio.application.envio import EnviarRelatorio, VerificarEnvio
 from relatorio.application.manutencao import AlertaFalhasColeta, LimparRetencao, ReprocessarData
 from relatorio.application.metricas import ObterMetricasPeriodo
+from relatorio.application.monitor import ObterMonitor
 from relatorio.application.ports import (
     EnviadorEmail,
     FabricaUoW,
@@ -28,6 +29,7 @@ class CasosDeUso:
     reconciliar: ReconciliarDia
     sincronizar: SincronizarAgendas
     metricas: ObterMetricasPeriodo
+    monitor: ObterMonitor
     consolidar: ConsolidarDia
     enviar: EnviarRelatorio
     verificar_envio: VerificarEnvio
@@ -61,6 +63,7 @@ def montar_casos_de_uso(
         reconciliar=reconciliar,
         sincronizar=SincronizarAgendas(sgg, uow),
         metricas=metricas,
+        monitor=ObterMonitor(metricas, relogio, janela),
         consolidar=consolidar,
         enviar=enviar,
         verificar_envio=VerificarEnvio(uow, alertar),

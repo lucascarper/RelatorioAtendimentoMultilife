@@ -27,6 +27,7 @@ from relatorio.domain.turnos import ConfiguracaoTurnos
 from relatorio.infrastructure.container import Container
 from relatorio.interfaces.demo import html_para_navegador
 from relatorio.interfaces.web.dependencias import (
+    ContextoWeb,
     Csrf,
     Ctx,
     Usuario,
@@ -34,6 +35,7 @@ from relatorio.interfaces.web.dependencias import (
     redirecionar,
     situacao_coleta,
 )
+from relatorio.interfaces.web.monitor import PainelMonitor, montar_painel
 
 log = structlog.get_logger(__name__)
 router = APIRouter(prefix="/admin")
@@ -109,6 +111,35 @@ def ver_relatorio(dia: date, ctx: Ctx, _usuario: Usuario) -> HTMLResponse:
     return HTMLResponse(
         html_para_navegador(conteudo), headers={"Content-Security-Policy": CSP_PREVIA}
     )
+
+
+# ------------------------------------------------------------------ monitor ao vivo
+
+
+def _painel_monitor(ctx: ContextoWeb) -> PainelMonitor:
+    """Só lê o banco (eventos do coletor): o monitor não faz requisição ao SGG."""
+    return montar_painel(
+        ctx.container.casos.monitor.executar(),
+        situacao_coleta(ctx),
+        ctx.settings.coletor_habilitado,
+    )
+
+
+@router.get("/monitor", response_class=HTMLResponse)
+def monitor(request: Request, ctx: Ctx, _usuario: Usuario) -> HTMLResponse:
+    return ctx.render(
+        request, "admin/monitor.html", {"pagina": "monitor", "p": _painel_monitor(ctx)}
+    )
+
+
+@router.get("/monitor/dados", response_class=HTMLResponse)
+def monitor_dados(request: Request, ctx: Ctx, _usuario: Usuario) -> HTMLResponse:
+    """Fragmento trocado a cada atualização (não consome as mensagens da sessão)."""
+    resposta = ctx.templates.TemplateResponse(
+        request, "admin/_monitor.html", {"p": _painel_monitor(ctx)}
+    )
+    resposta.headers["Cache-Control"] = "no-store"
+    return resposta
 
 
 @router.post("/relatorios/reprocessar")

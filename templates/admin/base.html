@@ -7,6 +7,7 @@
   <link rel="icon" type="image/png" href="/static/brand/favicon.png">
   <link rel="stylesheet" href="/static/admin/admin.css">
   <script src="/static/admin/htmx.min.js" defer></script>
+  {% block scripts %}{% endblock %}
 </head>
 <body hx-headers='{"X-CSRF-Token": "{{ csrf }}"}'>
   <div class="faixa-marca" aria-hidden="true"><span></span><span></span></div>
@@ -19,6 +20,7 @@
       </a>
       <nav class="menu" aria-label="Principal">
         <a href="/admin" {% if pagina == "painel" %}aria-current="page"{% endif %}>Painel</a>
+        <a href="/admin/monitor" {% if pagina == "monitor" %}aria-current="page"{% endif %}>Monitor</a>
         <a href="/admin/destinatarios" {% if pagina == "destinatarios" %}aria-current="page"{% endif %}>Destinatários</a>
         <a href="/admin/agendas" {% if pagina == "agendas" %}aria-current="page"{% endif %}>Unidades e agendas</a>
         <a href="/admin/configuracoes" {% if pagina == "configuracoes" %}aria-current="page"{% endif %}>Configurações</a>
@@ -32,7 +34,7 @@
     </div>
   </header>
   {% endif %}
-  <main class="conteudo">
+  <main class="conteudo{% block classe_conteudo %}{% endblock %}">
     {% if ambiente != "production" and usuario %}
     <p class="ambiente">Ambiente: <strong>{{ ambiente }}</strong></p>
     {% endif %}
