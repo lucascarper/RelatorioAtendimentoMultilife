@@ -79,7 +79,6 @@ ROTULOS_DETALHE = {
     "motivos_ignorados": "motivo",
     "envio": "envio",
     "saldo_dia": "saldo do dia (R$)",
-    "inadimplencia": "inadimplência (R$)",
     "faturamento_mes": "faturamento no mês (R$)",
     "contratos_ativos": "contratos ativos",
 }

@@ -78,7 +78,6 @@ class FinanceiroFake:
     recebidos: list[Titulo] = field(default_factory=list)
     pagos: list[Titulo] = field(default_factory=list)
     emitidos: list[Titulo] = field(default_factory=list)
-    vencidos: list[Titulo] = field(default_factory=list)
     a_receber: list[Titulo] = field(default_factory=list)
     a_pagar: list[Titulo] = field(default_factory=list)
     contratos: list[Contrato] = field(default_factory=list)
@@ -102,10 +101,6 @@ class FinanceiroFake:
     def receber_emitidos(self, de: date, ate: date) -> list[Titulo]:
         self._chamar("receber_emitidos")
         return [t for t in self.emitidos if t.emissao and de <= t.emissao <= ate]
-
-    def receber_vencidos(self) -> list[Titulo]:
-        self._chamar("receber_vencidos")
-        return list(self.vencidos)
 
     def receber_a_vencer(self, de: date, ate: date) -> list[Titulo]:
         self._chamar("receber_a_vencer")

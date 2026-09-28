@@ -63,7 +63,6 @@ def test_consolida_e_grava_o_resumo_do_dia_anterior(sistema_financeiro: Sistema)
     assert detalhe == {
         "referencia": "2026-09-27",
         "saldo_dia": 380.0,
-        "inadimplencia": 0.0,
         "faturamento_mes": 300.0,
         "contratos_ativos": 1,
     }

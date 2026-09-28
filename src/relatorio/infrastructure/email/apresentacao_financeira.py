@@ -109,24 +109,14 @@ def _etiqueta(bloco: str, sem_alteracao: Sequence[str]) -> str:
     return SEM_ALTERACAO if bloco in sem_alteracao else ""
 
 
-def _cartoes(m: Mapping[str, Any], ref: date, sem: Sequence[str]) -> tuple[Cartao, ...]:
-    caixa, inad, fat = m["caixa"], m["inadimplencia"], m["faturamento"]
+def _cartoes(m: Mapping[str, Any], ref: date) -> tuple[Cartao, ...]:
+    caixa, fat = m["caixa"], m["faturamento"]
     return (
         Cartao(
             rotulo=f"Saldo operacional de {ref:%d/%m}",
             valor=moeda(caixa["saldo_dia"]),
             contexto=f"Recebido {moeda(caixa['recebido_dia'])} e pago {moeda(caixa['pago_dia'])}",
             cor=_cor(caixa["saldo_dia"]),
-        ),
-        Cartao(
-            rotulo="Inadimplência atual",
-            valor=moeda(inad["valor"]),
-            contexto=(
-                f"{inteiro(inad['titulos'])} títulos vencidos"
-                f" de {inteiro(inad['clientes'])} clientes"
-            ),
-            cor=NEGATIVO if inad["valor"] else NEUTRO,
-            etiqueta=_etiqueta("inadimplencia", sem),
         ),
         Cartao(
             rotulo="Faturamento",
@@ -165,17 +155,8 @@ def _secao_caixa(m: Mapping[str, Any], ref: date) -> Secao:
     )
 
 
-def _secao_inadimplencia(m: Mapping[str, Any], hoje: date, sem: Sequence[str]) -> Secao:
-    inad, proj = m["inadimplencia"], m["projecao"]
-    faixas = tuple(
-        Linha(f["rotulo"], (inteiro(f["titulos"]), moeda(f["valor"])))
-        for f in inad["faixas"]
-        if f["titulos"]
-    )
-    maiores = tuple(
-        Linha(d["cliente"], (inteiro(d["titulos"]), f"{d['dias_max']} dias", moeda(d["valor"])))
-        for d in inad["maiores"]
-    )
+def _secao_projecao(m: Mapping[str, Any], hoje: date) -> Secao:
+    proj = m["projecao"]
     horizontes = [f"{p['dias']} dias" for p in proj]
     projecao = (
         Linha("Entradas previstas", tuple(moeda(p["entradas"]) for p in proj)),
@@ -188,29 +169,13 @@ def _secao_inadimplencia(m: Mapping[str, Any], hoje: date, sem: Sequence[str]) -
         ),
     )
     return Secao(
-        titulo="Inadimplência e projeção",
+        titulo="Projeção de entradas e saídas",
         subtitulo=(
-            f"Foto de {hoje:%d/%m}. Vencido conta a partir do dia seguinte ao vencimento,"
-            " sem carência. "
-            "Projeção: títulos em aberto que vencem de hoje em diante."
+            f"Foto de {hoje:%d/%m}: títulos em aberto (a receber e a pagar)"
+            " que vencem de hoje em diante."
         ),
-        etiqueta=_etiqueta("inadimplencia", sem),
         tabelas=(
             Tabela(
-                titulo=f"Vencidos: {moeda(inad['valor'])} em {inteiro(inad['titulos'])} títulos",
-                cabecalho=("Atraso", "Títulos", "Valor"),
-                linhas=faixas,
-                vazio="Nenhum título vencido.",
-            ),
-            Tabela(
-                titulo="Maiores saldos vencidos",
-                cabecalho=("Cliente", "Títulos", "Maior atraso", "Valor"),
-                linhas=maiores,
-                ocultar_no_celular=(1,),
-                vazio="Nenhum título vencido.",
-            ),
-            Tabela(
-                titulo="Projeção de entradas e saídas",
                 cabecalho=("Próximos", *horizontes),
                 linhas=projecao,
             ),
@@ -348,10 +313,7 @@ DEFINICOES = (
     ("Receita recebida", "títulos a receber pagos na data (caixa), pelo valor cobrado."),
     ("Faturamento", "contas a receber emitidas no período (competência)."),
     ("Saldo operacional", "receita recebida menos despesas pagas."),
-    (
-        "Inadimplência",
-        "títulos a receber vencidos e não pagos, desde o dia seguinte ao vencimento.",
-    ),
+    ("Projeção", "títulos em aberto (a receber e a pagar) que vencem de hoje em diante."),
     ("MRR", "mensalidades faturadas nos últimos 30 dias a clientes com contrato ativo."),
     ("Margem bruta", "faturado menos o custo médio dos credenciados na tabela de preços do SGG."),
 )
@@ -363,12 +325,11 @@ def montar_apresentacao_financeira(
     ref = date.fromisoformat(m["referencia"])
     hoje = date.fromisoformat(m["hoje"])
     sem = tuple(m.get("sem_alteracao") or ())
-    caixa, inad, fat = m["caixa"], m["inadimplencia"], m["faturamento"]
+    caixa, fat = m["caixa"], m["faturamento"]
     manchete = (
         f"Em {ref:%d/%m}, entraram {moeda(caixa['recebido_dia'])}"
         f" e saíram {moeda(caixa['pago_dia'])}"
-        f" (saldo de {moeda(caixa['saldo_dia'])}). No mês, o faturamento soma {moeda(fat['mes'])}"
-        f" e a inadimplência está em {moeda(inad['valor'])}."
+        f" (saldo de {moeda(caixa['saldo_dia'])}). No mês, o faturamento soma {moeda(fat['mes'])}."
     )
     gerado = datetime.fromisoformat(m["gerado_em"])
     return ApresentacaoFinanceira(
@@ -376,10 +337,10 @@ def montar_apresentacao_financeira(
         preheader=manchete,
         titulo_data=f"{dia_semana(ref).capitalize()}, {ref:%d/%m/%Y}",
         manchete=manchete,
-        cartoes=_cartoes(m, ref, sem),
+        cartoes=_cartoes(m, ref),
         secoes=(
             _secao_caixa(m, ref),
-            _secao_inadimplencia(m, hoje, sem),
+            _secao_projecao(m, hoje),
             _secao_faturamento(m, ref),
             _secao_recorrente(m, hoje, sem),
         ),

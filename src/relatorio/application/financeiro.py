@@ -4,9 +4,9 @@ Roda no mesmo worker do relatório de atendimentos, com job e e-mail próprios. 
 (retentativas 06:30 e 07:15) lê o SGG e grava ``resumo_financeiro``; o envio das 07:59
 só lê o resumo pronto (``EnviarRelatorio`` com o repositório e a lista do financeiro).
 
-A referência é o dia anterior (caixa e faturamento). Inadimplência, projeções e
-contratos são a foto do momento da coleta: a API devolve a situação atual dos títulos,
-então reprocessar uma data antiga mostra esses blocos como estão hoje.
+A referência é o dia anterior (caixa e faturamento). Projeções e contratos são a foto
+do momento da coleta: a API devolve a situação atual dos títulos, então reprocessar
+uma data antiga mostra esses blocos como estão hoje.
 """
 
 from __future__ import annotations
@@ -77,7 +77,6 @@ class ConsolidarFinanceiro:
             recebidos_mes=self._sgg.receber_pagos(mes, referencia),
             pagos_mes=self._sgg.pagar_pagos(mes, referencia),
             emitidos=emitidos,
-            vencidos=self._sgg.receber_vencidos(),
             a_receber=self._sgg.receber_a_vencer(hoje, ate_projecao),
             a_pagar=self._sgg.pagar_a_vencer(hoje, ate_projecao),
             contratos=self._sgg.contratos_ativos(),
@@ -100,7 +99,6 @@ class ConsolidarFinanceiro:
         return {
             "referencia": referencia.isoformat(),
             "saldo_dia": resumo["caixa"]["saldo_dia"],
-            "inadimplencia": resumo["inadimplencia"]["valor"],
             "faturamento_mes": resumo["faturamento"]["mes"],
             "contratos_ativos": resumo["recorrente"]["contratos_ativos"],
         }
