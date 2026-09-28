@@ -131,3 +131,13 @@ def test_coleta_uma_vez_por_minuto_quando_configurada() -> None:
 def test_intervalo_de_coleta_invalido(intervalo: int) -> None:
     with pytest.raises(ValueError, match="COLETA_INTERVALO_S"):
         Settings(_env_file=None, coleta_intervalo_s=intervalo)  # type: ignore[call-arg]
+
+
+def test_jobs_do_financeiro_so_quando_habilitado() -> None:
+    gatilhos = _gatilhos(Settings(_env_file=None, financeiro_habilitado=True))  # type: ignore[call-arg]
+    assert "hour='5', minute='45'" in gatilhos["consolidar_financeiro_1"]
+    assert "hour='7', minute='15'" in gatilhos["consolidar_financeiro_3"]
+    assert "hour='7', minute='59'" in gatilhos["enviar_financeiro_1"]
+    assert "hour='8', minute='10'" in gatilhos["verificar_financeiro"]
+    padrao = _gatilhos(Settings(_env_file=None))  # type: ignore[call-arg]
+    assert not any("financeiro" in j for j in padrao)

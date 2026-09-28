@@ -1,0 +1,43 @@
+# ADR 0011: Relatório financeiro diário
+
+- **Status:** aceita (envio automático desligado até a conferência dos números)
+- **Data:** 2026-09-28
+- **Escopo:** documento "Relatório Financeiro Diário: Escopo e Layout" (28/09/2026)
+
+## Contexto
+
+Financeiro e diretoria querem um e-mail diário às 07:59, separado do relatório de atendimentos, com caixa, inadimplência, faturamento e saúde de contratos. Os dados vêm da mesma API do SGG. A documentação da API (Swagger em `/api/v3/doc/api.json`) e respostas reais mostraram:
+
+| Endpoint | Uso | O que a resposta real ensinou |
+| --- | --- | --- |
+| `contasReceber/` | receita recebida, faturamento, inadimplência, projeção de entradas | `retornar_faturamento=Simplificado` traz os serviços de cada conta. `valor_cobrado` inclui juros de quem pagou atrasado. `situacao` filtra pelo **texto** ("Vencida"); o número da documentação não filtra. `centro_de_custos` vem como lista de rateio (`centro_de_custo`, `valor`, `valor_pago`) |
+| `contasPagar/` | despesas pagas, projeção de saídas, rateio | `centro_de_resultados` é a classificação da despesa (Administrativas, Credenciados externos, Impostos…) |
+| `contratoCliente/` | contratos ativos e a vencer | Todos mensais, mas **sem o valor da mensalidade** (vem vazio). O valor está nas contas: o serviço "Outro" é a mensalidade dos planos de gestão |
+| `fornecedor-valores/` | margem | Exige filtro. Os campos reais são `valor_a_cobrar`/`valor_a_pagar` (a documentação diz `valor_cobrar`/`valor_pagar`). Há uma linha por fornecedor; o fornecedor próprio tem custo zero |
+| `centro_de_custos/` | (não usado) | É o centro de custo das **empresas clientes** (RH), não o financeiro; os códigos 2 e 3 do rateio não aparecem ali |
+
+## Decisão
+
+- **Mesmo deploy, job próprio.** No worker: coleta às 05:45 (retentativas 06:30 e 07:15, antes da janela do coletor de agendamentos), e-mail às 07:59 (08:01, 08:03) e verificação às 08:10. São cerca de 40 requisições, divididas em janelas de até 31 dias.
+- **Mesmo ciclo de envio do relatório de atendimentos.** `EnviarRelatorio`/`VerificarEnvio` recebem um `TipoRelatorio` (tabela de resumo, lista de destinatários e template). Tabelas novas `resumo_financeiro` e `destinatario_financeiro` (migração 0003). A reserva de envio impede e-mail duplicado.
+- **Referência:**
+  - Caixa e faturamento são do **dia anterior** e do mês até ele.
+  - Inadimplência, projeções e contratos são a **foto do momento da coleta**, porque a API só devolve a situação atual.
+  - Reprocessar uma data antiga refaz a foto com a situação de hoje.
+- **Regras** (`domain/financeiro.py`, `VERSAO_REGRA_FINANCEIRO` 1.0.0):
+  - Recebido pelo valor cobrado.
+  - Inadimplência a partir do dia seguinte ao vencimento.
+  - Projeção de hoje até hoje + N − 1.
+  - MRR = mensalidades faturadas nos últimos 30 dias a clientes com contrato ativo.
+  - Margem = faturado − quantidade × média do custo dos credenciados (sem os de custo zero).
+- **Categorias de serviço por regra de nome**, porque o SGG não classifica os serviços: exames clínicos, complementares (código entre parênteses), programas e laudos (PGR, PCMSO, LTCAT, AET…), mensalidades, faltas e outros. As regras foram conferidas contra os 87 serviços faturados em setembro.
+- **"Sem alteração desde ontem"**: inadimplência, MRR, contratos, margem e rateio são comparados com o resumo do dia anterior.
+- **LGPD:** de cada conta ficam valores, datas, situação, classificação e o nome do cliente pessoa jurídica. CPF vira "Pessoa física #id"; descrição, links e documentos são descartados.
+- **`FINANCEIRO_HABILITADO=false` por padrão.** A prévia e o reenvio pelo admin (`/admin/financeiro`) funcionam sempre, e o envio automático só liga depois da conferência com o financeiro.
+
+## Consequências
+
+- O total faturado (soma das contas) difere da soma dos itens de faturamento. O e-mail mostra a diferença como "Descontos, acréscimos e ajustes" para fechar a conta.
+- Os nomes dos centros de custo do rateio são configurados no admin, porque a API só informa o código.
+- A margem é **estimada** pela tabela de preços. O custo real de cada exame dependeria de cruzar `exames-realizados` com o fornecedor que atendeu, o que fica para uma evolução.
+- Mudou uma regra ou uma categoria? Suba `VERSAO_REGRA_FINANCEIRO` e regere as datas no admin.

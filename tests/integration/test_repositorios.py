@@ -258,3 +258,25 @@ def test_evento_gravado_preserva_origem(uow: FabricaUoW) -> None:
         u.commit()
     with uow() as u:
         assert u.eventos.listar_por_agendamentos([5])[5][0].origem is OrigemEvento.VERIFICACAO_FALTA
+
+
+class TestRelatorioFinanceiro:
+    def test_resumo_e_destinatarios_separados_do_de_atendimentos(self, uow: FabricaUoW) -> None:
+        with uow() as u:
+            u.resumos_financeiros.salvar_metricas(
+                DIA, {"tipo": "financeiro"}, "1.0.0", hora("05:45")
+            )
+            assert u.resumos_financeiros.reservar_envio(DIA)
+            assert u.resumos_financeiros.reservar_envio(DIA) is False  # trava de duplicidade
+            u.destinatarios_financeiro.adicionar("Diretoria@MultiLife.com.br", "Diretoria")
+            u.destinatarios_financeiro.adicionar("diretoria@multilife.com.br", None)  # reativa
+            u.commit()
+        with uow() as u:
+            assert u.resumos.obter(DIA) is None
+            registro = u.resumos_financeiros.obter(DIA)
+            assert registro is not None and registro.metricas == {"tipo": "financeiro"}
+            financeiro = u.destinatarios_financeiro.listar()
+            assert [(d.email, d.nome) for d in financeiro] == [
+                ("diretoria@multilife.com.br", "Diretoria")
+            ]
+            assert "diretoria@multilife.com.br" not in {d.email for d in u.destinatarios.listar()}

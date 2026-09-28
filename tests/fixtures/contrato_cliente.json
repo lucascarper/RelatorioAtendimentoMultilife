@@ -1,0 +1,10 @@
+{
+  "resultado": [
+    {"id": "366", "id_cliente": "839", "situacao_contrato": "Em andamento", "data_vencimento": "2026-10-15",
+     "tipo_faturamento": "Mensal",
+     "faturamento": {"valor_funcionario_na_parcela": "", "valor_excedente": {"valor_excedente": "11.00", "excedente_acima_de": "200"}}},
+    {"id": "367", "id_cliente": "840", "situacao_contrato": "Em andamento", "data_vencimento": "2027-05-01",
+     "tipo_faturamento": "Avulso", "faturamento": null}
+  ],
+  "temProximaPagina": false
+}

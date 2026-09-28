@@ -53,6 +53,10 @@ JOBS = {
     "limpar_retencao": "Retenção de 24 meses (dia 1)",
     "compactar_execucoes": "Compactação do histórico de coleta (03:20)",
     JOB_REPROCESSAR: "Reprocessamento pelo admin",
+    "consolidar_financeiro": "Relatório financeiro: coleta (05:45)",
+    "enviar_financeiro": "Relatório financeiro: envio (07:59)",
+    "verificar_financeiro": "Relatório financeiro: verificação (08:10)",
+    "reprocessar_financeiro": "Relatório financeiro: reprocessamento pelo admin",
 }
 ROTULOS_DETALHE = {
     "requisicoes": "requisições",
@@ -74,6 +78,10 @@ ROTULOS_DETALHE = {
     "ignorados": "ignorados (situação desconhecida)",
     "motivos_ignorados": "motivo",
     "envio": "envio",
+    "saldo_dia": "saldo do dia (R$)",
+    "inadimplencia": "inadimplência (R$)",
+    "faturamento_mes": "faturamento no mês (R$)",
+    "contratos_ativos": "contratos ativos",
 }
 CSP_PREVIA = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; frame-ancestors 'self'"
 

@@ -10,6 +10,7 @@ from typing import Any
 from relatorio.application.modelos import ConteudoEmail
 from relatorio.application.ports import ErroIntegracao
 from relatorio.domain.entidades import Agenda, AgendamentoSgg, Situacao
+from relatorio.domain.financeiro import Contrato, PrecoFornecedor, Titulo
 from relatorio.infrastructure.memoria import BancoEmMemoria, UoWEmMemoria
 
 __all__ = [
@@ -71,6 +72,59 @@ class SggFake:
 
 
 @dataclass
+class FinanceiroFake:
+    """Endpoints financeiros do SGG com listas pré-programadas."""
+
+    recebidos: list[Titulo] = field(default_factory=list)
+    pagos: list[Titulo] = field(default_factory=list)
+    emitidos: list[Titulo] = field(default_factory=list)
+    vencidos: list[Titulo] = field(default_factory=list)
+    a_receber: list[Titulo] = field(default_factory=list)
+    a_pagar: list[Titulo] = field(default_factory=list)
+    contratos: list[Contrato] = field(default_factory=list)
+    precos: dict[int, list[PrecoFornecedor]] = field(default_factory=dict)
+    falhar: bool = False
+    chamadas: list[str] = field(default_factory=list)
+
+    def _chamar(self, nome: str) -> None:
+        self.chamadas.append(nome)
+        if self.falhar:
+            raise ErroSggFake("SGG indisponível")
+
+    def receber_pagos(self, de: date, ate: date) -> list[Titulo]:
+        self._chamar("receber_pagos")
+        return [t for t in self.recebidos if t.pagamento and de <= t.pagamento <= ate]
+
+    def pagar_pagos(self, de: date, ate: date) -> list[Titulo]:
+        self._chamar("pagar_pagos")
+        return [t for t in self.pagos if t.pagamento and de <= t.pagamento <= ate]
+
+    def receber_emitidos(self, de: date, ate: date) -> list[Titulo]:
+        self._chamar("receber_emitidos")
+        return [t for t in self.emitidos if t.emissao and de <= t.emissao <= ate]
+
+    def receber_vencidos(self) -> list[Titulo]:
+        self._chamar("receber_vencidos")
+        return list(self.vencidos)
+
+    def receber_a_vencer(self, de: date, ate: date) -> list[Titulo]:
+        self._chamar("receber_a_vencer")
+        return list(self.a_receber)
+
+    def pagar_a_vencer(self, de: date, ate: date) -> list[Titulo]:
+        self._chamar("pagar_a_vencer")
+        return list(self.a_pagar)
+
+    def contratos_ativos(self) -> list[Contrato]:
+        self._chamar("contratos_ativos")
+        return list(self.contratos)
+
+    def precos_servico(self, id_servico: int) -> list[PrecoFornecedor]:
+        self._chamar(f"precos_{id_servico}")
+        return list(self.precos.get(id_servico, []))
+
+
+@dataclass
 class EmailFake:
     enviados: list[tuple[list[str], ConteudoEmail]] = field(default_factory=list)
     falhar: bool = False
@@ -87,6 +141,11 @@ class RenderizadorFake:
             assunto=str(metricas.get("assunto", "")),
             html=f"<p>{metricas.get('kpis', {}).get('atendimentos')}</p>",
             texto="texto",
+        )
+
+    def relatorio_financeiro(self, metricas: Mapping[str, Any]) -> ConteudoEmail:
+        return ConteudoEmail(
+            assunto=f"Financeiro {metricas.get('referencia')}", html="<p>fin</p>", texto="fin"
         )
 
     def alerta(self, titulo: str, mensagem: str, detalhes: Mapping[str, str]) -> ConteudoEmail:

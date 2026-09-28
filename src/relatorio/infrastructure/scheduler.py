@@ -110,6 +110,35 @@ class JobsAgendados:
     def compactar_execucoes(self) -> None:
         self._executor.executar("compactar_execucoes", self._casos.compactar.executar)
 
+    # ------------------------------------------------------------------ financeiro
+
+    def consolidar_financeiro(self, tentativa: int) -> None:
+        dia = dia_do_relatorio(self._c.relogio.agora())
+        if tentativa > 1 and self._ja_executado("consolidar_financeiro", dia.isoformat()):
+            return
+        consolidar = self._casos.consolidar_financeiro
+        if consolidar is None:
+            return
+        self._executor.executar(
+            "consolidar_financeiro", lambda: consolidar.executar_agendado(dia, tentativa)
+        )
+
+    def enviar_financeiro(self, tentativa: int) -> None:
+        dia = dia_do_relatorio(self._c.relogio.agora())
+        enviar = self._casos.enviar_financeiro
+        if enviar is None:
+            return
+        self._executor.executar(
+            "enviar_financeiro", lambda: enviar.executar_agendado(dia, tentativa)
+        )
+
+    def verificar_financeiro(self) -> None:
+        dia = dia_do_relatorio(self._c.relogio.agora())
+        verificar = self._casos.verificar_financeiro
+        if verificar is None:
+            return
+        self._executor.executar("verificar_financeiro", lambda: verificar.executar(dia))
+
     def limpar_retencao(self) -> None:
         mes = f"{self._hoje():%Y-%m}"
         if self._ja_executado("limpar_retencao", mes):
@@ -195,6 +224,25 @@ def registrar_jobs(agendador: BlockingScheduler, jobs: JobsAgendados, settings: 
             tolerancia_s=120,
         )
     adicionar("verificar_envio", jobs.verificar_envio, _cron(hour=8, minute=10))
+    if settings.financeiro_habilitado:
+        # Coleta antes da janela do coletor (06:00) para não disputar a cota da API.
+        for tentativa, (hora, minuto) in enumerate(((5, 45), (6, 30), (7, 15)), start=1):
+            adicionar(
+                f"consolidar_financeiro_{tentativa}",
+                jobs.consolidar_financeiro,
+                _cron(hour=hora, minute=minuto),
+                {"tentativa": tentativa},
+            )
+        for tentativa, (hora, minuto) in enumerate(((7, 59), (8, 1), (8, 3)), start=1):
+            adicionar(
+                f"enviar_financeiro_{tentativa}",
+                jobs.enviar_financeiro,
+                _cron(hour=hora, minute=minuto),
+                {"tentativa": tentativa},
+                tolerancia_s=120,
+            )
+        adicionar("verificar_financeiro", jobs.verificar_financeiro, _cron(hour=8, minute=10))
+
     adicionar("limpar_retencao", jobs.limpar_retencao, _cron(day="1-2", hour=3, minute=0))
     adicionar("compactar_execucoes", jobs.compactar_execucoes, _cron(hour=3, minute=20))
 

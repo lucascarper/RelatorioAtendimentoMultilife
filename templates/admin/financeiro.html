@@ -1,0 +1,111 @@
+{% extends "admin/base.html" %}
+{% block titulo %}Relatório financeiro{% endblock %}
+{% block conteudo %}
+{%- from "admin/_icones.html" import icone %}
+<h1>Relatório financeiro</h1>
+
+{% if not habilitado %}
+<div class="mensagem mensagem-aviso">{{ icone("aviso") }}<span>O envio automático está desligado (<code>FINANCEIRO_HABILITADO=false</code>). Gere a prévia abaixo, confira os números com o financeiro e só então ligue a variável no worker na Railway.</span></div>
+{% endif %}
+{% if override %}
+<div class="mensagem mensagem-aviso">{{ icone("aviso") }}<span>Ambiente de homologação: todos os e-mails vão só para <strong>{{ override | join(", ") }}</strong>.</span></div>
+{% endif %}
+
+{% set ultimo = resumos[0] if resumos else None %}
+<section class="status-grade" aria-label="Situação do relatório financeiro">
+  <article class="card status">
+    <h2>Envio automático</h2>
+    <p class="valor">{{ "07:59" if habilitado else "Desligado" }}</p>
+    <p class="nota">{% if habilitado %}Coleta às 05:45 (retentativas 06:30 e 07:15), e-mail às 07:59.{% else %}Prévia e reenvio pelo admin continuam disponíveis.{% endif %}</p>
+  </article>
+  <article class="card status">
+    <h2>Último relatório</h2>
+    {% if ultimo %}
+      <p class="valor">{{ ultimo.data | data_br }}</p>
+      <p class="nota">Gerado em {{ ultimo.gerado_em | datahora_br }}</p>
+      <p>{% include "admin/_status_envio.html" %}</p>
+    {% else %}
+      <p class="valor">-</p><p class="nota">Nenhum dia gerado ainda.</p>
+    {% endif %}
+  </article>
+  <article class="card status">
+    <h2>Destinatários ativos</h2>
+    <p class="valor">{{ ativos }}</p>
+    <p class="nota">Lista própria do financeiro e da diretoria (não é a do relatório de atendimentos).</p>
+  </article>
+</section>
+
+<section class="card">
+  <h2>Gerar ou reenviar uma data</h2>
+  <p class="nota">Busca os dados financeiros no SGG (cerca de 1 minuto) e grava o resumo do dia escolhido. Inadimplência, projeções e contratos refletem a situação no momento da coleta.</p>
+  <form method="post" action="/admin/financeiro/reprocessar" class="form form-linha">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Data
+      <input type="date" name="data" value="{{ ontem.isoformat() }}" max="{{ ontem.isoformat() }}" required>
+    </label>
+    <label class="check"><input type="checkbox" name="enviar" value="true"> Enviar o e-mail aos destinatários</label>
+    <button type="submit" class="btn btn-primario">Gerar</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Últimos 14 dias</h2>
+  {% if resumos %}
+  <div class="rolagem">
+  <table class="tabela">
+    <thead>
+      <tr>
+        <th>Data</th><th class="num">Saldo do dia</th><th class="num">Faturamento no mês</th>
+        <th class="num">Inadimplência</th><th>Envio</th><th><span class="sr">Ações</span></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in resumos %}
+      {% set m = r.metricas %}
+      <tr>
+        <td><strong>{{ r.data | data_br }}</strong> <span class="nota">{{ (r.data | dia_semana)[:3] }}</span></td>
+        <td class="num">{{ m.get("caixa", {}).get("saldo_dia") | moeda }}</td>
+        <td class="num">{{ m.get("faturamento", {}).get("mes") | moeda }}</td>
+        <td class="num">{{ m.get("inadimplencia", {}).get("valor") | moeda }}</td>
+        <td>{% set ultimo = r %}{% include "admin/_status_envio.html" %}</td>
+        <td><a href="/admin/financeiro/relatorios/{{ r.data.isoformat() }}" target="_blank" rel="noopener">Ver e-mail</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="nota">Nenhum dia gerado ainda. Use "Gerar ou reenviar uma data" para a primeira prévia.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Destinatários do relatório financeiro</h2>
+  <form method="post" action="/admin/financeiro/destinatarios" class="form form-linha">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>E-mail <input type="email" name="email" required maxlength="254" placeholder="nome@multilife.com.br"></label>
+    <label>Nome <input name="nome" maxlength="120" placeholder="Opcional"></label>
+    <button type="submit" class="btn btn-primario">Adicionar</button>
+  </form>
+  <div class="rolagem">
+  <table class="tabela">
+    <thead><tr><th>E-mail</th><th>Nome</th><th>Cadastrado em</th><th>Situação</th></tr></thead>
+    <tbody>
+      {% for d in destinatarios %}{% with url_base = "/admin/financeiro" %}{% include "admin/_linha_destinatario.html" %}{% endwith %}{% else %}
+      <tr><td colspan="4" class="nota">Nenhum destinatário cadastrado.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Nomes dos centros de custo</h2>
+  <p class="nota">A API do SGG informa só o código do centro de custo no rateio das contas. Dê um nome a cada código, no formato <code>2=Clínica; 3=Ocupacional</code>.{% if centros_no_ultimo %} No último relatório: {{ centros_no_ultimo | join(", ") }}.{% endif %}</p>
+  <form method="post" action="/admin/financeiro/centros" class="form form-linha">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Códigos e nomes <input name="nomes" value="{{ nomes_centros }}" maxlength="2000" placeholder="2=Clínica; 3=Ocupacional" size="40"></label>
+    <button type="submit" class="btn btn-secundario">Salvar nomes</button>
+  </form>
+</section>
+{% endblock %}

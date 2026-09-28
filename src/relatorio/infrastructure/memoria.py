@@ -29,6 +29,8 @@ class BancoEmMemoria:
     eventos: list[Evento] = field(default_factory=list)
     resumos: dict[date, ResumoRegistro] = field(default_factory=dict)
     destinatarios: dict[int, Destinatario] = field(default_factory=dict)
+    resumos_financeiros: dict[date, ResumoRegistro] = field(default_factory=dict)
+    destinatarios_financeiro: dict[int, Destinatario] = field(default_factory=dict)
     configuracoes: dict[str, str] = field(default_factory=dict)
     execucoes: dict[int, ExecucaoJob] = field(default_factory=dict)
     cursores: dict[str, datetime] = field(default_factory=dict)
@@ -114,17 +116,17 @@ class _Eventos:
 
 
 class _Resumos:
-    def __init__(self, banco: BancoEmMemoria) -> None:
-        self.b = banco
+    def __init__(self, resumos: dict[date, ResumoRegistro]) -> None:
+        self.r = resumos
 
     def obter(self, dia: date) -> ResumoRegistro | None:
-        return self.b.resumos.get(dia)
+        return self.r.get(dia)
 
     def salvar_metricas(
         self, dia: date, metricas: Mapping[str, Any], versao_regra: str, gerado_em: datetime
     ) -> None:
-        atual = self.b.resumos.get(dia)
-        self.b.resumos[dia] = ResumoRegistro(
+        atual = self.r.get(dia)
+        self.r[dia] = ResumoRegistro(
             data=dia,
             metricas=dict(metricas),
             versao_regra=versao_regra,
@@ -134,55 +136,51 @@ class _Resumos:
         )
 
     def reservar_envio(self, dia: date, forcar: bool = False) -> bool:
-        atual = self.b.resumos.get(dia)
+        atual = self.r.get(dia)
         if atual is None:
             return False
         livre = atual.status_envio in (StatusEnvio.PENDENTE, StatusEnvio.FALHA)
         if not (livre or forcar):
             return False
-        self.b.resumos[dia] = replace(atual, status_envio=StatusEnvio.ENVIANDO)
+        self.r[dia] = replace(atual, status_envio=StatusEnvio.ENVIANDO)
         return True
 
     def marcar_enviado(self, dia: date, quando: datetime) -> None:
-        self.b.resumos[dia] = replace(
-            self.b.resumos[dia], status_envio=StatusEnvio.ENVIADO, enviado_em=quando
-        )
+        self.r[dia] = replace(self.r[dia], status_envio=StatusEnvio.ENVIADO, enviado_em=quando)
 
     def marcar_falha_envio(self, dia: date) -> None:
-        self.b.resumos[dia] = replace(self.b.resumos[dia], status_envio=StatusEnvio.FALHA)
+        self.r[dia] = replace(self.r[dia], status_envio=StatusEnvio.FALHA)
 
     def listar_recentes(self, limite: int = 30) -> list[ResumoRegistro]:
-        return sorted(self.b.resumos.values(), key=lambda r: r.data, reverse=True)[:limite]
+        return sorted(self.r.values(), key=lambda r: r.data, reverse=True)[:limite]
 
     def apagar_anteriores_a(self, limite: date) -> int:
-        antigos = [d for d in self.b.resumos if d < limite]
+        antigos = [d for d in self.r if d < limite]
         for d in antigos:
-            del self.b.resumos[d]
+            del self.r[d]
         return len(antigos)
 
 
 class _Destinatarios:
-    def __init__(self, banco: BancoEmMemoria) -> None:
-        self.b = banco
+    def __init__(self, destinatarios: dict[int, Destinatario]) -> None:
+        self.d = destinatarios
 
     def listar(self, apenas_ativos: bool = False) -> list[Destinatario]:
-        return [d for d in self.b.destinatarios.values() if d.ativo or not apenas_ativos]
+        return [d for d in self.d.values() if d.ativo or not apenas_ativos]
 
     def adicionar(self, email: str, nome: str | None) -> Destinatario:
         novo = Destinatario(
-            id=len(self.b.destinatarios) + 1,
+            id=len(self.d) + 1,
             email=email,
             nome=nome,
             ativo=True,
             criado_em=datetime.now(tz=FUSO_BRASILIA),
         )
-        self.b.destinatarios[novo.id] = novo
+        self.d[novo.id] = novo
         return novo
 
     def definir_ativo(self, id_destinatario: int, ativo: bool) -> None:
-        self.b.destinatarios[id_destinatario] = replace(
-            self.b.destinatarios[id_destinatario], ativo=ativo
-        )
+        self.d[id_destinatario] = replace(self.d[id_destinatario], ativo=ativo)
 
 
 class _Configuracoes:
@@ -296,8 +294,10 @@ class UoWEmMemoria:
         self.agendas = _Agendas(banco)
         self.snapshots = _Snapshots(banco)
         self.eventos = _Eventos(banco)
-        self.resumos = _Resumos(banco)
-        self.destinatarios = _Destinatarios(banco)
+        self.resumos = _Resumos(banco.resumos)
+        self.destinatarios = _Destinatarios(banco.destinatarios)
+        self.resumos_financeiros = _Resumos(banco.resumos_financeiros)
+        self.destinatarios_financeiro = _Destinatarios(banco.destinatarios_financeiro)
         self.configuracoes = _Configuracoes(banco)
         self.execucoes = _Execucoes(banco)
         self.cursores = _Cursores(banco)

@@ -59,6 +59,9 @@ class Settings(BaseSettings):
 
     # Coleta e regras (padrões; o admin pode sobrescrever as regras de negócio)
     coletor_habilitado: bool = True
+    # Relatório financeiro diário (coleta 05:45, e-mail 07:59). Desligado até a conferência
+    # dos números com o financeiro; a prévia e o reprocessamento no admin funcionam sempre.
+    financeiro_habilitado: bool = False
     coleta_inicio: time = time(6, 0)
     coleta_fim: time = time(18, 0)
     # Segundos entre ciclos de coleta (1 requisição por ciclo): divisor de 60, de 5 a 60.

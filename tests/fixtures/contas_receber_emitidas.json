@@ -1,0 +1,26 @@
+{
+  "resultado": [
+    {
+      "id": "5001", "parcela": "1", "total_de_parcelas": "1", "descricao": "Texto livre que não é lido",
+      "cancelada": "0", "id_conta": "900", "nome": "Empresa Exemplo Ltda", "cnpj_cpf_empresa": "12.345.678/0001-90",
+      "id_cliente": "444", "centro_de_resultados": "MULTILIFE - GESTAO 2",
+      "centro_de_custos": [{"centro_de_custo": "2", "valor": "1200.50"}],
+      "valor_cobrado": "", "valor": "1200.50", "situacao": "Aguardando pagamento",
+      "data_emissao": "2026-09-05", "data_vencimento": "2026-10-05", "data_pagamento": "",
+      "link_nfse": "https://app.sgg.net.br/doc/X", "doc_numero": "NFSe: 1",
+      "faturamento": {"simplificado": [
+        {"id_servico": null, "servico": "Outro", "valor": "1100.50", "qtde": "1"},
+        {"id_servico": "13", "servico": "Hemograma Completo (0693)", "valor": "100.00", "qtde": "5"}
+      ]}
+    },
+    {
+      "id": "5002", "cancelada": "0", "nome": "Fulano de Tal", "cnpj_cpf_empresa": "123.456.789-09",
+      "id_cliente": "445", "centro_de_resultados": "MULTILIFE - EVENTUAL", "centro_de_custos": "",
+      "valor_cobrado": "86,10", "valor": "85,00", "situacao": "Paga",
+      "data_emissao": "2026-09-06", "data_vencimento": "2026-09-16", "data_pagamento": "2026-09-20",
+      "faturamento": {"simplificado": [{"id_servico": 1, "servico": "Exame Clínico/ Físico", "valor": 85, "qtde": 1}]}
+    },
+    {"id": "", "valor": "1.00"}
+  ],
+  "temProximaPagina": false
+}
