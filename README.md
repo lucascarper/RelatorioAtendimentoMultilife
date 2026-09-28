@@ -39,6 +39,8 @@ flowchart LR
 | 08:10 | `verificar_envio`: rede de segurança | alerta se não foi entregue |
 | Dia 1, 03:00 | `limpar_retencao`: apaga o que tiver mais de 24 meses | dia 2 |
 | 03:20 | `compactar_execucoes`: deixa 1 ciclo de coleta bem-sucedido por minuto nos dias anteriores | dia seguinte |
+| 05:45 | `consolidar_financeiro`: lê os endpoints financeiros e grava `resumo_financeiro` (só com `FINANCEIRO_HABILITADO`) | 06:30 e 07:15; na 3ª falha, alerta técnico |
+| 07:59 | `enviar_financeiro`: e-mail financeiro do dia anterior, lista própria | 08:01 e 08:03; verificação às 08:10 |
 
 Todos os jobs usam `max_instances=1` e `coalesce=True`, com **advisory lock** do PostgreSQL (dois containers nunca rodam o mesmo job), e cada execução fica registrada em `execucao_job`.
 
@@ -63,6 +65,17 @@ Leitura em até 1 minuto, em pirâmide de atenção:
 4. **Base:** comparativo semanal completo, alertas por severidade (ícone + rótulo + cor) e rodapé com a versão da regra e o link do admin.
 
 Tecnicamente: layout em tabelas compatível com Outlook e Gmail, CSS inline (premailer), logo anexada via CID (Outlook não bloqueia), responsivo (KPIs em 2×2 no celular), versão em texto puro e contraste WCAG AA (texto ≥ 4,5:1). O template recebe só o JSON de `resumo_diario.metricas`, e nenhuma regra de cálculo fica nele.
+
+### Relatório financeiro diário
+
+Um segundo e-mail às 07:59, para financeiro e diretoria, com lista de destinatários própria (admin → **Financeiro**). Os dados vêm dos endpoints financeiros do SGG (`contasReceber`, `contasPagar`, `contratoCliente`, `fornecedor-valores`):
+
+1. **Fluxo de caixa:** receita recebida, despesas pagas e saldo operacional, no dia e no mês.
+2. **Inadimplência e projeção:** vencidos por faixa de atraso, maiores saldos e entradas e saídas previstas em 7, 15 e 30 dias.
+3. **Faturamento por serviço:** volume, faturado e ticket médio por categoria (exames clínicos, complementares, PGR/PCMSO, mensalidades…).
+4. **Receita recorrente, contratos e margem:** MRR, faturamento por vidas, contratos a vencer em 30 dias, margem bruta estimada por exame e rateio por centro de custo.
+
+Regras e decisões no [ADR 0011](docs/adr/0011-relatorio-financeiro-diario.md). O envio automático fica desligado até `FINANCEIRO_HABILITADO=true` no worker. A prévia e o reenvio pelo admin funcionam sempre.
 
 ### Monitor ao vivo (tela do gerente)
 
@@ -155,6 +168,7 @@ Veja [`.env.example`](.env.example). Segredos só em variáveis de ambiente (RNF
 | `SGG_BASE_URL` / `SGG_MAX_RPM` | `https://app.sgg.net.br/api/v3/` / `40` | API e orçamento de requisições por minuto (a API aceita 60) |
 | `COLETA_INTERVALO_S` | `5` | Segundos entre ciclos de coleta (divisor de 60, de 5 a 60); cada ciclo é 1 requisição |
 | `COLETOR_HABILITADO` | `true` | `false` quando o painel em tempo real grava os eventos |
+| `FINANCEIRO_HABILITADO` | `false` | Liga a coleta (05:45) e o envio (07:59) do relatório financeiro no worker |
 | `SMTP_HOST` / `SMTP_PORT` | `mail.kinghost.net` / `587` | KingHost: 587 = STARTTLS, 465 = SSL direto (`SMTP_SSL` força) |
 | `SMTP_USER` / `SMTP_PASSWORD` | (secretas) | Caixa usada no envio |
 | `EMAIL_FROM` / `EMAIL_ALERTA_TECNICO` | `relatorios@…` / `tecnologia@…` | Remetente e alertas técnicos |
@@ -238,3 +252,6 @@ O ambiente em que o código foi desenvolvido não tinha acesso à rede do `app.s
 - [0006 — Interpretações das regras](docs/adr/0006-interpretacoes-das-regras.md)
 - [0007 — Monitor em tempo real lendo só o banco](docs/adr/0007-monitor-em-tempo-real.md)
 - [0008 — Infraestrutura como código na Railway](docs/adr/0008-infraestrutura-como-codigo-na-railway.md)
+- [0009 — Coleta e monitor a cada 5 segundos](docs/adr/0009-coleta-a-cada-5-segundos.md)
+- [0010 — Sistema visual do admin e do monitor](docs/adr/0010-sistema-visual-do-admin.md)
+- [0011 — Relatório financeiro diário](docs/adr/0011-relatorio-financeiro-diario.md)

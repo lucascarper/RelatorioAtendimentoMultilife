@@ -19,6 +19,7 @@ from relatorio.application.modelos import (
     StatusJob,
 )
 from relatorio.domain.entidades import Agenda, AgendamentoSgg, Evento, Situacao, Snapshot
+from relatorio.domain.financeiro import Contrato, PrecoFornecedor, Titulo
 
 # --------------------------------------------------------------------------- externos
 
@@ -47,12 +48,36 @@ class SggGateway(Protocol):
     def agendas(self) -> list[Agenda]: ...
 
 
+class FinanceiroGateway(Protocol):
+    """Leitura dos endpoints financeiros do SGG (somente GET)."""
+
+    def receber_pagos(self, de: date, ate: date) -> list[Titulo]: ...
+
+    def pagar_pagos(self, de: date, ate: date) -> list[Titulo]: ...
+
+    def receber_emitidos(self, de: date, ate: date) -> list[Titulo]:
+        """Com o faturamento simplificado (serviços, quantidades e valores) de cada conta."""
+        ...
+
+    def receber_vencidos(self) -> list[Titulo]: ...
+
+    def receber_a_vencer(self, de: date, ate: date) -> list[Titulo]: ...
+
+    def pagar_a_vencer(self, de: date, ate: date) -> list[Titulo]: ...
+
+    def contratos_ativos(self) -> list[Contrato]: ...
+
+    def precos_servico(self, id_servico: int) -> list[PrecoFornecedor]: ...
+
+
 class EnviadorEmail(Protocol):
     def enviar(self, destinatarios: Sequence[str], conteudo: ConteudoEmail) -> None: ...
 
 
 class RenderizadorEmail(Protocol):
     def relatorio(self, metricas: Mapping[str, Any]) -> ConteudoEmail: ...
+
+    def relatorio_financeiro(self, metricas: Mapping[str, Any]) -> ConteudoEmail: ...
 
     def alerta(self, titulo: str, mensagem: str, detalhes: Mapping[str, str]) -> ConteudoEmail: ...
 
@@ -189,6 +214,12 @@ class UnidadeDeTrabalho(Protocol):
 
     @property
     def destinatarios(self) -> DestinatarioRepository: ...
+
+    @property
+    def resumos_financeiros(self) -> ResumoRepository: ...
+
+    @property
+    def destinatarios_financeiro(self) -> DestinatarioRepository: ...
 
     @property
     def configuracoes(self) -> ConfiguracaoRepository: ...

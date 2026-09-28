@@ -142,7 +142,7 @@ code {
 .menu { display: flex; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .menu::-webkit-scrollbar { display: none; }
 .menu a {
-  color: var(--texto-2); text-decoration: none; padding: 7px 9px; border-radius: var(--raio-controle);
+  color: var(--texto-2); text-decoration: none; padding: 7px 8px; border-radius: var(--raio-controle);
   font-size: 14px; white-space: nowrap; transition: background var(--transicao), color var(--transicao);
 }
 .menu a:hover { background: var(--acento-suave); color: var(--acento-texto); }
@@ -222,7 +222,8 @@ a.badge { text-decoration: none; }
   background: var(--superficie); min-width: 0; transition: border-color var(--transicao);
 }
 .form input:not([type="checkbox"]):not([type="radio"]):hover { border-color: var(--texto-3); }
-.form input::placeholder { color: var(--texto-3); opacity: 1; }
+.form input:not([type="checkbox"]):not([type="radio"]) { font-weight: 400; }
+.form input::placeholder { color: var(--texto-3); opacity: 1; font-weight: 400; }
 .form input[type="checkbox"], .form input[type="radio"] { accent-color: var(--acento); width: 16px; height: 16px; }
 .form input:focus-visible, .btn:focus-visible, .alternador:focus-visible, a:focus-visible, summary:focus-visible {
   outline: 3px solid var(--acento-anel); outline-offset: 2px;
@@ -414,7 +415,7 @@ html:fullscreen .topo, html:fullscreen .rodape, html:fullscreen .ambiente { disp
 html:fullscreen .conteudo-monitor { max-width: 1680px; padding: 20px 32px; }
 
 /* ---------------------------------------------------------------- responsivo */
-@media (max-width: 1480px) {
+@media (max-width: 1600px) {
   .marca-produto { display: none; }
 }
 

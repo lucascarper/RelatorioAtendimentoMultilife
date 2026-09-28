@@ -23,7 +23,9 @@ import structlog
 from tenacity import RetryCallState, Retrying, retry_if_exception_type, stop_after_attempt
 
 from relatorio.domain.entidades import FUSO_BRASILIA, Agenda, AgendamentoSgg, Situacao
+from relatorio.domain.financeiro import Contrato, PrecoFornecedor, Titulo
 from relatorio.infrastructure.sgg.dto import formatar_filtro, para_agenda, para_agendamento
+from relatorio.infrastructure.sgg.dto_financeiro import para_contrato, para_preco, para_titulo
 from relatorio.infrastructure.sgg.erros import (
     ErroSgg,
     ErroSggConfiguracao,
@@ -41,6 +43,8 @@ MAX_TENTATIVAS_429 = 7
 # AG025/AG009: no máximo 1 mês por consulta. O período de agendamento enviado junto
 # (dias inteiros) é um pouco maior que a janela de edição, por isso a folga.
 INTERVALO_MAXIMO_FILTRO = timedelta(days=27)
+# Filtros de data dos endpoints financeiros: janelas de no máximo 31 dias por consulta.
+JANELA_FINANCEIRA = timedelta(days=31)
 CODIGOS_SEM_DADOS = {"D001"}
 CODIGOS_AUTENTICACAO = {"A000", "A001", "S002", "S006"}
 
@@ -257,3 +261,72 @@ class ClienteSgg:
             except ValueError as erro:
                 log.warning("sgg_agenda_ignorada", motivo=str(erro))
         return agendas
+
+    # ------------------------------------------------------------------ FinanceiroGateway
+
+    def _titulos(self, caminho: str, filtros: Mapping[str, str]) -> list[Titulo]:
+        titulos: dict[int, Titulo] = {}
+        for item in self._paginar(caminho, filtros):
+            try:
+                titulo = para_titulo(item)
+            except ValueError as erro:
+                # Nunca registra o item bruto: ele tem nomes e documentos de clientes.
+                log.warning(
+                    "sgg_conta_ignorada", caminho=caminho, id=item.get("id"), motivo=str(erro)
+                )
+                continue
+            titulos[titulo.id] = titulo  # a mesma parcela pode repetir entre páginas
+        return list(titulos.values())
+
+    def _por_periodo(
+        self, caminho: str, campo: str, de: date, ate: date, extra: Mapping[str, str] | None = None
+    ) -> list[Titulo]:
+        resultado: dict[int, Titulo] = {}
+        inicio = de
+        while inicio <= ate:
+            fim = min(ate, inicio + JANELA_FINANCEIRA - timedelta(days=1))
+            filtros = {
+                f"{campo}_aPartirDe": inicio.isoformat(),
+                f"{campo}_ate": fim.isoformat(),
+                **(extra or {}),
+            }
+            for titulo in self._titulos(caminho, filtros):
+                resultado[titulo.id] = titulo
+            inicio = fim + timedelta(days=1)
+        return list(resultado.values())
+
+    def receber_pagos(self, de: date, ate: date) -> list[Titulo]:
+        return self._por_periodo("contasReceber/", "dataPagamento", de, ate)
+
+    def pagar_pagos(self, de: date, ate: date) -> list[Titulo]:
+        return self._por_periodo("contasPagar/", "dataPagamento", de, ate)
+
+    def receber_emitidos(self, de: date, ate: date) -> list[Titulo]:
+        return self._por_periodo(
+            "contasReceber/", "dataEmissao", de, ate, {"retornar_faturamento": "Simplificado"}
+        )
+
+    def receber_vencidos(self) -> list[Titulo]:
+        # A API filtra situação pelo texto ("Vencida"); o número da documentação não funciona.
+        return self._titulos("contasReceber/", {"situacao": "Vencida"})
+
+    def receber_a_vencer(self, de: date, ate: date) -> list[Titulo]:
+        return self._por_periodo("contasReceber/", "dataVencimento", de, ate)
+
+    def pagar_a_vencer(self, de: date, ate: date) -> list[Titulo]:
+        return self._por_periodo("contasPagar/", "dataVencimento", de, ate)
+
+    def contratos_ativos(self) -> list[Contrato]:
+        contratos = []
+        for item in self._paginar("contratoCliente/", {"situacao_contrato": "Em andamento"}):
+            try:
+                contratos.append(para_contrato(item))
+            except ValueError as erro:
+                log.warning("sgg_contrato_ignorado", id=item.get("id"), motivo=str(erro))
+        return contratos
+
+    def precos_servico(self, id_servico: int) -> list[PrecoFornecedor]:
+        return [
+            para_preco(item, id_servico)
+            for item in self._paginar("fornecedor-valores/", {"id_servico": str(id_servico)})
+        ]

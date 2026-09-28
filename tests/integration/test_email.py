@@ -366,3 +366,80 @@ class TestConsultoriosERecepcao:
         assert "Recepção (guichês)" in conteudo.html
         assert "Espera na recepção" in conteudo.html
         assert "RECEPÇÃO (GUICHÊS)" in conteudo.texto
+
+
+class TestRelatorioFinanceiro:
+    def metricas(self, anterior: dict[str, Any] | None = None) -> dict[str, Any]:
+        from datetime import datetime  # noqa: PLC0415
+        from decimal import Decimal  # noqa: PLC0415
+
+        from relatorio.domain.entidades import FUSO_BRASILIA  # noqa: PLC0415
+        from relatorio.domain.financeiro import (  # noqa: PLC0415
+            Contrato,
+            DadosFinanceiros,
+            ItemFaturado,
+            Titulo,
+            calcular_financeiro,
+        )
+
+        ref, hoje = date(2026, 9, 27), date(2026, 9, 28)
+
+        def t(id_: int, valor: str, **c: Any) -> Titulo:
+            base: dict[str, Any] = {
+                "situacao": "",
+                "cancelada": False,
+                "emissao": None,
+                "vencimento": None,
+                "pagamento": None,
+            }
+            return Titulo(id=id_, valor=Decimal(valor), **{**base, **c})
+
+        dados = DadosFinanceiros(
+            referencia=ref,
+            hoje=hoje,
+            recebidos_mes=[t(1, "1500.00", pagamento=ref)],
+            pagos_mes=[t(2, "2000.00", pagamento=ref, classificacao="ADMINISTRATIVAS")],
+            emitidos=[
+                t(
+                    3,
+                    "900.00",
+                    emissao=ref,
+                    id_cliente=5,
+                    nome="Empresa Cinco",
+                    itens=(ItemFaturado(None, "Outro", 1, Decimal("900.00")),),
+                )
+            ],
+            vencidos=[
+                t(4, "250.00", vencimento=date(2026, 9, 1), nome="Empresa Quatro", id_cliente=4)
+            ],
+            a_receber=[],
+            a_pagar=[],
+            contratos=[Contrato(9, 5, date(2026, 10, 10), "Em andamento")],
+        )
+        return calcular_financeiro(
+            dados, datetime(2026, 9, 28, 5, 45, tzinfo=FUSO_BRASILIA), anterior
+        )
+
+    def test_estrutura_do_email_financeiro(self, renderizador: RenderizadorJinja) -> None:
+        ontem = self.metricas()
+        conteudo = renderizador.relatorio_financeiro(self.metricas(anterior=ontem))
+        assert conteudo.assunto == "Relatório Financeiro — 27/09/2026 (domingo)"
+        html, texto = conteudo.html, conteudo.texto
+        for trecho in (
+            "Saldo operacional de 27/09",
+            "-R$ 500,00",  # saldo negativo do dia
+            "Inadimplência atual",
+            "R$ 250,00",
+            "R$ 900,00",
+            "Fluxo de caixa",
+            "Inadimplência e projeção",
+            "Faturamento por serviço",
+            "Receita recorrente, contratos e margem",
+            "Empresa Cinco",  # contrato vencendo em 12 dias
+            "sem alteração desde ontem",
+            "Regra de cálculo v1.0.0",
+            f'src="cid:{LOGO_CID}"',
+        ):
+            assert trecho in html, trecho
+        assert "Saldo operacional de 27/09: -R$ 500,00" in texto
+        assert "Contratos a vencer em 30 dias" in texto

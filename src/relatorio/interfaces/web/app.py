@@ -23,8 +23,9 @@ from relatorio.domain.entidades import FUSO_BRASILIA
 from relatorio.domain.resumo import dia_semana
 from relatorio.infrastructure.container import Container
 from relatorio.infrastructure.email import apresentacao as fmt
+from relatorio.infrastructure.email.apresentacao_financeira import moeda
 from relatorio.infrastructure.logs import configurar_logs
-from relatorio.interfaces.web import rotas_admin, rotas_publicas
+from relatorio.interfaces.web import rotas_admin, rotas_financeiro, rotas_publicas
 from relatorio.interfaces.web.dependencias import ContextoWeb
 from relatorio.interfaces.web.seguranca import ControleTentativas, NaoAutenticado
 
@@ -59,6 +60,7 @@ def criar_templates(settings: Settings) -> Jinja2Templates:
             "hora_br": _hora_br,
             "datahora_br": _datahora_br,
             "dia_semana": dia_semana,
+            "moeda": moeda,
         }
     )
     return templates
@@ -123,6 +125,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     app.mount("/static", StaticFiles(directory=str(settings.static_dir)), name="static")
     app.include_router(rotas_publicas.router)
     app.include_router(rotas_admin.router)
+    app.include_router(rotas_financeiro.router)
     return app
 
 

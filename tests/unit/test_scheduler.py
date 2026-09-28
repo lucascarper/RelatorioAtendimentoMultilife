@@ -92,3 +92,20 @@ def test_varredura_do_dia_so_no_expediente(sistema: Sistema, jobs: JobsAgendados
     sistema.relogio.instante = hora("10:00")
     jobs.varrer_dia()
     assert execucoes(sistema, "varrer_dia") == [(StatusJob.SUCESSO, "2026-09-23")]
+
+
+def test_financeiro_retentativa_pula_dia_ja_consolidado(
+    sistema: Sistema, jobs: JobsAgendados
+) -> None:
+    sistema.uow().destinatarios_financeiro.adicionar("diretoria@multilife.com.br", None)
+    sistema.relogio.instante = hora("05:45", DIA + timedelta(days=1))
+    jobs.consolidar_financeiro(tentativa=1)
+    sistema.relogio.instante = hora("06:30", DIA + timedelta(days=1))
+    jobs.consolidar_financeiro(tentativa=2)
+    assert execucoes(sistema, "consolidar_financeiro") == [(StatusJob.SUCESSO, "2026-09-23")]
+    sistema.relogio.instante = hora("07:59", DIA + timedelta(days=1))
+    jobs.enviar_financeiro(tentativa=1)
+    sistema.relogio.instante = hora("08:10", DIA + timedelta(days=1))
+    jobs.verificar_financeiro()
+    assert [d for d, _ in sistema.email.enviados] == [["diretoria@multilife.com.br"]]
+    assert execucoes(sistema, "verificar_financeiro") == [(StatusJob.SUCESSO, "2026-09-23")]

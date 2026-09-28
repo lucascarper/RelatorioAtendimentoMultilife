@@ -25,10 +25,17 @@ from relatorio.infrastructure.db.modelos import (
     AgendaModel,
     ConfiguracaoModel,
     CursorColetaModel,
+    DestinatarioFinanceiroModel,
     DestinatarioModel,
     ExecucaoJobModel,
     ResumoDiarioModel,
+    ResumoFinanceiroModel,
 )
+
+# Os dois relatórios (atendimentos e financeiro) têm tabelas de resumo e de destinatários
+# com as mesmas colunas: os repositórios recebem o modelo.
+ModeloResumo = type[ResumoDiarioModel] | type[ResumoFinanceiroModel]
+ModeloDestinatario = type[DestinatarioModel] | type[DestinatarioFinanceiroModel]
 
 # ------------------------------------------------------------------ conversões
 
@@ -76,7 +83,7 @@ def _evento(m: AgendamentoEventoModel) -> Evento:
     )
 
 
-def _resumo(m: ResumoDiarioModel) -> ResumoRegistro:
+def _resumo(m: Any) -> ResumoRegistro:  # ResumoDiarioModel ou ResumoFinanceiroModel
     return ResumoRegistro(
         data=m.data,
         metricas=dict(m.metricas),
@@ -87,7 +94,7 @@ def _resumo(m: ResumoDiarioModel) -> ResumoRegistro:
     )
 
 
-def _destinatario(m: DestinatarioModel) -> Destinatario:
+def _destinatario(m: Any) -> Destinatario:  # DestinatarioModel ou …FinanceiroModel
     return Destinatario(id=m.id, email=m.email, nome=m.nome, ativo=m.ativo, criado_em=m.criado_em)
 
 
@@ -256,17 +263,18 @@ class EventoRepositorioSql:
 
 
 class ResumoRepositorioSql:
-    def __init__(self, sessao: Session) -> None:
+    def __init__(self, sessao: Session, modelo: ModeloResumo = ResumoDiarioModel) -> None:
         self._s = sessao
+        self._m = modelo
 
     def obter(self, dia: date) -> ResumoRegistro | None:
-        modelo = self._s.get(ResumoDiarioModel, dia)
+        modelo = self._s.get(self._m, dia)
         return _resumo(modelo) if modelo else None
 
     def salvar_metricas(
         self, dia: date, metricas: Mapping[str, Any], versao_regra: str, gerado_em: datetime
     ) -> None:
-        comando = insert(ResumoDiarioModel).values(
+        comando = insert(self._m).values(
             data=dia,
             metricas=dict(metricas),
             versao_regra=versao_regra,
@@ -275,7 +283,7 @@ class ResumoRepositorioSql:
         )
         self._s.execute(
             comando.on_conflict_do_update(
-                index_elements=[ResumoDiarioModel.data],
+                index_elements=[self._m.data],
                 set_={
                     "metricas": comando.excluded.metricas,
                     "versao_regra": comando.excluded.versao_regra,
@@ -285,80 +293,77 @@ class ResumoRepositorioSql:
         )
 
     def reservar_envio(self, dia: date, forcar: bool = False) -> bool:
-        condicao = ResumoDiarioModel.data == dia
+        condicao = self._m.data == dia
         if not forcar:
-            condicao = condicao & ResumoDiarioModel.status_envio.in_(
+            condicao = condicao & self._m.status_envio.in_(
                 [StatusEnvio.PENDENTE.value, StatusEnvio.FALHA.value]
             )
         # UPDATE … WHERE status livre é atômico: dois envios concorrentes não passam os dois.
         linha = self._s.execute(
-            update(ResumoDiarioModel)
+            update(self._m)
             .where(condicao)
             .values(status_envio=StatusEnvio.ENVIANDO.value)
-            .returning(ResumoDiarioModel.data)
+            .returning(self._m.data)
         ).first()
         return linha is not None
 
     def marcar_enviado(self, dia: date, quando: datetime) -> None:
         self._s.execute(
-            update(ResumoDiarioModel)
-            .where(ResumoDiarioModel.data == dia)
+            update(self._m)
+            .where(self._m.data == dia)
             .values(status_envio=StatusEnvio.ENVIADO.value, enviado_em=quando)
         )
 
     def marcar_falha_envio(self, dia: date) -> None:
         self._s.execute(
-            update(ResumoDiarioModel)
-            .where(ResumoDiarioModel.data == dia)
-            .values(status_envio=StatusEnvio.FALHA.value)
+            update(self._m).where(self._m.data == dia).values(status_envio=StatusEnvio.FALHA.value)
         )
 
     def listar_recentes(self, limite: int = 30) -> list[ResumoRegistro]:
-        modelos = self._s.scalars(
-            select(ResumoDiarioModel).order_by(ResumoDiarioModel.data.desc()).limit(limite)
-        ).all()
+        modelos = self._s.scalars(select(self._m).order_by(self._m.data.desc()).limit(limite)).all()
         return [_resumo(m) for m in modelos]
 
     def apagar_anteriores_a(self, limite: date) -> int:
-        resultado = self._s.execute(
-            delete(ResumoDiarioModel).where(ResumoDiarioModel.data < limite)
-        )
+        resultado = self._s.execute(delete(self._m).where(self._m.data < limite))
         return _afetadas(resultado)
 
 
 class DestinatarioRepositorioSql:
-    def __init__(self, sessao: Session) -> None:
+    def __init__(
+        self,
+        sessao: Session,
+        modelo: ModeloDestinatario = DestinatarioModel,
+        restricao_email: str = "uq_destinatario_email",
+    ) -> None:
         self._s = sessao
+        self._m = modelo
+        self._restricao = restricao_email
 
     def listar(self, apenas_ativos: bool = False) -> list[Destinatario]:
-        consulta = select(DestinatarioModel).order_by(DestinatarioModel.email)
+        consulta = select(self._m).order_by(self._m.email)
         if apenas_ativos:
-            consulta = consulta.where(DestinatarioModel.ativo.is_(True))
+            consulta = consulta.where(self._m.ativo.is_(True))
         return [_destinatario(m) for m in self._s.scalars(consulta).all()]
 
     def adicionar(self, email: str, nome: str | None) -> Destinatario:
-        comando = insert(DestinatarioModel).values(email=email.strip().lower(), nome=nome)
+        comando = insert(self._m).values(email=email.strip().lower(), nome=nome)
         # Recadastrar um e-mail existente o reativa (e atualiza o nome, se informado).
         modelo_id = self._s.execute(
             comando.on_conflict_do_update(
-                constraint="uq_destinatario_email",
+                constraint=self._restricao,
                 set_={
                     "ativo": True,
-                    "nome": func.coalesce(comando.excluded.nome, DestinatarioModel.nome),
+                    "nome": func.coalesce(comando.excluded.nome, self._m.nome),
                 },
-            ).returning(DestinatarioModel.id)
+            ).returning(self._m.id)
         ).scalar_one()
-        modelo = self._s.get(DestinatarioModel, modelo_id, populate_existing=True)
+        modelo = self._s.get(self._m, modelo_id, populate_existing=True)
         if modelo is None:  # pragma: no cover - acabou de ser inserido
             raise LookupError(email)
         return _destinatario(modelo)
 
     def definir_ativo(self, id_destinatario: int, ativo: bool) -> None:
-        self._s.execute(
-            update(DestinatarioModel)
-            .where(DestinatarioModel.id == id_destinatario)
-            .values(ativo=ativo)
-        )
+        self._s.execute(update(self._m).where(self._m.id == id_destinatario).values(ativo=ativo))
 
 
 class ConfiguracaoRepositorioSql:
@@ -529,6 +534,10 @@ class UnidadeDeTrabalhoSql:
         self.eventos = EventoRepositorioSql(sessao)
         self.resumos = ResumoRepositorioSql(sessao)
         self.destinatarios = DestinatarioRepositorioSql(sessao)
+        self.resumos_financeiros = ResumoRepositorioSql(sessao, ResumoFinanceiroModel)
+        self.destinatarios_financeiro = DestinatarioRepositorioSql(
+            sessao, DestinatarioFinanceiroModel, "uq_destinatario_financeiro_email"
+        )
         self.configuracoes = ConfiguracaoRepositorioSql(sessao)
         self.execucoes = ExecucaoJobRepositorioSql(sessao)
         self.cursores = CursorRepositorioSql(sessao)

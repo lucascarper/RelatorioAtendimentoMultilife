@@ -94,6 +94,7 @@ class Container:
             janela=s.janela_coleta,
             coletor_habilitado=s.coletor_habilitado,
             destinatarios_override=s.destinatarios_override,
+            financeiro=self.sgg,
         )
 
     @cached_property

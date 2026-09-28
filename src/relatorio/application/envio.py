@@ -2,14 +2,51 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from typing import Any, Protocol
 
 from relatorio.application.alertas import AlertarTecnico
-from relatorio.application.consolidacao import ConsolidarDia
-from relatorio.application.modelos import StatusEnvio
-from relatorio.application.ports import EnviadorEmail, FabricaUoW, Relogio, RenderizadorEmail
+from relatorio.application.modelos import ConteudoEmail, StatusEnvio
+from relatorio.application.ports import (
+    DestinatarioRepository,
+    EnviadorEmail,
+    FabricaUoW,
+    Relogio,
+    RenderizadorEmail,
+    ResumoRepository,
+    UnidadeDeTrabalho,
+)
 from relatorio.domain.entidades import FUSO_BRASILIA
+
+
+class Consolidador(Protocol):
+    def executar(self, dia: date) -> Mapping[str, object]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class TipoRelatorio:
+    """O que muda entre o relatório de atendimentos e o financeiro no ciclo de envio."""
+
+    nome: str  # usado nos alertas: "Relatório", "Relatório financeiro"
+    resumos: Callable[[UnidadeDeTrabalho], ResumoRepository]
+    destinatarios: Callable[[UnidadeDeTrabalho], DestinatarioRepository]
+    renderizar: Callable[[RenderizadorEmail, Mapping[str, Any]], ConteudoEmail]
+
+
+ATENDIMENTOS = TipoRelatorio(
+    nome="Relatório",
+    resumos=lambda uow: uow.resumos,
+    destinatarios=lambda uow: uow.destinatarios,
+    renderizar=lambda r, metricas: r.relatorio(metricas),
+)
+FINANCEIRO = TipoRelatorio(
+    nome="Relatório financeiro",
+    resumos=lambda uow: uow.resumos_financeiros,
+    destinatarios=lambda uow: uow.destinatarios_financeiro,
+    renderizar=lambda r, metricas: r.relatorio_financeiro(metricas),
+)
 
 
 class RelatorioIndisponivel(Exception):
@@ -26,11 +63,12 @@ class EnviarRelatorio:
         self,
         uow: FabricaUoW,
         relogio: Relogio,
-        consolidar: ConsolidarDia,
+        consolidar: Consolidador,
         renderizador: RenderizadorEmail,
         email: EnviadorEmail,
         alertar: AlertarTecnico,
         destinatarios_override: Sequence[str] = (),
+        tipo: TipoRelatorio = ATENDIMENTOS,
     ) -> None:
         self._uow = uow
         self._relogio = relogio
@@ -39,58 +77,59 @@ class EnviarRelatorio:
         self._email = email
         self._alertar = alertar
         self._override = tuple(destinatarios_override)
+        self._tipo = tipo
 
     def executar(self, dia: date, *, forcar: bool = False) -> dict[str, object]:
         referencia = dia.isoformat()
         with self._uow() as uow:
-            registro = uow.resumos.obter(dia)
+            registro = self._tipo.resumos(uow).obter(dia)
         if registro is None:
             # O envio só lê o resumo pronto; se ele não existe, tenta consolidar agora.
             try:
                 self._consolidar.executar(dia)
             except Exception as erro:
                 self._alertar.enviar(
-                    "Relatório não enviado",
+                    f"{self._tipo.nome} não enviado",
                     f"Não havia resumo de {dia:%d/%m/%Y} e a consolidação de última hora "
                     "falhou. Nenhum relatório incompleto foi enviado.",
                     {"Data": f"{dia:%d/%m/%Y}", "Erro": f"{type(erro).__name__}: {erro}"},
                 )
                 raise RelatorioIndisponivel(referencia) from erro
             with self._uow() as uow:
-                registro = uow.resumos.obter(dia)
+                registro = self._tipo.resumos(uow).obter(dia)
             if registro is None:
                 raise RelatorioIndisponivel(referencia)
 
         with self._uow() as uow:
-            if not uow.resumos.reservar_envio(dia, forcar=forcar):
+            if not self._tipo.resumos(uow).reservar_envio(dia, forcar=forcar):
                 return {"referencia": referencia, "status": "ja_enviado"}
             destinatarios = list(self._override) or [
-                d.email for d in uow.destinatarios.listar(apenas_ativos=True)
+                d.email for d in self._tipo.destinatarios(uow).listar(apenas_ativos=True)
             ]
             uow.commit()
 
         if not destinatarios:
             with self._uow() as uow:
-                uow.resumos.marcar_falha_envio(dia)
+                self._tipo.resumos(uow).marcar_falha_envio(dia)
                 uow.commit()
             self._alertar.enviar(
-                "Relatório sem destinatários",
-                "Não há destinatários ativos cadastrados no admin.",
+                f"{self._tipo.nome} sem destinatários",
+                "Não há destinatários ativos cadastrados no admin para este relatório.",
                 {"Data": f"{dia:%d/%m/%Y}"},
             )
             return {"referencia": referencia, "status": "sem_destinatarios"}
 
         try:
-            conteudo = self._renderizador.relatorio(registro.metricas)
+            conteudo = self._tipo.renderizar(self._renderizador, registro.metricas)
             self._email.enviar(destinatarios, conteudo)
         except Exception:
             with self._uow() as uow:
-                uow.resumos.marcar_falha_envio(dia)
+                self._tipo.resumos(uow).marcar_falha_envio(dia)
                 uow.commit()
             raise
 
         with self._uow() as uow:
-            uow.resumos.marcar_enviado(dia, self._relogio.agora())
+            self._tipo.resumos(uow).marcar_enviado(dia, self._relogio.agora())
             uow.commit()
         return {
             "referencia": referencia,
@@ -108,7 +147,7 @@ class EnviarRelatorio:
         except Exception as erro:
             if tentativa >= total:
                 self._alertar.enviar(
-                    "Falha no envio do relatório",
+                    f"Falha no envio do {self._tipo.nome.lower()}",
                     f"O e-mail de {dia:%d/%m/%Y} não pôde ser enviado após {total} tentativas.",
                     {"Data": f"{dia:%d/%m/%Y}", "Erro": f"{type(erro).__name__}: {erro}"},
                 )
@@ -118,13 +157,16 @@ class EnviarRelatorio:
 class VerificarEnvio:
     """08:10 — rede de segurança: o relatório de ontem foi entregue?"""
 
-    def __init__(self, uow: FabricaUoW, alertar: AlertarTecnico) -> None:
+    def __init__(
+        self, uow: FabricaUoW, alertar: AlertarTecnico, tipo: TipoRelatorio = ATENDIMENTOS
+    ) -> None:
         self._uow = uow
         self._alertar = alertar
+        self._tipo = tipo
 
     def executar(self, dia: date) -> dict[str, object]:
         with self._uow() as uow:
-            registro = uow.resumos.obter(dia)
+            registro = self._tipo.resumos(uow).obter(dia)
         status = registro.status_envio if registro else None
         if status is StatusEnvio.ENVIADO:
             return {"referencia": dia.isoformat(), "status": "ok"}
@@ -132,8 +174,8 @@ class VerificarEnvio:
             # A terceira tentativa já avisou o técnico; não duplica o alerta.
             return {"referencia": dia.isoformat(), "status": "falha_ja_alertada"}
         self._alertar.enviar(
-            "Relatório não entregue até 08:10",
-            f"O relatório de {dia:%d/%m/%Y} ainda não consta como enviado.",
+            f"{self._tipo.nome} não entregue até 08:10",
+            f"{self._tipo.nome} de {dia:%d/%m/%Y} ainda não consta como enviado.",
             {"Data": f"{dia:%d/%m/%Y}", "Situação do envio": status or "sem resumo"},
         )
         return {"referencia": dia.isoformat(), "status": "alertado"}

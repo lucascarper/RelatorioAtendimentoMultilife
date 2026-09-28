@@ -14,6 +14,7 @@ from premailer import Premailer
 from relatorio.application.modelos import ConteudoEmail, ImagemInline
 from relatorio.domain.entidades import FUSO_BRASILIA
 from relatorio.infrastructure.email.apresentacao import montar_apresentacao
+from relatorio.infrastructure.email.apresentacao_financeira import montar_apresentacao_financeira
 
 LOGO_CID = "logo-multilife"
 
@@ -52,6 +53,18 @@ class RenderizadorJinja:
         contexto = {"a": apresentacao, "logo_cid": LOGO_CID}
         html = self._env.get_template("email/resumo_diario.html").render(contexto)
         texto = self._env.get_template("email/resumo_diario.txt").render(contexto)
+        return ConteudoEmail(
+            assunto=apresentacao.assunto,
+            html=self._inline(html),
+            texto=texto.strip() + "\n",
+            imagens=self._imagens(),
+        )
+
+    def relatorio_financeiro(self, metricas: Mapping[str, Any]) -> ConteudoEmail:
+        apresentacao = montar_apresentacao_financeira(metricas, self._admin_url)
+        contexto = {"a": apresentacao, "logo_cid": LOGO_CID}
+        html = self._env.get_template("email/relatorio_financeiro.html").render(contexto)
+        texto = self._env.get_template("email/relatorio_financeiro.txt").render(contexto)
         return ConteudoEmail(
             assunto=apresentacao.assunto,
             html=self._inline(html),

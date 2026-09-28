@@ -342,3 +342,63 @@ class TestMonitor:
         texto = cliente.get("/admin/monitor").text
         assert "Ainda não há agendamentos hoje" in texto
         assert "Ninguém aguardando na recepção agora." in texto
+
+
+class TestFinanceiro:
+    def test_pagina_destinatarios_centros_e_previa(
+        self, cliente: TestClient, uow: FabricaUoW
+    ) -> None:
+        from datetime import date, datetime  # noqa: PLC0415
+
+        from relatorio.domain.entidades import FUSO_BRASILIA  # noqa: PLC0415
+        from relatorio.domain.financeiro import (  # noqa: PLC0415
+            DadosFinanceiros,
+            calcular_financeiro,
+        )
+
+        token = entrar(cliente)
+        pagina = cliente.get("/admin/financeiro")
+        assert pagina.status_code == 200
+        assert "Relatório financeiro" in pagina.text
+        assert "FINANCEIRO_HABILITADO=false" in pagina.text
+        assert 'href="/admin/financeiro" aria-current="page"' in pagina.text
+
+        ok = cliente.post(
+            "/admin/financeiro/destinatarios",
+            data={"email": "Diretoria@MultiLife.com.br", "csrf": token},
+        )
+        assert "diretoria@multilife.com.br cadastrado na lista do relatório financeiro." in ok.text
+        with uow() as u:
+            [d] = u.destinatarios_financeiro.listar()
+            assert "diretoria@multilife.com.br" not in {x.email for x in u.destinatarios.listar()}
+        linha = cliente.post(
+            f"/admin/financeiro/destinatarios/{d.id}/ativo",
+            data={"ativo": "false"},
+            headers={"X-CSRF-Token": token, "HX-Request": "true"},
+        )
+        assert 'aria-checked="false"' in linha.text
+        assert f'hx-post="/admin/financeiro/destinatarios/{d.id}/ativo"' in linha.text
+
+        salvo = cliente.post(
+            "/admin/financeiro/centros", data={"nomes": "3=Ocupacional; 2=Clínica", "csrf": token}
+        )
+        assert 'value="2=Clínica; 3=Ocupacional"' in salvo.text
+
+        futuro = cliente.post(
+            "/admin/financeiro/reprocessar", data={"data": "2099-01-01", "csrf": token}
+        )
+        assert "escolha até ontem" in futuro.text
+
+        assert cliente.get("/admin/financeiro/relatorios/2026-09-27").status_code == 404
+        ref = date(2026, 9, 27)
+        vazio = DadosFinanceiros(ref, date(2026, 9, 28), [], [], [], [], [], [], [])
+        metricas = calcular_financeiro(vazio, datetime(2026, 9, 28, 5, 45, tzinfo=FUSO_BRASILIA))
+        with uow() as u:
+            u.resumos_financeiros.salvar_metricas(
+                ref, metricas, "1.0.0", datetime(2026, 9, 28, 5, 45, tzinfo=FUSO_BRASILIA)
+            )
+            u.commit()
+        previa = cliente.get("/admin/financeiro/relatorios/2026-09-27")
+        assert previa.status_code == 200
+        assert "Relatório financeiro diário" in previa.text
+        assert "/admin/financeiro/relatorios/2026-09-27" in cliente.get("/admin/financeiro").text

@@ -1,0 +1,33 @@
+{{ a.assunto }}
+{% if a.amostra %}PRÉVIA COM DADOS FICTÍCIOS
+{% endif %}
+{{ a.manchete }}
+
+{% for c in a.cartoes -%}
+{{ c.rotulo }}: {{ c.valor }}{% if c.valor_2 %} {{ c.rotulo_valor }}; {{ c.valor_2 }} {{ c.rotulo_valor_2 }}{% endif %}
+  {{ c.contexto }}{% if c.etiqueta %} ({{ c.etiqueta }}){% endif %}
+{% endfor %}
+{%- for s in a.secoes %}
+
+== {{ s.titulo }}{% if s.etiqueta %} ({{ s.etiqueta }}){% endif %} ==
+{{ s.subtitulo }}
+{%- for t in s.tabelas %}
+{% if t.titulo %}
+{{ t.titulo }}{% if t.etiqueta %} ({{ t.etiqueta }}){% endif %}
+{%- endif %}
+{%- if t.linhas %}
+{%- for linha in t.linhas %}
+- {{ linha.rotulo }}: {% for h in t.cabecalho[1:] %}{{ h }} {{ linha.valores[loop.index0] }}{% if not loop.last %}; {% endif %}{% endfor %}{% if linha.nota %} ({{ linha.nota }}){% endif %}
+{%- endfor %}
+{%- else %}
+{{ t.vazio }}
+{%- endif %}
+{%- endfor %}
+{%- endfor %}
+
+Como os números são calculados
+{% for termo, definicao in a.definicoes -%}
+- {{ termo }}: {{ definicao }}
+{% endfor %}
+Gerado em {{ a.gerado_em }} a partir da API do SGG. Regra de cálculo v{{ a.versao_regra }}.
+{% if a.admin_url %}Painel administrativo: {{ a.admin_url }}{% endif %}

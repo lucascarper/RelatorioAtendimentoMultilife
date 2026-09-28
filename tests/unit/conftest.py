@@ -10,6 +10,7 @@ from tests.fabricas import hora
 from tests.fakes import (
     BancoEmMemoria,
     EmailFake,
+    FinanceiroFake,
     RelogioFixo,
     RenderizadorFake,
     SggFake,
@@ -25,6 +26,7 @@ class Sistema:
     relogio: RelogioFixo = field(default_factory=lambda: RelogioFixo(hora("08:00")))
     sgg: SggFake = field(default_factory=SggFake)
     email: EmailFake = field(default_factory=EmailFake)
+    financeiro: FinanceiroFake = field(default_factory=FinanceiroFake)
     coletor_habilitado: bool = True
 
     def __post_init__(self) -> None:
@@ -38,6 +40,7 @@ class Sistema:
             configuracao_padrao=ConfiguracaoRelatorio(),
             janela=JanelaColeta(),
             coletor_habilitado=self.coletor_habilitado,
+            financeiro=self.financeiro,
         )
         self.alertar = casos.alertar
         self.coletar = casos.coletar
@@ -52,6 +55,10 @@ class Sistema:
         self.limpar = casos.limpar
         self.compactar = casos.compactar
         self.alerta_coleta = casos.alerta_coleta
+        assert casos.consolidar_financeiro is not None and casos.enviar_financeiro is not None
+        self.consolidar_financeiro = casos.consolidar_financeiro
+        self.enviar_financeiro = casos.enviar_financeiro
+        self.verificar_financeiro = casos.verificar_financeiro
 
     def alertas_enviados(self) -> list[str]:
         return [c.assunto for _, c in self.email.enviados if c.assunto.startswith("[Alerta]")]
