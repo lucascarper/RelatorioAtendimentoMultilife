@@ -24,9 +24,9 @@ Financeiro e diretoria querem um e-mail diário às 07:59, separado do relatóri
   - Caixa e faturamento são do **dia anterior** e do mês até ele.
   - Projeções e contratos são a **foto do momento da coleta**, porque a API só devolve a situação atual.
   - Reprocessar uma data antiga refaz a foto com a situação de hoje.
-- **Regras** (`domain/financeiro.py`, `VERSAO_REGRA_FINANCEIRO` 1.1.0):
+- **Regras** (`domain/financeiro.py`, `VERSAO_REGRA_FINANCEIRO` 1.2.0):
   - Recebido pelo valor cobrado.
-  - Projeção de hoje até hoje + N − 1.
+  - Projeção de hoje até hoje + N − 1, mais uma coluna até o último dia do mês atual.
   - MRR = mensalidades faturadas nos últimos 30 dias a clientes com contrato ativo.
   - Margem = faturado − quantidade × média do custo dos credenciados (sem os de custo zero).
 - **Categorias de serviço por regra de nome**, porque o SGG não classifica os serviços: exames clínicos, complementares (código entre parênteses), programas e laudos (PGR, PCMSO, LTCAT, AET…), mensalidades, faltas e outros. As regras foram conferidas contra os 87 serviços faturados em setembro.
@@ -45,6 +45,10 @@ O pedido original de negócio era contar como inadimplente só as contas a receb
 Sem uma forma confiável de aplicar o filtro pedido, calcular a inadimplência sem ele publicaria um número que não é o que o financeiro pediu (títulos sem cobrança cadastrada entrando na conta). A decisão foi **remover o indicador de inadimplência do relatório** (cartão, seção "Inadimplência e projeção", faixas de atraso e maiores devedores) em vez de publicar um valor sabidamente incorreto. A seção de projeção de entradas e saídas (7/15/30 dias) não depende de "cobrança cadastrada" e foi mantida, em seção própria.
 
 Se um dia o SGG expuser o campo certo (API ou exportação), a inadimplência pode voltar como uma nova versão da regra.
+
+## Revisão: coluna de projeção até o fim do mês (v1.2.0)
+
+Além dos horizontes fixos de 7/15/30 dias, a tabela de projeção ganhou uma coluna com o horizonte até o último dia do mês corrente (calendário, não um N fixo de dias), para responder "quanto ainda entra e sai até fechar o mês". Usa a mesma regra dos demais horizontes (títulos em aberto que vencem de `hoje` até essa data). A janela de coleta de `a_receber`/`a_pagar` já cobre até 30 dias à frente (o maior horizonte fixo), o que é suficiente mesmo no pior caso (dia 1 de um mês de 31 dias), então não precisou mudar.
 
 ## Consequências
 
