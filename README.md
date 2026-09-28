@@ -71,7 +71,7 @@ Tecnicamente: layout em tabelas compatível com Outlook e Gmail, CSS inline (pre
 Um segundo e-mail às 07:59, para financeiro e diretoria, com lista de destinatários própria (admin → **Financeiro**). Os dados vêm dos endpoints financeiros do SGG (`contasReceber`, `contasPagar`, `contratoCliente`, `fornecedor-valores`):
 
 1. **Fluxo de caixa:** receita recebida, despesas pagas e saldo operacional, no dia e no mês.
-2. **Projeção de entradas e saídas:** títulos em aberto (a receber e a pagar) previstos para 7, 15 e 30 dias.
+2. **Projeção de entradas e saídas:** títulos em aberto (a receber e a pagar) previstos para 7, 15 e 30 dias, mais uma coluna até o fim do mês atual.
 3. **Faturamento por serviço:** volume, faturado e ticket médio por categoria (exames clínicos, complementares, PGR/PCMSO, mensalidades…).
 4. **Receita recorrente, contratos e margem:** MRR, faturamento por vidas, contratos a vencer em 30 dias, margem bruta estimada por exame e rateio por centro de custo.
 

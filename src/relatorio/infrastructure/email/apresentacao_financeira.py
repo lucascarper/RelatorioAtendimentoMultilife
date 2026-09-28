@@ -155,9 +155,16 @@ def _secao_caixa(m: Mapping[str, Any], ref: date) -> Secao:
     )
 
 
+def _rotulo_horizonte(p: Mapping[str, Any]) -> str:
+    if p.get("fim_mes"):
+        data = _data(p["ate"])
+        return f"Até {data:%d/%m}" if data else "Até o fim do mês"
+    return f"{p['dias']} dias"
+
+
 def _secao_projecao(m: Mapping[str, Any], hoje: date) -> Secao:
     proj = m["projecao"]
-    horizontes = [f"{p['dias']} dias" for p in proj]
+    horizontes = [_rotulo_horizonte(p) for p in proj]
     projecao = (
         Linha("Entradas previstas", tuple(moeda(p["entradas"]) for p in proj)),
         Linha("Saídas previstas", tuple(moeda(p["saidas"]) for p in proj)),
@@ -176,7 +183,7 @@ def _secao_projecao(m: Mapping[str, Any], hoje: date) -> Secao:
         ),
         tabelas=(
             Tabela(
-                cabecalho=("Próximos", *horizontes),
+                cabecalho=("Horizonte", *horizontes),
                 linhas=projecao,
             ),
         ),
@@ -313,7 +320,11 @@ DEFINICOES = (
     ("Receita recebida", "títulos a receber pagos na data (caixa), pelo valor cobrado."),
     ("Faturamento", "contas a receber emitidas no período (competência)."),
     ("Saldo operacional", "receita recebida menos despesas pagas."),
-    ("Projeção", "títulos em aberto (a receber e a pagar) que vencem de hoje em diante."),
+    (
+        "Projeção",
+        "títulos em aberto (a receber e a pagar) que vencem de hoje em diante,"
+        " inclusive até o fim do mês atual.",
+    ),
     ("MRR", "mensalidades faturadas nos últimos 30 dias a clientes com contrato ativo."),
     ("Margem bruta", "faturado menos o custo médio dos credenciados na tabela de preços do SGG."),
 )

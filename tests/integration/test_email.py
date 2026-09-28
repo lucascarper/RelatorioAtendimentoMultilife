@@ -432,7 +432,7 @@ class TestRelatorioFinanceiro:
             "Receita recorrente, contratos e margem",
             "Empresa Cinco",  # contrato vencendo em 12 dias
             "sem alteração desde ontem",
-            "Regra de cálculo v1.1.0",
+            "Regra de cálculo v1.2.0",
             f'src="cid:{LOGO_CID}"',
         ):
             assert trecho in html, trecho

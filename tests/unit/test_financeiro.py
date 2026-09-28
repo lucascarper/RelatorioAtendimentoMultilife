@@ -114,9 +114,12 @@ def test_projecao_de_entradas_e_saidas_por_horizonte() -> None:
         ),
         GERADO,
     )
-    p = {linha["dias"]: linha for linha in r["projecao"]}
+    p = {linha["dias"]: linha for linha in r["projecao"] if not linha["fim_mes"]}
     assert (p[7]["entradas"], p[7]["saidas"], p[7]["titulos_entrada"]) == (300.0, 0.0, 2)
     assert (p[30]["entradas"], p[30]["saidas"], p[30]["saldo"]) == (700.0, 150.0, 550.0)
+    (fim_mes,) = [linha for linha in r["projecao"] if linha["fim_mes"]]
+    assert fim_mes["ate"] == "2026-09-30"  # HOJE é 28/09: só faltam 3 dias no mês
+    assert (fim_mes["entradas"], fim_mes["saidas"], fim_mes["titulos_entrada"]) == (100.0, 0.0, 1)
 
 
 def test_faturamento_por_competencia_e_categorias() -> None:

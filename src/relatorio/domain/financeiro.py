@@ -8,7 +8,8 @@ de fornecedores, já lidos do SGG. As regras seguem o glossário do escopo:
 * **Despesas pagas** (caixa): títulos a pagar com pagamento na data, mesmo critério.
 * **Faturamento** (competência): títulos a receber emitidos no período, sem os
   cancelados. É outro número, mesmo quando coincide com a receita do dia.
-* **Projeções**: títulos em aberto que vencem de hoje até hoje + N - 1 dias.
+* **Projeções**: títulos em aberto que vencem de hoje até hoje + N - 1 dias, mais uma
+  coluna até o último dia do mês atual (calendário, não N fixo).
 * **MRR**: mensalidades (planos de gestão, cobrança por vidas) faturadas nos últimos
   30 dias para clientes com contrato ativo. O SGG não guarda o valor mensal no
   contrato, então a receita recorrente é medida pelo que foi de fato faturado.
@@ -30,7 +31,7 @@ from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-VERSAO_REGRA_FINANCEIRO = "1.1.0"  # 1.1: sem inadimplência (sem campo de cobrança na API)
+VERSAO_REGRA_FINANCEIRO = "1.2.0"  # 1.2: projeção ganha coluna até o fim do mês atual
 
 ZERO = Decimal("0")
 CENTAVO = Decimal("0.01")
@@ -185,6 +186,11 @@ def inicio_do_mes(dia: date) -> date:
     return dia.replace(day=1)
 
 
+def fim_do_mes(dia: date) -> date:
+    primeiro_dia_prox_mes = (dia.replace(day=1) + timedelta(days=32)).replace(day=1)
+    return primeiro_dia_prox_mes - timedelta(days=1)
+
+
 def inicio_janela_emissao(referencia: date) -> date:
     """Primeiro dia de emissão que o cálculo usa (mês corrente e janela do MRR)."""
     return min(inicio_do_mes(referencia), referencia - timedelta(days=JANELA_MRR_DIAS - 1))
@@ -226,29 +232,30 @@ def _caixa(dados: DadosFinanceiros) -> dict[str, Any]:
 
 
 def _projecao(dados: DadosFinanceiros) -> list[dict[str, Any]]:
-    linhas = []
-    for dias in HORIZONTES_PROJECAO:
-        ate = dados.hoje + timedelta(days=dias - 1)
+    def no_prazo(titulos: Sequence[Titulo], ate: date) -> list[Titulo]:
+        return [
+            t for t in titulos if t.em_aberto and t.vencimento and dados.hoje <= t.vencimento <= ate
+        ]
 
-        def no_prazo(titulos: Sequence[Titulo], ate: date = ate) -> list[Titulo]:
-            return [
-                t
-                for t in titulos
-                if t.em_aberto and t.vencimento and dados.hoje <= t.vencimento <= ate
-            ]
+    def linha(ate: date, dias: int, fim_mes: bool) -> dict[str, Any]:
+        entradas, saidas = no_prazo(dados.a_receber, ate), no_prazo(dados.a_pagar, ate)
+        return {
+            "dias": dias,
+            "ate": ate.isoformat(),
+            "entradas": _dinheiro(_soma_valor(entradas)),
+            "saidas": _dinheiro(_soma_valor(saidas)),
+            "saldo": _dinheiro(_soma_valor(entradas) - _soma_valor(saidas)),
+            "titulos_entrada": len(entradas),
+            "titulos_saida": len(saidas),
+            "fim_mes": fim_mes,
+        }
 
-        entradas, saidas = no_prazo(dados.a_receber), no_prazo(dados.a_pagar)
-        linhas.append(
-            {
-                "dias": dias,
-                "ate": ate.isoformat(),
-                "entradas": _dinheiro(_soma_valor(entradas)),
-                "saidas": _dinheiro(_soma_valor(saidas)),
-                "saldo": _dinheiro(_soma_valor(entradas) - _soma_valor(saidas)),
-                "titulos_entrada": len(entradas),
-                "titulos_saida": len(saidas),
-            }
-        )
+    linhas = [
+        linha(dados.hoje + timedelta(days=dias - 1), dias, fim_mes=False)
+        for dias in HORIZONTES_PROJECAO
+    ]
+    ate_fim_mes = fim_do_mes(dados.hoje)
+    linhas.append(linha(ate_fim_mes, (ate_fim_mes - dados.hoje).days + 1, fim_mes=True))
     return linhas
 
 
