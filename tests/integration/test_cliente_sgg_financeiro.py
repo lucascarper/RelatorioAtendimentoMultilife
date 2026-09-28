@@ -85,15 +85,6 @@ def test_periodo_longo_vira_janelas_de_31_dias(cliente: ClienteSgg) -> None:
 
 
 @respx.mock
-def test_vencidos_filtra_situacao_pelo_texto(cliente: ClienteSgg) -> None:
-    rota = respx.get(BASE + "contasReceber/").mock(
-        return_value=httpx.Response(200, json={"resultado": [], "temProximaPagina": False})
-    )
-    cliente.receber_vencidos()
-    assert rota.calls[0].request.url.params["situacao"] == "Vencida"
-
-
-@respx.mock
 def test_contratos_e_tabela_de_precos(cliente: ClienteSgg) -> None:
     respx.get(BASE + "contratoCliente/").mock(
         return_value=httpx.Response(200, json=carregar("contrato_cliente.json"))

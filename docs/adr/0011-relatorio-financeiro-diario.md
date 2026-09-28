@@ -22,18 +22,29 @@ Financeiro e diretoria querem um e-mail diário às 07:59, separado do relatóri
 - **Mesmo ciclo de envio do relatório de atendimentos.** `EnviarRelatorio`/`VerificarEnvio` recebem um `TipoRelatorio` (tabela de resumo, lista de destinatários e template). Tabelas novas `resumo_financeiro` e `destinatario_financeiro` (migração 0003). A reserva de envio impede e-mail duplicado.
 - **Referência:**
   - Caixa e faturamento são do **dia anterior** e do mês até ele.
-  - Inadimplência, projeções e contratos são a **foto do momento da coleta**, porque a API só devolve a situação atual.
+  - Projeções e contratos são a **foto do momento da coleta**, porque a API só devolve a situação atual.
   - Reprocessar uma data antiga refaz a foto com a situação de hoje.
-- **Regras** (`domain/financeiro.py`, `VERSAO_REGRA_FINANCEIRO` 1.0.0):
+- **Regras** (`domain/financeiro.py`, `VERSAO_REGRA_FINANCEIRO` 1.1.0):
   - Recebido pelo valor cobrado.
-  - Inadimplência a partir do dia seguinte ao vencimento.
   - Projeção de hoje até hoje + N − 1.
   - MRR = mensalidades faturadas nos últimos 30 dias a clientes com contrato ativo.
   - Margem = faturado − quantidade × média do custo dos credenciados (sem os de custo zero).
 - **Categorias de serviço por regra de nome**, porque o SGG não classifica os serviços: exames clínicos, complementares (código entre parênteses), programas e laudos (PGR, PCMSO, LTCAT, AET…), mensalidades, faltas e outros. As regras foram conferidas contra os 87 serviços faturados em setembro.
-- **"Sem alteração desde ontem"**: inadimplência, MRR, contratos, margem e rateio são comparados com o resumo do dia anterior.
+- **"Sem alteração desde ontem"**: MRR, contratos, margem e rateio são comparados com o resumo do dia anterior.
 - **LGPD:** de cada conta ficam valores, datas, situação, classificação e o nome do cliente pessoa jurídica. CPF vira "Pessoa física #id"; descrição, links e documentos são descartados.
 - **`FINANCEIRO_HABILITADO=false` por padrão.** A prévia e o reenvio pelo admin (`/admin/financeiro`) funcionam sempre, e o envio automático só liga depois da conferência com o financeiro.
+
+## Revisão: remoção do indicador de inadimplência (v1.1.0)
+
+O pedido original de negócio era contar como inadimplente só as contas a receber vencidas **com cobrança cadastrada** (o SGG tem esse filtro na tela "Possui cobrança?" de contas a receber). Não há, porém, nenhum campo ou parâmetro correspondente na API pública do SGG:
+
+- O Swagger (`/api/v3/doc/api.json`) não lista nenhum parâmetro de cobrança em `contasReceber/`.
+- O candidato mais próximo, `link_cobranca`, veio vazio em 100% de mais de 1.200 títulos reais testados (emitidas, abertas e vencidas), inclusive nos 160 títulos vencidos reais — ou seja, usá-lo zeraria a inadimplência todo dia.
+- Sete nomes de parâmetro plausíveis (`possui_cobranca`, `possuiCobranca`, `tem_cobranca`, `cobranca`, `com_cobranca`, `cobranca_cadastrada`, `possui_cobranca_cadastrada`, cada um com várias variantes de valor) foram testados ao vivo contra `contasReceber/?situacao=Vencida`: a API ignora silenciosamente qualquer parâmetro que não reconhece, então nenhum teste comprova nem refuta a existência do filtro certo.
+
+Sem uma forma confiável de aplicar o filtro pedido, calcular a inadimplência sem ele publicaria um número que não é o que o financeiro pediu (títulos sem cobrança cadastrada entrando na conta). A decisão foi **remover o indicador de inadimplência do relatório** (cartão, seção "Inadimplência e projeção", faixas de atraso e maiores devedores) em vez de publicar um valor sabidamente incorreto. A seção de projeção de entradas e saídas (7/15/30 dias) não depende de "cobrança cadastrada" e foi mantida, em seção própria.
+
+Se um dia o SGG expuser o campo certo (API ou exportação), a inadimplência pode voltar como uma nova versão da regra.
 
 ## Consequências
 

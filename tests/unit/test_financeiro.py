@@ -1,4 +1,4 @@
-"""Relatório financeiro: regras do glossário (caixa, competência, inadimplência, MRR…)."""
+"""Relatório financeiro: regras do glossário (caixa, competência, projeção, MRR…)."""
 
 from __future__ import annotations
 
@@ -54,7 +54,6 @@ def dados(**campos: object) -> DadosFinanceiros:
         "recebidos_mes": [],
         "pagos_mes": [],
         "emitidos": [],
-        "vencidos": [],
         "a_receber": [],
         "a_pagar": [],
         "contratos": [],
@@ -100,31 +99,6 @@ def test_caixa_usa_valor_cobrado_e_separa_dia_e_mes() -> None:
     assert (c["recebido_dia"], c["pago_dia"], c["saldo_dia"]) == (222.87, 80.0, 142.87)
     assert (c["recebido_mes"], c["saldo_mes"]) == (322.87, 242.87)
     assert (c["titulos_recebidos_dia"], c["titulos_pagos_dia"]) == (1, 1)
-
-
-def test_inadimplencia_conta_a_partir_do_dia_seguinte_ao_vencimento() -> None:
-    r = calcular_financeiro(
-        dados(
-            vencidos=[
-                titulo(1, "100.00", vencimento=d("2026-09-27"), nome="Empresa A", id_cliente=1),
-                titulo(2, "300.00", vencimento=d("2026-06-01"), nome="Empresa B", id_cliente=2),
-                titulo(3, "50.00", vencimento=d("2026-09-28")),  # vence hoje: ainda não
-                titulo(4, "70.00", vencimento=d("2026-09-01"), pagamento=d("2026-09-02")),
-            ]
-        ),
-        GERADO,
-    )
-    i = r["inadimplencia"]
-    assert (i["valor"], i["titulos"], i["clientes"]) == (400.0, 2, 2)
-    faixas = {f["rotulo"]: (f["valor"], f["titulos"]) for f in i["faixas"]}
-    assert faixas["1 a 30 dias"] == (100.0, 1)
-    assert faixas["91 a 180 dias"] == (300.0, 1)
-    assert i["maiores"][0] == {
-        "cliente": "Empresa B",
-        "valor": 300.0,
-        "titulos": 1,
-        "dias_max": 119,
-    }
 
 
 def test_projecao_de_entradas_e_saidas_por_horizonte() -> None:
@@ -298,11 +272,20 @@ def test_rateio_por_centro_de_custo_e_classificacao() -> None:
 def test_sem_alteracao_desde_ontem() -> None:
     contratos = [Contrato(1, 10, d("2027-01-01"), "Em andamento")]
     ontem = calcular_financeiro(dados(contratos=contratos), GERADO)
+    emitidos = [
+        titulo(
+            1,
+            "300.00",
+            emissao=d("2026-09-10"),
+            itens=(item("Audiometria Tonal (0281)", 6, "300.00", id_servico=11),),
+        )
+    ]
+    precos = {11: [PrecoFornecedor(11, 2, None, Decimal("50"), Decimal("25"))]}
     hoje = calcular_financeiro(
-        dados(contratos=contratos, vencidos=[titulo(1, "10.00", vencimento=d("2026-09-01"))]),
+        dados(contratos=contratos, emitidos=emitidos, precos=precos),
         GERADO,
         anterior=ontem,
     )
     assert "contratos_ativos" in hoje["sem_alteracao"]
-    assert "inadimplencia" not in hoje["sem_alteracao"]
+    assert "margem" not in hoje["sem_alteracao"]
     assert calcular_financeiro(dados(), GERADO)["sem_alteracao"] == []

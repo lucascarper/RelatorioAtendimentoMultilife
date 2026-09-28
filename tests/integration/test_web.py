@@ -391,7 +391,7 @@ class TestFinanceiro:
 
         assert cliente.get("/admin/financeiro/relatorios/2026-09-27").status_code == 404
         ref = date(2026, 9, 27)
-        vazio = DadosFinanceiros(ref, date(2026, 9, 28), [], [], [], [], [], [], [])
+        vazio = DadosFinanceiros(ref, date(2026, 9, 28), [], [], [], [], [], [])
         metricas = calcular_financeiro(vazio, datetime(2026, 9, 28, 5, 45, tzinfo=FUSO_BRASILIA))
         with uow() as u:
             u.resumos_financeiros.salvar_metricas(

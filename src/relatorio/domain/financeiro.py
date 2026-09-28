@@ -1,4 +1,4 @@
-"""Relatório financeiro diário: indicadores de caixa, inadimplência, faturamento e contratos.
+"""Relatório financeiro diário: indicadores de caixa, faturamento, contratos e projeção.
 
 Funções puras sobre títulos (contas a receber e a pagar), contratos e a tabela de preços
 de fornecedores, já lidos do SGG. As regras seguem o glossário do escopo:
@@ -8,8 +8,6 @@ de fornecedores, já lidos do SGG. As regras seguem o glossário do escopo:
 * **Despesas pagas** (caixa): títulos a pagar com pagamento na data, mesmo critério.
 * **Faturamento** (competência): títulos a receber emitidos no período, sem os
   cancelados. É outro número, mesmo quando coincide com a receita do dia.
-* **Inadimplência**: títulos a receber vencidos e sem pagamento, contados a partir do
-  dia seguinte ao vencimento, sem carência.
 * **Projeções**: títulos em aberto que vencem de hoje até hoje + N - 1 dias.
 * **MRR**: mensalidades (planos de gestão, cobrança por vidas) faturadas nos últimos
   30 dias para clientes com contrato ativo. O SGG não guarda o valor mensal no
@@ -32,21 +30,13 @@ from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-VERSAO_REGRA_FINANCEIRO = "1.0.0"
+VERSAO_REGRA_FINANCEIRO = "1.1.0"  # 1.1: sem inadimplência (sem campo de cobrança na API)
 
 ZERO = Decimal("0")
 CENTAVO = Decimal("0.01")
 JANELA_MRR_DIAS = 30
 JANELA_CONTRATOS_DIAS = 30
 HORIZONTES_PROJECAO = (7, 15, 30)
-FAIXAS_ATRASO: tuple[tuple[str, int, int | None], ...] = (
-    ("1 a 30 dias", 1, 30),
-    ("31 a 60 dias", 31, 60),
-    ("61 a 90 dias", 61, 90),
-    ("91 a 180 dias", 91, 180),
-    ("Mais de 180 dias", 181, None),
-)
-MAIORES_DEVEDORES = 5
 MAXIMO_SERVICOS_MARGEM = 10
 MAXIMO_CLASSIFICACOES = 8
 SEM_CENTRO = "Sem centro de custo"
@@ -180,11 +170,10 @@ class DadosFinanceiros:
     """Tudo o que o cálculo precisa, já lido do SGG."""
 
     referencia: date  # dia do relatório (ontem, no envio das 07:59)
-    hoje: date  # dia da coleta: base da inadimplência, das projeções e dos contratos
+    hoje: date  # dia da coleta: base das projeções e dos contratos
     recebidos_mes: Sequence[Titulo]
     pagos_mes: Sequence[Titulo]
     emitidos: Sequence[Titulo]
-    vencidos: Sequence[Titulo]
     a_receber: Sequence[Titulo]
     a_pagar: Sequence[Titulo]
     contratos: Sequence[Contrato]
@@ -233,49 +222,6 @@ def _caixa(dados: DadosFinanceiros) -> dict[str, Any]:
         "recebido_mes": _dinheiro(_soma(recebidos_mes)),
         "pago_mes": _dinheiro(_soma(pagos_mes)),
         "saldo_mes": _dinheiro(_soma(recebidos_mes) - _soma(pagos_mes)),
-    }
-
-
-def _nome_cliente(titulo: Titulo) -> str:
-    if titulo.nome.strip():
-        return " ".join(titulo.nome.split())
-    return f"Cliente #{titulo.id_cliente}" if titulo.id_cliente else "Cliente sem cadastro"
-
-
-def _inadimplencia(dados: DadosFinanceiros) -> dict[str, Any]:
-    vencidos = [
-        t for t in dados.vencidos if t.em_aberto and t.vencimento and t.vencimento < dados.hoje
-    ]
-    faixas = []
-    for rotulo, minimo, maximo in FAIXAS_ATRASO:
-        na_faixa = [
-            t
-            for t in vencidos
-            if t.vencimento
-            and minimo <= (dados.hoje - t.vencimento).days
-            and (maximo is None or (dados.hoje - t.vencimento).days <= maximo)
-        ]
-        faixas.append(
-            {"rotulo": rotulo, "valor": _dinheiro(_soma_valor(na_faixa)), "titulos": len(na_faixa)}
-        )
-    por_cliente: dict[str, list[Titulo]] = defaultdict(list)
-    for t in vencidos:
-        por_cliente[_nome_cliente(t)].append(t)
-    maiores = sorted(por_cliente.items(), key=lambda par: -_soma_valor(par[1]))
-    return {
-        "valor": _dinheiro(_soma_valor(vencidos)),
-        "titulos": len(vencidos),
-        "clientes": len(por_cliente),
-        "faixas": faixas,
-        "maiores": [
-            {
-                "cliente": cliente,
-                "valor": _dinheiro(_soma_valor(titulos)),
-                "titulos": len(titulos),
-                "dias_max": max((dados.hoje - t.vencimento).days for t in titulos if t.vencimento),
-            }
-            for cliente, titulos in maiores[:MAIORES_DEVEDORES]
-        ],
     }
 
 
@@ -382,7 +328,7 @@ def _contratos_a_vencer(
 ) -> list[dict[str, Any]]:
     limite = dados.hoje + timedelta(days=JANELA_CONTRATOS_DIAS)
     nomes: dict[int, str] = {}
-    for t in (*dados.emitidos, *dados.recebidos_mes, *dados.vencidos, *dados.a_receber):
+    for t in (*dados.emitidos, *dados.recebidos_mes, *dados.a_receber):
         if t.id_cliente is not None and t.nome.strip():
             nomes.setdefault(t.id_cliente, " ".join(t.nome.split()))
     vencendo = sorted(
@@ -514,7 +460,6 @@ def _rateio(dados: DadosFinanceiros) -> dict[str, Any]:
 
 # Blocos que costumam repetir de um dia para o outro: o e-mail avisa "sem alteração".
 BLOCOS_COMPARADOS: dict[str, tuple[str, ...]] = {
-    "inadimplencia": ("inadimplencia", "valor"),
     "mrr": ("recorrente", "mrr"),
     "contratos_ativos": ("recorrente", "contratos_ativos"),
     "contratos_a_vencer": ("contratos_a_vencer",),
@@ -557,7 +502,6 @@ def calcular_financeiro(
         "hoje": dados.hoje.isoformat(),
         "gerado_em": gerado_em.isoformat(),
         "caixa": _caixa(dados),
-        "inadimplencia": _inadimplencia(dados),
         "projecao": _projecao(dados),
         "faturamento": _faturamento(dados),
         "recorrente": recorrente,

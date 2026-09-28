@@ -306,10 +306,6 @@ class ClienteSgg:
             "contasReceber/", "dataEmissao", de, ate, {"retornar_faturamento": "Simplificado"}
         )
 
-    def receber_vencidos(self) -> list[Titulo]:
-        # A API filtra situação pelo texto ("Vencida"); o número da documentação não funciona.
-        return self._titulos("contasReceber/", {"situacao": "Vencida"})
-
     def receber_a_vencer(self, de: date, ate: date) -> list[Titulo]:
         return self._por_periodo("contasReceber/", "dataVencimento", de, ate)
 

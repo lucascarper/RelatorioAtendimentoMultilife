@@ -409,9 +409,6 @@ class TestRelatorioFinanceiro:
                     itens=(ItemFaturado(None, "Outro", 1, Decimal("900.00")),),
                 )
             ],
-            vencidos=[
-                t(4, "250.00", vencimento=date(2026, 9, 1), nome="Empresa Quatro", id_cliente=4)
-            ],
             a_receber=[],
             a_pagar=[],
             contratos=[Contrato(9, 5, date(2026, 10, 10), "Em andamento")],
@@ -428,16 +425,14 @@ class TestRelatorioFinanceiro:
         for trecho in (
             "Saldo operacional de 27/09",
             "-R$ 500,00",  # saldo negativo do dia
-            "Inadimplência atual",
-            "R$ 250,00",
             "R$ 900,00",
             "Fluxo de caixa",
-            "Inadimplência e projeção",
+            "Projeção de entradas e saídas",
             "Faturamento por serviço",
             "Receita recorrente, contratos e margem",
             "Empresa Cinco",  # contrato vencendo em 12 dias
             "sem alteração desde ontem",
-            "Regra de cálculo v1.0.0",
+            "Regra de cálculo v1.1.0",
             f'src="cid:{LOGO_CID}"',
         ):
             assert trecho in html, trecho

@@ -37,7 +37,7 @@
 
 <section class="card">
   <h2>Gerar ou reenviar uma data</h2>
-  <p class="nota">Busca os dados financeiros no SGG (cerca de 1 minuto) e grava o resumo do dia escolhido. Inadimplência, projeções e contratos refletem a situação no momento da coleta.</p>
+  <p class="nota">Busca os dados financeiros no SGG (cerca de 1 minuto) e grava o resumo do dia escolhido. Projeções e contratos refletem a situação no momento da coleta.</p>
   <form method="post" action="/admin/financeiro/reprocessar" class="form form-linha">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <label>Data
@@ -56,7 +56,7 @@
     <thead>
       <tr>
         <th>Data</th><th class="num">Saldo do dia</th><th class="num">Faturamento no mês</th>
-        <th class="num">Inadimplência</th><th>Envio</th><th><span class="sr">Ações</span></th>
+        <th>Envio</th><th><span class="sr">Ações</span></th>
       </tr>
     </thead>
     <tbody>
@@ -66,7 +66,6 @@
         <td><strong>{{ r.data | data_br }}</strong> <span class="nota">{{ (r.data | dia_semana)[:3] }}</span></td>
         <td class="num">{{ m.get("caixa", {}).get("saldo_dia") | moeda }}</td>
         <td class="num">{{ m.get("faturamento", {}).get("mes") | moeda }}</td>
-        <td class="num">{{ m.get("inadimplencia", {}).get("valor") | moeda }}</td>
         <td>{% set ultimo = r %}{% include "admin/_status_envio.html" %}</td>
         <td><a href="/admin/financeiro/relatorios/{{ r.data.isoformat() }}" target="_blank" rel="noopener">Ver e-mail</a></td>
       </tr>
