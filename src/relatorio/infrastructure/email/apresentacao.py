@@ -268,13 +268,13 @@ def _grupos_kpis(m: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
             delta=_delta(comp, "atendimentos_consultorios"),
         ),
         CartaoKpi(
-            rotulo="Espera no consultório",
+            rotulo="Tempo de Espera - Consultório",
             valor=duracao(k.get("espera_consultorio_s")),
             contexto=espera(cons),
             delta=_delta(comp, "espera_consultorio_s"),
         ),
         CartaoKpi(
-            rotulo="TMA dos consultórios",
+            rotulo="Tempo de Consulta",
             valor=duracao(k.get("tma_consultorios_s")),
             contexto=f"{numero(cons.get('atendimentos_medidos'))} atendimentos medidos",
             delta=_delta(comp, "tma_consultorios_s"),
@@ -289,21 +289,30 @@ def _grupos_kpis(m: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
             delta=_delta(comp, "atendimentos_guiches"),
         ),
         CartaoKpi(
-            rotulo="Espera na recepção",
+            rotulo="Tempo de Espera - Recepção",
             valor=duracao(k.get("espera_recepcao_s")),
             contexto=espera(guic),
             delta=_delta(comp, "espera_recepcao_s"),
         ),
         CartaoKpi(
-            rotulo="TMA dos guichês",
+            rotulo="Tempo de Atendimento - Recepção",
             valor=duracao(k.get("tma_guiches_s")),
             contexto=f"{numero(guic.get('atendimentos_medidos'))} atendimentos medidos",
             delta=_delta(comp, "tma_guiches_s"),
         ),
     )
+    consolidado = (
+        CartaoKpi(
+            rotulo="Tempo Médio Total de Permanência",
+            valor=duracao(k.get("permanencia_total_s")),
+            contexto="da chegada na recepção até a saída do consultório",
+            delta=_delta(comp, "permanencia_total_s"),
+        ),
+    )
     return (
         {"titulo": "Consultórios", "cartoes": consultorios},
         {"titulo": "Recepção (guichês)", "cartoes": recepcao},
+        {"titulo": "Permanência total", "cartoes": consolidado},
     )
 
 

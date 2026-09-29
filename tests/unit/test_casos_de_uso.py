@@ -250,7 +250,7 @@ class TestConsolidarDia:
         assert resultado["atendimentos"] == 1
         registro = sistema.banco.resumos[DIA]
         assert registro.status_envio is StatusEnvio.PENDENTE
-        assert registro.versao_regra == "1.2.0"
+        assert registro.versao_regra == "1.3.0"
         m = registro.metricas
         assert m["kpis"]["tma_s"] == 15 * 60
         assert m["kpis"]["espera_media_s"] == 10 * 60

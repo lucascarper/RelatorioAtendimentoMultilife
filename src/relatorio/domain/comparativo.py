@@ -77,11 +77,22 @@ _INDICADORES: tuple[_Indicador, ...] = (
         "atendimentos_guiches", "Atendimentos nos guichês", Formato.NUMERO, Sentido.MAIOR_MELHOR
     ),
     _Indicador(
-        "espera_consultorio_s", "Espera no consultório", Formato.DURACAO, Sentido.MENOR_MELHOR
+        "espera_consultorio_s",
+        "Tempo de Espera - Consultório",
+        Formato.DURACAO,
+        Sentido.MENOR_MELHOR,
     ),
-    _Indicador("espera_recepcao_s", "Espera na recepção", Formato.DURACAO, Sentido.MENOR_MELHOR),
-    _Indicador("tma_consultorios_s", "TMA dos consultórios", Formato.DURACAO, Sentido.NEUTRO),
-    _Indicador("tma_guiches_s", "TMA dos guichês", Formato.DURACAO, Sentido.NEUTRO),
+    _Indicador(
+        "espera_recepcao_s", "Tempo de Espera - Recepção", Formato.DURACAO, Sentido.MENOR_MELHOR
+    ),
+    _Indicador("tma_consultorios_s", "Tempo de Consulta", Formato.DURACAO, Sentido.NEUTRO),
+    _Indicador("tma_guiches_s", "Tempo de Atendimento - Recepção", Formato.DURACAO, Sentido.NEUTRO),
+    _Indicador(
+        "permanencia_total_s",
+        "Tempo Médio Total de Permanência",
+        Formato.DURACAO,
+        Sentido.MENOR_MELHOR,
+    ),
 )
 
 # Abaixo disso a variação é tratada como estabilidade (evita setas por ruído).

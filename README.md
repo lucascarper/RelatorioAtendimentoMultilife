@@ -46,14 +46,15 @@ Todos os jobs usam `max_instances=1` e `coalesce=True`, com **advisory lock** do
 
 ### Métricas (seção 4 da documentação técnica)
 
-- **Espera na recepção** = "Em Atendimento" − "Aguardando". **Tempo de atendimento** = "Atendido" − "Em Atendimento".
+- **Tempo de Espera** = "Em Atendimento" − "Aguardando". **Tempo de Atendimento** (ou de Consulta, no consultório) = "Atendido" − "Em Atendimento".
+- **Tempo Médio Total de Permanência** (com guichês marcados): soma das quatro médias (espera e atendimento na recepção, espera e consulta no consultório). O SGG não liga o agendamento do guichê ao do consultório da mesma pessoa, então é a soma das médias de cada etapa, não uma medida pessoa a pessoa.
 - **Turno pela hora agendada**: é da tarde quando a hora agendada for 13:00 ou depois (configurável).
 - **Atípicos** (menos de 1 min ou mais de 180 min) entram nos totais, mas ficam fora das médias e do TMA e aparecem nos alertas.
 - **Salto de status** (ex.: Aguardando → Atendido): o atendimento conta nos totais, mas fica "sem tempo medido".
 - **Sem baixa**: terminou o dia em Agendado ou Aguardando. Antes de contar, o sistema confere no SGG se há falta registrada (RF11).
 - O cálculo é versionado (`versao_regra` no resumo). Mudou uma regra? Suba a versão e reprocesse.
 
-Detalhes e ajustes de interpretação: [ADR 0005](docs/adr/0005-conferencia-final-antes-da-consolidacao.md) e [ADR 0006](docs/adr/0006-interpretacoes-das-regras.md).
+Detalhes e ajustes de interpretação: [ADR 0005](docs/adr/0005-conferencia-final-antes-da-consolidacao.md), [ADR 0006](docs/adr/0006-interpretacoes-das-regras.md) e [ADR 0012](docs/adr/0012-tempo-medio-total-de-permanencia.md) (rótulos e Tempo Médio Total de Permanência).
 
 ### O e-mail (boas práticas de BI)
 
@@ -82,7 +83,7 @@ Regras e decisões no [ADR 0011](docs/adr/0011-relatorio-financeiro-diario.md). 
 `/admin/monitor`, dentro do login do admin. São os mesmos indicadores do e-mail, calculados para **hoje até agora** e atualizados sozinhos a cada 5 s:
 
 1. **Topo:** situação da coleta ("Dados do SGG de 10:40:00"), uma frase-resumo e os cartões de agora. Com guichês marcados, a espera e o atendimento aparecem por área: **espera recepção** (no guichê), **espera consultório** (aguardando o médico), **em atendimento no guichê** e **no consultório**, cada um com a maior espera ou atendimento em curso. Também mostra quem **ainda não chegou**, destacando os de horário vencido.
-2. **Hoje até agora:** atendimentos, faltas, espera média e TMA, comparados com o mesmo dia da semana anterior **até o mesmo horário**. Com guichês marcados, os cartões ficam em duas linhas: **Consultórios** (atendimentos, espera no consultório, TMA e faltas) e **Recepção** (atendimentos nos guichês, espera na recepção e TMA dos guichês). O e-mail diário segue o mesmo padrão.
+2. **Hoje até agora:** atendimentos, faltas, espera média e TMA, comparados com o mesmo dia da semana anterior **até o mesmo horário**. Com guichês marcados, os cartões ficam em três linhas: **Consultórios** (atendimentos, Tempo de Espera - Consultório, Tempo de Consulta e faltas), **Recepção** (atendimentos nos guichês, Tempo de Espera - Recepção e Tempo de Atendimento - Recepção) e **Permanência total** (Tempo Médio Total de Permanência). O e-mail diário segue o mesmo padrão.
 3. **Meio:** movimento por hora (chegadas × atendimentos finalizados, com dica ao passar o mouse e tabela alternativa) e TMA por consultório.
 4. **Base:** por turno, tempos por agenda e alertas da coleta.
 

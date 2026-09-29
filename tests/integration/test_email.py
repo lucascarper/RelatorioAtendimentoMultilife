@@ -73,7 +73,7 @@ class TestRelatorio:
             "Tempo de atendimento por agenda",
             "Comparativo com a semana anterior",
             "Alertas",
-            "Regra de cálculo v1.2.0",
+            "Regra de cálculo v1.3.0",
             "Prévia com dados fictícios",
             "https://admin.exemplo",
         ):
@@ -338,18 +338,25 @@ class TestConsultoriosERecepcao:
 
     def test_cartoes_em_dois_grupos(self) -> None:
         a = montar_apresentacao(TestTurnosEGuiches().resumo(True))
-        assert [g["titulo"] for g in a.grupos_kpis] == ["Consultórios", "Recepção (guichês)"]
-        consultorios, recepcao = (g["cartoes"] for g in a.grupos_kpis)
+        assert [g["titulo"] for g in a.grupos_kpis] == [
+            "Consultórios",
+            "Recepção (guichês)",
+            "Permanência total",
+        ]
+        consultorios, recepcao, permanencia = (g["cartoes"] for g in a.grupos_kpis)
         assert [c.rotulo for c in consultorios] == [
             "Atendimentos nos consultórios",
-            "Espera no consultório",
-            "TMA dos consultórios",
+            "Tempo de Espera - Consultório",
+            "Tempo de Consulta",
             "Faltas",
         ]
         assert [(c.rotulo, c.valor) for c in recepcao] == [
             ("Atendimentos nos guichês", "1"),
-            ("Espera na recepção", "5 min"),
-            ("TMA dos guichês", "5 min"),
+            ("Tempo de Espera - Recepção", "5 min"),
+            ("Tempo de Atendimento - Recepção", "5 min"),
+        ]
+        assert [(c.rotulo, c.valor) for c in permanencia] == [
+            ("Tempo Médio Total de Permanência", "42 min"),
         ]
         assert a.manchete.startswith("2 atendimentos nos consultórios e 1 nos guichês")
         assert "Espera média de 5 min na recepção e 10 min no consultório." in a.manchete
@@ -364,7 +371,8 @@ class TestConsultoriosERecepcao:
     def test_email_com_grupos(self, renderizador: RenderizadorJinja) -> None:
         conteudo = renderizador.relatorio(TestTurnosEGuiches().resumo(True))
         assert "Recepção (guichês)" in conteudo.html
-        assert "Espera na recepção" in conteudo.html
+        assert "Tempo de Espera - Recepção" in conteudo.html
+        assert "Tempo Médio Total de Permanência" in conteudo.html
         assert "RECEPÇÃO (GUICHÊS)" in conteudo.texto
 
 

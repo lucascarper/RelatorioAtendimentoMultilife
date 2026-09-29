@@ -474,6 +474,8 @@ class TestGuichesETurnos:
         assert k.espera_recepcao_s == 5 * 60  # só a espera no guichê
         assert k.espera_consultorio_s == 10 * 60  # 07:50→08:00 e 13:50→14:00
         assert (k.tma_consultorios_s, k.tma_guiches_s) == (round(22.5 * 60), 5 * 60)
+        # Soma das quatro médias: 5 + 5 + 10 + 22,5 min.
+        assert k.permanencia_total_s == 5 * 60 + 5 * 60 + 10 * 60 + round(22.5 * 60)
         assert k.tem_guiche
 
     def test_espera_do_consultorio_nao_inclui_a_passagem_pelo_guiche(self) -> None:
@@ -495,3 +497,4 @@ class TestGuichesETurnos:
         assert not k.tem_guiche
         assert k.atendimentos_consultorios is None
         assert k.espera_recepcao_s is None
+        assert k.permanencia_total_s is None
