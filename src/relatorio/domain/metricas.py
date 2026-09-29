@@ -5,7 +5,11 @@ Toda métrica sai das transições de status gravadas em ``agendamento_evento``:
 * tempo de espera = "Em Atendimento" − "Aguardando" (nos consultórios, a última espera
   quando há guichês: a do guichê não entra);
 * tempo de atendimento = "Atendido" − "Em Atendimento";
-* TMA = média dos tempos de atendimento válidos (não atípicos, sem salto de status).
+* TMA = média dos tempos de atendimento válidos (não atípicos, sem salto de status);
+* Tempo Médio Total de Permanência (com guichês marcados) = soma das quatro médias
+  (espera e atendimento na recepção, espera e consulta no consultório). O SGG não liga
+  o agendamento do guichê ao do consultório da mesma pessoa (RNF06, sem dado pessoal),
+  então é a soma das médias de cada etapa, não a média medida pessoa a pessoa.
 
 As funções aqui são puras: recebem os dados já carregados e devolvem estruturas
 imutáveis. Isso permite testar todas as regras sem API nem banco e reaproveitar o mesmo
@@ -27,7 +31,8 @@ from zoneinfo import ZoneInfo
 from relatorio.domain.entidades import FUSO_BRASILIA, Agenda, Evento, Situacao, Turno
 from relatorio.domain.turnos import ConfiguracaoTurnos
 
-VERSAO_REGRA = "1.2.0"  # 1.1: guichês e turnos; 1.2: espera do consultório = última espera
+VERSAO_REGRA = "1.3.0"  # 1.1: guichês e turnos; 1.2: espera do consultório = última espera;
+# 1.3: tempo médio total de permanência (soma das médias de recepção e consultório)
 
 
 # --------------------------------------------------------------------------- entradas
@@ -93,6 +98,8 @@ class Kpis:
     espera_recepcao_s: int | None = None
     tma_consultorios_s: int | None = None
     tma_guiches_s: int | None = None
+    # Consolidada: espera + atendimento na recepção, mais espera + consulta no consultório.
+    permanencia_total_s: int | None = None
 
     @property
     def tem_guiche(self) -> bool:
@@ -128,6 +135,7 @@ class Kpis:
             espera_recepcao_s=opcional("espera_recepcao_s"),
             tma_consultorios_s=opcional("tma_consultorios_s"),
             tma_guiches_s=opcional("tma_guiches_s"),
+            permanencia_total_s=opcional("permanencia_total_s"),
         )
 
 
@@ -382,6 +390,13 @@ def _maximo(valores: Sequence[float]) -> int | None:
 
 def _taxa(parte: int, todo: int) -> float | None:
     return parte / todo if todo else None
+
+
+def _soma_opcional(*valores: int | None) -> int | None:
+    """Soma os valores, ou None se algum deles não estiver disponível."""
+    if any(v is None for v in valores):
+        return None
+    return sum(v for v in valores if v is not None)
 
 
 # --------------------------------------------------------------------------- agregação
@@ -665,6 +680,10 @@ def calcular_metricas(
     }
     consultorios_grupo, guiches_grupo = por_grupo["agendas"], por_grupo["guiches"]
     tem_guiche = guiches_grupo.agendados > 0
+    espera_consultorio = consultorios_grupo.espera_media_s if tem_guiche else None
+    espera_recepcao = guiches_grupo.espera_media_s if tem_guiche else None
+    tma_consultorios = consultorios_grupo.tma_s if tem_guiche else None
+    tma_guiches = guiches_grupo.tma_s if tem_guiche else None
     kpis = Kpis(
         agendados=geral.agendados,
         cancelados=sum(1 for x in linhas if x.situacao is Situacao.CANCELADO),
@@ -682,10 +701,13 @@ def calcular_metricas(
         ),
         atendimentos_consultorios=consultorios_grupo.atendimentos if tem_guiche else None,
         atendimentos_guiches=guiches_grupo.atendimentos if tem_guiche else None,
-        espera_consultorio_s=consultorios_grupo.espera_media_s if tem_guiche else None,
-        espera_recepcao_s=guiches_grupo.espera_media_s if tem_guiche else None,
-        tma_consultorios_s=consultorios_grupo.tma_s if tem_guiche else None,
-        tma_guiches_s=guiches_grupo.tma_s if tem_guiche else None,
+        espera_consultorio_s=espera_consultorio,
+        espera_recepcao_s=espera_recepcao,
+        tma_consultorios_s=tma_consultorios,
+        tma_guiches_s=tma_guiches,
+        permanencia_total_s=_soma_opcional(
+            espera_recepcao, tma_guiches, espera_consultorio, tma_consultorios
+        ),
     )
 
     return MetricasPeriodo(
