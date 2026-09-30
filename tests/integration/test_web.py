@@ -402,3 +402,59 @@ class TestFinanceiro:
         assert previa.status_code == 200
         assert "Relatório financeiro diário" in previa.text
         assert "/admin/financeiro/relatorios/2026-09-27" in cliente.get("/admin/financeiro").text
+
+
+class TestSesmt:
+    def test_pagina_destinatarios_grupos_e_previa(
+        self, cliente: TestClient, uow: FabricaUoW
+    ) -> None:
+        from datetime import date, datetime  # noqa: PLC0415
+
+        from relatorio.domain.entidades import FUSO_BRASILIA  # noqa: PLC0415
+        from relatorio.domain.sesmt import DadosSesmt, calcular_sesmt  # noqa: PLC0415
+
+        token = entrar(cliente)
+        pagina = cliente.get("/admin/sesmt")
+        assert pagina.status_code == 200
+        assert "Relatório do SESMT" in pagina.text
+        assert "SESMT_HABILITADO=false" in pagina.text
+        assert 'href="/admin/sesmt" aria-current="page"' in pagina.text
+        assert "1=GESTÃO PREMIUM" in pagina.text  # padrão dos grupos do SGG
+
+        ok = cliente.post(
+            "/admin/sesmt/destinatarios",
+            data={"email": "SESMT@MultiLife.com.br", "csrf": token},
+        )
+        assert "sesmt@multilife.com.br cadastrado na lista do relatório do SESMT." in ok.text
+        with uow() as u:
+            [d] = u.destinatarios_sesmt.listar()
+            assert not u.destinatarios.listar() and not u.destinatarios_financeiro.listar()
+        linha = cliente.post(
+            f"/admin/sesmt/destinatarios/{d.id}/ativo",
+            data={"ativo": "false"},
+            headers={"X-CSRF-Token": token, "HX-Request": "true"},
+        )
+        assert 'aria-checked="false"' in linha.text
+        assert f'hx-post="/admin/sesmt/destinatarios/{d.id}/ativo"' in linha.text
+
+        salvo = cliente.post(
+            "/admin/sesmt/grupos", data={"nomes": "2=Gestão 2; 1=Premium", "csrf": token}
+        )
+        assert 'value="1=Premium; 2=Gestão 2"' in salvo.text
+
+        futuro = cliente.post(
+            "/admin/sesmt/reprocessar", data={"data": "2099-01-01", "csrf": token}
+        )
+        assert "escolha até ontem" in futuro.text
+
+        assert cliente.get("/admin/sesmt/relatorios/2026-09-29").status_code == 404
+        ref = date(2026, 9, 29)
+        vazio = DadosSesmt(ref, date(2026, 9, 30), {}, [], [], [])
+        gerado = datetime(2026, 9, 30, 2, 0, tzinfo=FUSO_BRASILIA)
+        with uow() as u:
+            u.resumos_sesmt.salvar_metricas(ref, calcular_sesmt(vazio, gerado), "1.0.0", gerado)
+            u.commit()
+        previa = cliente.get("/admin/sesmt/relatorios/2026-09-29")
+        assert previa.status_code == 200
+        assert "Relatório de gestão SESMT" in previa.text
+        assert "/admin/sesmt/relatorios/2026-09-29" in cliente.get("/admin/sesmt").text

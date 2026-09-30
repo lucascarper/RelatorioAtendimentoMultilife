@@ -11,6 +11,7 @@ from relatorio.application.modelos import ConteudoEmail
 from relatorio.application.ports import ErroIntegracao
 from relatorio.domain.entidades import Agenda, AgendamentoSgg, Situacao
 from relatorio.domain.financeiro import Contrato, PrecoFornecedor, Titulo
+from relatorio.domain.sesmt import ContratoSesmt, DocumentoSst, EmpresaSesmt, EventoEsocial
 from relatorio.infrastructure.memoria import BancoEmMemoria, UoWEmMemoria
 
 __all__ = [
@@ -18,6 +19,7 @@ __all__ = [
     "EmailFake",
     "RelogioFixo",
     "RenderizadorFake",
+    "SesmtFake",
     "SggFake",
     "UoWEmMemoria",
 ]
@@ -120,6 +122,40 @@ class FinanceiroFake:
 
 
 @dataclass
+class SesmtFake:
+    """Endpoints do SESMT no SGG com dados pré-programados."""
+
+    empresas: list[EmpresaSesmt] = field(default_factory=list)
+    contratos: list[ContratoSesmt] = field(default_factory=list)
+    documentos: dict[int, list[DocumentoSst]] = field(default_factory=dict)
+    eventos: dict[int, list[EventoEsocial]] = field(default_factory=dict)
+    falhar: bool = False
+    falhar_empresas: set[int] = field(default_factory=set)
+    chamadas: list[str] = field(default_factory=list)
+
+    def _chamar(self, nome: str, id_empresa: int | None = None) -> None:
+        self.chamadas.append(nome if id_empresa is None else f"{nome}:{id_empresa}")
+        if self.falhar or (id_empresa is not None and id_empresa in self.falhar_empresas):
+            raise ErroSggFake("SGG indisponível")
+
+    def empresas_sesmt(self) -> list[EmpresaSesmt]:
+        self._chamar("empresas")
+        return list(self.empresas)
+
+    def contratos_sesmt(self) -> list[ContratoSesmt]:
+        self._chamar("contratos")
+        return list(self.contratos)
+
+    def documentos_sst(self, id_empresa: int) -> list[DocumentoSst]:
+        self._chamar("documentos", id_empresa)
+        return list(self.documentos.get(id_empresa, []))
+
+    def eventos_esocial(self, id_empresa: int) -> list[EventoEsocial]:
+        self._chamar("eventos", id_empresa)
+        return list(self.eventos.get(id_empresa, []))
+
+
+@dataclass
 class EmailFake:
     enviados: list[tuple[list[str], ConteudoEmail]] = field(default_factory=list)
     falhar: bool = False
@@ -141,6 +177,11 @@ class RenderizadorFake:
     def relatorio_financeiro(self, metricas: Mapping[str, Any]) -> ConteudoEmail:
         return ConteudoEmail(
             assunto=f"Financeiro {metricas.get('referencia')}", html="<p>fin</p>", texto="fin"
+        )
+
+    def relatorio_sesmt(self, metricas: Mapping[str, Any]) -> ConteudoEmail:
+        return ConteudoEmail(
+            assunto=f"SESMT {metricas.get('referencia')}", html="<p>sesmt</p>", texto="sesmt"
         )
 
     def alerta(self, titulo: str, mensagem: str, detalhes: Mapping[str, str]) -> ConteudoEmail:

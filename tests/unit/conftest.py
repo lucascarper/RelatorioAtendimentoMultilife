@@ -13,6 +13,7 @@ from tests.fakes import (
     FinanceiroFake,
     RelogioFixo,
     RenderizadorFake,
+    SesmtFake,
     SggFake,
     UoWEmMemoria,
 )
@@ -27,6 +28,7 @@ class Sistema:
     sgg: SggFake = field(default_factory=SggFake)
     email: EmailFake = field(default_factory=EmailFake)
     financeiro: FinanceiroFake = field(default_factory=FinanceiroFake)
+    sesmt: SesmtFake = field(default_factory=SesmtFake)
     coletor_habilitado: bool = True
 
     def __post_init__(self) -> None:
@@ -41,6 +43,7 @@ class Sistema:
             janela=JanelaColeta(),
             coletor_habilitado=self.coletor_habilitado,
             financeiro=self.financeiro,
+            sesmt=self.sesmt,
         )
         self.alertar = casos.alertar
         self.coletar = casos.coletar
@@ -59,6 +62,10 @@ class Sistema:
         self.consolidar_financeiro = casos.consolidar_financeiro
         self.enviar_financeiro = casos.enviar_financeiro
         self.verificar_financeiro = casos.verificar_financeiro
+        assert casos.consolidar_sesmt is not None and casos.enviar_sesmt is not None
+        self.consolidar_sesmt = casos.consolidar_sesmt
+        self.enviar_sesmt = casos.enviar_sesmt
+        self.verificar_sesmt = casos.verificar_sesmt
 
     def alertas_enviados(self) -> list[str]:
         return [c.assunto for _, c in self.email.enviados if c.assunto.startswith("[Alerta]")]

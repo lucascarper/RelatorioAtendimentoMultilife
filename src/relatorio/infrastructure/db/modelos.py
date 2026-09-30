@@ -162,6 +162,37 @@ class DestinatarioFinanceiroModel(Base):
     criado_em: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class ResumoSesmtModel(Base):
+    """Resumo do relatório de gestão do SESMT (mesmo ciclo de envio dos demais)."""
+
+    __tablename__ = "resumo_sesmt"
+    __table_args__ = (
+        CheckConstraint(
+            "status_envio IN ('pendente','enviando','enviado','falha')", name="status_envio_valido"
+        ),
+    )
+
+    data: Mapped[date] = mapped_column(Date, primary_key=True)
+    metricas: Mapped[dict[str, Any]]
+    versao_regra: Mapped[str] = mapped_column(String(20))
+    gerado_em: Mapped[datetime]
+    status_envio: Mapped[str] = mapped_column(String(20), server_default=text("'pendente'"))
+    enviado_em: Mapped[datetime | None]
+
+
+class DestinatarioSesmtModel(Base):
+    """Lista própria do relatório do SESMT."""
+
+    __tablename__ = "destinatario_sesmt"
+    __table_args__ = (UniqueConstraint("email", name="uq_destinatario_sesmt_email"),)
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    email: Mapped[str] = mapped_column(String(254))
+    nome: Mapped[str | None] = mapped_column(String(120))
+    ativo: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    criado_em: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
 class ExecucaoJobModel(Base):
     __tablename__ = "execucao_job"
     __table_args__ = (Index("ix_execucao_job_job_inicio", "job", "inicio"),)

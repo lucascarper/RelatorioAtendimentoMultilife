@@ -41,6 +41,8 @@ flowchart LR
 | 03:20 | `compactar_execucoes`: deixa 1 ciclo de coleta bem-sucedido por minuto nos dias anteriores | dia seguinte |
 | 05:45 | `consolidar_financeiro`: lê os endpoints financeiros e grava `resumo_financeiro` (só com `FINANCEIRO_HABILITADO`) | 06:30 e 07:15; na 3ª falha, alerta técnico |
 | 07:59 | `enviar_financeiro`: e-mail financeiro do dia anterior, lista própria | 08:01 e 08:03; verificação às 08:10 |
+| 02:00 | `consolidar_sesmt`: lê empresas, contratos, programas/laudos e eventos do eSocial e grava `resumo_sesmt` (só com `SESMT_HABILITADO`; leva mais de 1 h no limite de requisições) | 03:30 e 04:30; na 3ª falha, alerta técnico |
+| 08:00 | `enviar_sesmt`: e-mail de gestão do SESMT, lista própria | 08:02 e 08:04; verificação às 08:12 |
 
 Todos os jobs usam `max_instances=1` e `coalesce=True`, com **advisory lock** do PostgreSQL (dois containers nunca rodam o mesmo job), e cada execução fica registrada em `execucao_job`.
 
@@ -77,6 +79,18 @@ Um segundo e-mail às 07:59, para financeiro e diretoria, com lista de destinat�
 4. **Receita recorrente, contratos e margem:** MRR, faturamento por vidas, contratos a vencer em 30 dias, margem bruta estimada por exame e rateio por centro de custo.
 
 Regras e decisões no [ADR 0011](docs/adr/0011-relatorio-financeiro-diario.md). O envio automático fica desligado até `FINANCEIRO_HABILITADO=true` no worker. A prévia e o reenvio pelo admin funcionam sempre.
+
+### Relatório de gestão do SESMT
+
+Um terceiro e-mail às 08:00, para o SESMT, com lista de destinatários própria (admin → **SESMT**), no mesmo padrão visual dos outros dois. Três seções:
+
+1. **Contratos e documentos a vencer** (próximos 30 dias): contratos e programas/laudos (PGR, PCMSO, LTCAT) com grupo do cliente, vencimento, status (*A vencer*, *Vencendo* em até 7 dias) e ação recomendada.
+2. **Contratos e documentos vencidos** (atenção crítica): com os dias de atraso, do mais atrasado ao menos. Contratos vencidos há mais de 90 dias (clientes que saíram) ficam só na contagem.
+3. **Envios para o eSocial** (dia anterior): total de eventos gerados, com recibo e sem recibo (pendentes ou rejeitados), a lista dos sem recibo e a dos transmitidos com recibo e protocolo.
+
+O SGG só responde documentos e eventos do eSocial **por empresa**, então a coleta roda de madrugada (02:00): consulta os documentos das empresas com contrato em andamento e os eventos das empresas com o eSocial habilitado (cerca de 1.700 consultas, mais de uma hora no limite de requisições por minuto). O relatório traz só o código do funcionário, nunca nome ou CPF (LGPD). Sem o item "Exames pendentes" da primeira versão do layout, porque o escopo não trazia o endpoint.
+
+Regras e decisões no [ADR 0013](docs/adr/0013-relatorio-sesmt.md). O envio automático fica desligado até `SESMT_HABILITADO=true` no worker. A prévia e o reenvio pelo admin funcionam sempre (a coleta manual também leva mais de uma hora).
 
 ### Monitor ao vivo (tela do gerente)
 
@@ -170,6 +184,7 @@ Veja [`.env.example`](.env.example). Segredos só em variáveis de ambiente (RNF
 | `COLETA_INTERVALO_S` | `5` | Segundos entre ciclos de coleta (divisor de 60, de 5 a 60); cada ciclo é 1 requisição |
 | `COLETOR_HABILITADO` | `true` | `false` quando o painel em tempo real grava os eventos |
 | `FINANCEIRO_HABILITADO` | `false` | Liga a coleta (05:45) e o envio (07:59) do relatório financeiro no worker |
+| `SESMT_HABILITADO` | `false` | Liga a coleta (02:00) e o envio (08:00) do relatório de gestão do SESMT no worker |
 | `SMTP_HOST` / `SMTP_PORT` | `mail.kinghost.net` / `587` | KingHost: 587 = STARTTLS, 465 = SSL direto (`SMTP_SSL` força) |
 | `SMTP_USER` / `SMTP_PASSWORD` | (secretas) | Caixa usada no envio |
 | `EMAIL_FROM` / `EMAIL_ALERTA_TECNICO` | `relatorios@…` / `tecnologia@…` | Remetente e alertas técnicos |
@@ -256,3 +271,4 @@ O ambiente em que o código foi desenvolvido não tinha acesso à rede do `app.s
 - [0009 — Coleta e monitor a cada 5 segundos](docs/adr/0009-coleta-a-cada-5-segundos.md)
 - [0010 — Sistema visual do admin e do monitor](docs/adr/0010-sistema-visual-do-admin.md)
 - [0011 — Relatório financeiro diário](docs/adr/0011-relatorio-financeiro-diario.md)
+- [0013 — Relatório de gestão do SESMT](docs/adr/0013-relatorio-sesmt.md)

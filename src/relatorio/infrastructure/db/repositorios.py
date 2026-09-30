@@ -27,15 +27,19 @@ from relatorio.infrastructure.db.modelos import (
     CursorColetaModel,
     DestinatarioFinanceiroModel,
     DestinatarioModel,
+    DestinatarioSesmtModel,
     ExecucaoJobModel,
     ResumoDiarioModel,
     ResumoFinanceiroModel,
+    ResumoSesmtModel,
 )
 
-# Os dois relatórios (atendimentos e financeiro) têm tabelas de resumo e de destinatários
+# Os relatórios (atendimentos, financeiro e SESMT) têm tabelas de resumo e de destinatários
 # com as mesmas colunas: os repositórios recebem o modelo.
-ModeloResumo = type[ResumoDiarioModel] | type[ResumoFinanceiroModel]
-ModeloDestinatario = type[DestinatarioModel] | type[DestinatarioFinanceiroModel]
+ModeloResumo = type[ResumoDiarioModel] | type[ResumoFinanceiroModel] | type[ResumoSesmtModel]
+ModeloDestinatario = (
+    type[DestinatarioModel] | type[DestinatarioFinanceiroModel] | type[DestinatarioSesmtModel]
+)
 
 # ------------------------------------------------------------------ conversões
 
@@ -83,7 +87,7 @@ def _evento(m: AgendamentoEventoModel) -> Evento:
     )
 
 
-def _resumo(m: Any) -> ResumoRegistro:  # ResumoDiarioModel ou ResumoFinanceiroModel
+def _resumo(m: Any) -> ResumoRegistro:  # ResumoDiarioModel, …FinanceiroModel ou …SesmtModel
     return ResumoRegistro(
         data=m.data,
         metricas=dict(m.metricas),
@@ -537,6 +541,10 @@ class UnidadeDeTrabalhoSql:
         self.resumos_financeiros = ResumoRepositorioSql(sessao, ResumoFinanceiroModel)
         self.destinatarios_financeiro = DestinatarioRepositorioSql(
             sessao, DestinatarioFinanceiroModel, "uq_destinatario_financeiro_email"
+        )
+        self.resumos_sesmt = ResumoRepositorioSql(sessao, ResumoSesmtModel)
+        self.destinatarios_sesmt = DestinatarioRepositorioSql(
+            sessao, DestinatarioSesmtModel, "uq_destinatario_sesmt_email"
         )
         self.configuracoes = ConfiguracaoRepositorioSql(sessao)
         self.execucoes = ExecucaoJobRepositorioSql(sessao)

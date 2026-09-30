@@ -10,6 +10,9 @@
 | 07:59                    | enviar_relatorio   | 08:01 e 08:03; depois alerta técnico   |
 | 08:10                    | verificar_envio    | alerta se não foi entregue             |
 | dia 1, 03:00             | limpar_retencao    | reexecuta no dia seguinte              |
+| 02:00                    | consolidar_sesmt   | reexecuta às 03:30 e 04:30 (~85 min)   |
+| 08:00                    | enviar_sesmt       | 08:02 e 08:04; depois alerta técnico   |
+| 08:12                    | verificar_sesmt    | alerta se não foi entregue             |
 
 Todos com ``max_instances=1`` e ``coalesce=True``; o advisory lock do PostgreSQL impede
 que dois containers (ex.: durante um deploy) rodem o mesmo job.
@@ -139,6 +142,33 @@ class JobsAgendados:
             return
         self._executor.executar("verificar_financeiro", lambda: verificar.executar(dia))
 
+    # ------------------------------------------------------------------ SESMT
+
+    def consolidar_sesmt(self, tentativa: int) -> None:
+        dia = dia_do_relatorio(self._c.relogio.agora())
+        if tentativa > 1 and self._ja_executado("consolidar_sesmt", dia.isoformat()):
+            return
+        consolidar = self._casos.consolidar_sesmt
+        if consolidar is None:
+            return
+        self._executor.executar(
+            "consolidar_sesmt", lambda: consolidar.executar_agendado(dia, tentativa)
+        )
+
+    def enviar_sesmt(self, tentativa: int) -> None:
+        dia = dia_do_relatorio(self._c.relogio.agora())
+        enviar = self._casos.enviar_sesmt
+        if enviar is None:
+            return
+        self._executor.executar("enviar_sesmt", lambda: enviar.executar_agendado(dia, tentativa))
+
+    def verificar_sesmt(self) -> None:
+        dia = dia_do_relatorio(self._c.relogio.agora())
+        verificar = self._casos.verificar_sesmt
+        if verificar is None:
+            return
+        self._executor.executar("verificar_sesmt", lambda: verificar.executar(dia))
+
     def limpar_retencao(self) -> None:
         mes = f"{self._hoje():%Y-%m}"
         if self._ja_executado("limpar_retencao", mes):
@@ -242,6 +272,26 @@ def registrar_jobs(agendador: BlockingScheduler, jobs: JobsAgendados, settings: 
                 tolerancia_s=120,
             )
         adicionar("verificar_financeiro", jobs.verificar_financeiro, _cron(hour=8, minute=10))
+
+    if settings.sesmt_habilitado:
+        # De madrugada, longe da janela do coletor (06:00): são ~1.700 consultas no limite de
+        # requisições por minuto, então a coleta leva mais de uma hora.
+        for tentativa, (hora, minuto) in enumerate(((2, 0), (3, 30), (4, 30)), start=1):
+            adicionar(
+                f"consolidar_sesmt_{tentativa}",
+                jobs.consolidar_sesmt,
+                _cron(hour=hora, minute=minuto),
+                {"tentativa": tentativa},
+            )
+        for tentativa, (hora, minuto) in enumerate(((8, 0), (8, 2), (8, 4)), start=1):
+            adicionar(
+                f"enviar_sesmt_{tentativa}",
+                jobs.enviar_sesmt,
+                _cron(hour=hora, minute=minuto),
+                {"tentativa": tentativa},
+                tolerancia_s=120,
+            )
+        adicionar("verificar_sesmt", jobs.verificar_sesmt, _cron(hour=8, minute=12))
 
     adicionar("limpar_retencao", jobs.limpar_retencao, _cron(day="1-2", hour=3, minute=0))
     adicionar("compactar_execucoes", jobs.compactar_execucoes, _cron(hour=3, minute=20))

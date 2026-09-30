@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     # Relatório financeiro diário (coleta 05:45, e-mail 07:59). Desligado até a conferência
     # dos números com o financeiro; a prévia e o reprocessamento no admin funcionam sempre.
     financeiro_habilitado: bool = False
+    # Relatório de gestão do SESMT (coleta de madrugada, e-mail às 08:00). Desligado até a
+    # conferência dos números com o SESMT; a prévia e o reprocessamento no admin funcionam sempre.
+    sesmt_habilitado: bool = False
     coleta_inicio: time = time(6, 0)
     coleta_fim: time = time(18, 0)
     # Segundos entre ciclos de coleta (1 requisição por ciclo): divisor de 60, de 5 a 60.

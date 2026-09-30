@@ -280,3 +280,22 @@ class TestRelatorioFinanceiro:
                 ("diretoria@multilife.com.br", "Diretoria")
             ]
             assert "diretoria@multilife.com.br" not in {d.email for d in u.destinatarios.listar()}
+
+
+class TestRelatorioSesmt:
+    def test_resumo_e_destinatarios_separados_dos_demais(self, uow: FabricaUoW) -> None:
+        with uow() as u:
+            u.resumos_sesmt.salvar_metricas(DIA, {"tipo": "sesmt"}, "1.0.0", hora("02:00"))
+            assert u.resumos_sesmt.reservar_envio(DIA)
+            assert u.resumos_sesmt.reservar_envio(DIA) is False  # trava de duplicidade
+            u.destinatarios_sesmt.adicionar("SESMT@MultiLife.com.br", "SESMT")
+            u.destinatarios_sesmt.adicionar("sesmt@multilife.com.br", None)  # reativa
+            u.commit()
+        with uow() as u:
+            assert u.resumos.obter(DIA) is None and u.resumos_financeiros.obter(DIA) is None
+            registro = u.resumos_sesmt.obter(DIA)
+            assert registro is not None and registro.metricas == {"tipo": "sesmt"}
+            assert [(d.email, d.nome) for d in u.destinatarios_sesmt.listar()] == [
+                ("sesmt@multilife.com.br", "SESMT")
+            ]
+            assert not u.destinatarios.listar() and not u.destinatarios_financeiro.listar()

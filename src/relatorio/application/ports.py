@@ -20,6 +20,7 @@ from relatorio.application.modelos import (
 )
 from relatorio.domain.entidades import Agenda, AgendamentoSgg, Evento, Situacao, Snapshot
 from relatorio.domain.financeiro import Contrato, PrecoFornecedor, Titulo
+from relatorio.domain.sesmt import ContratoSesmt, DocumentoSst, EmpresaSesmt, EventoEsocial
 
 # --------------------------------------------------------------------------- externos
 
@@ -68,6 +69,24 @@ class FinanceiroGateway(Protocol):
     def precos_servico(self, id_servico: int) -> list[PrecoFornecedor]: ...
 
 
+class SesmtGateway(Protocol):
+    """Leitura dos endpoints do relatório de gestão do SESMT (somente GET)."""
+
+    def empresas_sesmt(self) -> list[EmpresaSesmt]: ...
+
+    def contratos_sesmt(self) -> list[ContratoSesmt]:
+        """Contratos "Em andamento" e "Vencido" (o campo ``ultimo`` marca o corrente)."""
+        ...
+
+    def documentos_sst(self, id_empresa: int) -> list[DocumentoSst]:
+        """Programas e laudos da empresa (todo o histórico dos tipos do relatório)."""
+        ...
+
+    def eventos_esocial(self, id_empresa: int) -> list[EventoEsocial]:
+        """Todos os eventos da empresa; a API não filtra por data."""
+        ...
+
+
 class EnviadorEmail(Protocol):
     def enviar(self, destinatarios: Sequence[str], conteudo: ConteudoEmail) -> None: ...
 
@@ -76,6 +95,8 @@ class RenderizadorEmail(Protocol):
     def relatorio(self, metricas: Mapping[str, Any]) -> ConteudoEmail: ...
 
     def relatorio_financeiro(self, metricas: Mapping[str, Any]) -> ConteudoEmail: ...
+
+    def relatorio_sesmt(self, metricas: Mapping[str, Any]) -> ConteudoEmail: ...
 
     def alerta(self, titulo: str, mensagem: str, detalhes: Mapping[str, str]) -> ConteudoEmail: ...
 
@@ -218,6 +239,12 @@ class UnidadeDeTrabalho(Protocol):
 
     @property
     def destinatarios_financeiro(self) -> DestinatarioRepository: ...
+
+    @property
+    def resumos_sesmt(self) -> ResumoRepository: ...
+
+    @property
+    def destinatarios_sesmt(self) -> DestinatarioRepository: ...
 
     @property
     def configuracoes(self) -> ConfiguracaoRepository: ...
