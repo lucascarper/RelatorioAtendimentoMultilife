@@ -5,7 +5,7 @@ Regras da seção 10:
 * Basic Auth com a chave como usuário e senha vazia; base URL sempre com barra final;
 * filtros como parâmetros de query; paginação por ``paginador[pagina]``/``[tamanho]``
   seguindo ``temProximaPagina`` (tamanho máximo 100);
-* ``D001`` (retorno em branco) é sucesso sem dados;
+* ``D001``/``G0010`` (retorno em branco) é sucesso sem dados;
 * HTTP 429 → espera e tenta de novo com backoff exponencial (2 s, 4 s, 8 s… até 60 s);
 * erros ``S0xx``/``E000`` → ``ErroSggServidor`` (o ciclo é pulado e registrado);
 * timeout de 15 s e um único ``httpx.Client`` reutilizado (pool de conexões).
@@ -58,7 +58,8 @@ MAX_TENTATIVAS_429 = 7
 INTERVALO_MAXIMO_FILTRO = timedelta(days=27)
 # Filtros de data dos endpoints financeiros: janelas de no máximo 31 dias por consulta.
 JANELA_FINANCEIRA = timedelta(days=31)
-CODIGOS_SEM_DADOS = {"D001"}
+# D001: retorno em branco (a maioria dos endpoints); G0010: o mesmo em getEvtEsocial/.
+CODIGOS_SEM_DADOS = {"D001", "G0010"}
 CODIGOS_AUTENTICACAO = {"A000", "A001", "S002", "S006"}
 
 

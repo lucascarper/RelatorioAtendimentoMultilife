@@ -205,3 +205,17 @@ def test_campo_obrigatorio_ausente_e_erro_de_requisicao(cliente: ClienteSgg) -> 
     )
     with pytest.raises(ErroSggRequisicao, match="tipo"):
         cliente.documentos_sst(1)
+
+
+@respx.mock
+def test_empresa_sem_eventos_no_esocial_nao_e_erro(cliente: ClienteSgg) -> None:
+    respx.get(BASE + "getEvtEsocial/").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "statusCode": "G0010",
+                "statusMsg": "Nenhum problema ocorrido no tratamento da API. Mas resultado é vazio",
+            },
+        )
+    )
+    assert cliente.eventos_esocial(96) == []
