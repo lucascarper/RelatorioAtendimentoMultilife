@@ -9,7 +9,7 @@ from relatorio.application.alertas import AlertarTecnico
 from relatorio.application.coleta import ColetarCiclo, ReconciliarDia, SincronizarAgendas
 from relatorio.application.configuracao import ConfiguracaoRelatorio, JanelaColeta
 from relatorio.application.consolidacao import ConsolidarDia
-from relatorio.application.envio import FINANCEIRO, EnviarRelatorio, VerificarEnvio
+from relatorio.application.envio import FINANCEIRO, SESMT, EnviarRelatorio, VerificarEnvio
 from relatorio.application.financeiro import ConsolidarFinanceiro
 from relatorio.application.manutencao import (
     AlertaFalhasColeta,
@@ -25,8 +25,10 @@ from relatorio.application.ports import (
     FinanceiroGateway,
     Relogio,
     RenderizadorEmail,
+    SesmtGateway,
     SggGateway,
 )
+from relatorio.application.sesmt import ConsolidarSesmt
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +49,9 @@ class CasosDeUso:
     consolidar_financeiro: ConsolidarFinanceiro | None = None
     enviar_financeiro: EnviarRelatorio | None = None
     verificar_financeiro: VerificarEnvio | None = None
+    consolidar_sesmt: ConsolidarSesmt | None = None
+    enviar_sesmt: EnviarRelatorio | None = None
+    verificar_sesmt: VerificarEnvio | None = None
 
 
 def montar_casos_de_uso(
@@ -61,6 +66,7 @@ def montar_casos_de_uso(
     coletor_habilitado: bool = True,
     destinatarios_override: Sequence[str] = (),
     financeiro: FinanceiroGateway | None = None,
+    sesmt: SesmtGateway | None = None,
 ) -> CasosDeUso:
     alertar = AlertarTecnico(uow, email, renderizador, configuracao_padrao)
     reconciliar = ReconciliarDia(sgg, uow, relogio)
@@ -72,6 +78,7 @@ def montar_casos_de_uso(
     consolidar_financeiro = (
         ConsolidarFinanceiro(financeiro, uow, relogio, alertar) if financeiro is not None else None
     )
+    consolidar_sesmt = ConsolidarSesmt(sesmt, uow, relogio, alertar) if sesmt is not None else None
     return CasosDeUso(
         alertar=alertar,
         coletar=ColetarCiclo(sgg, uow, relogio),
@@ -102,4 +109,20 @@ def montar_casos_de_uso(
             else None
         ),
         verificar_financeiro=VerificarEnvio(uow, alertar, FINANCEIRO),
+        consolidar_sesmt=consolidar_sesmt,
+        enviar_sesmt=(
+            EnviarRelatorio(
+                uow,
+                relogio,
+                consolidar_sesmt,
+                renderizador,
+                email,
+                alertar,
+                destinatarios_override,
+                tipo=SESMT,
+            )
+            if consolidar_sesmt is not None
+            else None
+        ),
+        verificar_sesmt=VerificarEnvio(uow, alertar, SESMT),
     )

@@ -1,0 +1,146 @@
+{% extends "email/_base.html" %}
+{#
+  Recebe apenas `a` (apresentação montada a partir de resumo_sesmt.metricas).
+  Sem lógica de cálculo aqui. Topo: manchete; abaixo, uma seção por bloco do escopo.
+#}
+{% macro titulo_secao(numero, texto, subtitulo="", cor="#D0080F") -%}
+<tr>
+  <td bgcolor="#FFFFFF" class="px fonte" style="background:#FFFFFF; padding:28px 32px 10px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td width="4" bgcolor="{{ cor }}" style="background:{{ cor }}; width:4px; border-radius:2px; font-size:0; line-height:0;">&nbsp;</td>
+        <td class="fonte" style="padding-left:10px; font-size:16px; line-height:20px; font-weight:700; color:#164F95;">{% if numero %}{{ numero }}. {% endif %}{{ texto }}</td>
+      </tr>
+    </table>
+    {%- if subtitulo %}
+    <div class="fonte" style="padding-top:5px; font-size:12px; line-height:16px; color:#6B7280;">{{ subtitulo }}</div>
+    {%- endif %}
+  </td>
+</tr>
+{%- endmacro %}
+
+{% block titulo %}{{ a.assunto }}{% endblock %}
+{% block preheader %}{{ a.preheader }}{% endblock %}
+
+{% block faixa_amostra %}
+{% if a.amostra %}
+<tr>
+  <td class="fonte" bgcolor="#FFF4DB" style="background:#FFF4DB; border:1px solid #E0A100; border-radius:8px; padding:10px 16px; font-size:13px; line-height:18px; color:#7A4D00; text-align:center;">
+    <strong>Prévia com dados fictícios.</strong> Valores apenas para ilustrar o layout do relatório.
+  </td>
+</tr>
+<tr><td style="height:12px; font-size:0; line-height:0;">&nbsp;</td></tr>
+{% endif %}
+{% endblock %}
+
+{% block cabecalho_direita %}
+<div style="font-size:12px; line-height:16px; letter-spacing:1.2px; text-transform:uppercase; color:#6B7280; font-weight:600;">Relatório de gestão SESMT</div>
+<div style="font-size:18px; line-height:24px; color:#1B2533; font-weight:700; padding-top:2px;">{{ a.titulo_data }}</div>
+{% endblock %}
+
+{% block conteudo %}
+<!-- Manchete -->
+<tr>
+  <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:0 32px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td class="fonte" bgcolor="#EAF1FA" style="background:#EAF1FA; border-radius:10px; padding:14px 18px; font-size:15px; line-height:22px; color:#1B2533;">{{ a.manchete }}</td>
+      </tr>
+    </table>
+  </td>
+</tr>
+{%- for n in a.notas %}
+<tr>
+  <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:12px 32px 0;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td class="fonte" bgcolor="#FFF4DB" style="background:#FFF4DB; border:1px solid #E0A100; border-radius:8px; padding:10px 14px; font-size:13px; line-height:18px; color:#7A4D00;">{{ n }}</td>
+      </tr>
+    </table>
+  </td>
+</tr>
+{%- endfor %}
+
+{%- for s in a.secoes %}
+{{ titulo_secao(s.numero, s.titulo, s.subtitulo, s.cor) }}
+
+{%- if s.cartoes %}
+<tr>
+  <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:0 24px; font-size:0; text-align:center;">
+    <!--[if mso]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><![endif]-->
+    {%- for c in s.cartoes %}
+    <!--[if mso]><td width="33%" valign="top"><![endif]-->
+    <div class="kpi" style="display:inline-block; width:100%; max-width:196px; vertical-align:top;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding:6px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F7F9FC" style="background:#F7F9FC; border:1px solid #E3E8EF; border-top:3px solid {{ c.cor }}; border-radius:10px;">
+              <tr>
+                <td class="fonte" style="padding:12px; text-align:left;">
+                  <div style="font-size:12px; line-height:16px; color:#4A5568; font-weight:600;">{{ c.rotulo }}</div>
+                  <div class="kpi-valor" style="font-size:24px; line-height:30px; color:{{ c.cor }}; font-weight:700; padding-top:6px; white-space:nowrap;">{{ c.valor }}</div>
+                  {%- if c.contexto %}
+                  <div style="font-size:11px; line-height:15px; color:#6B7280; padding-top:6px; border-top:1px solid #E3E8EF; margin-top:8px;">{{ c.contexto }}</div>
+                  {%- endif %}
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </div>
+    <!--[if mso]></td><![endif]-->
+    {%- endfor %}
+    <!--[if mso]></tr></table><![endif]-->
+  </td>
+</tr>
+<tr><td bgcolor="#FFFFFF" style="background:#FFFFFF; height:12px; font-size:0; line-height:0;">&nbsp;</td></tr>
+{%- endif %}
+
+{%- for t in s.tabelas %}
+<tr>
+  <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:0 32px{% if not loop.last %} 16px{% endif %};">
+    {%- if t.titulo %}
+    <div class="fonte" style="font-size:13px; line-height:18px; font-weight:700; color:#1B2533; padding:4px 0 6px;">{{ t.titulo }}</div>
+    {%- endif %}
+    {%- if t.linhas %}
+    <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:12px; line-height:17px; color:#1B2533;">
+      <tr>
+        {%- for h in t.cabecalho %}
+        <th{% if loop.index0 in t.ocultar_no_celular %} class="oculta-mobile"{% endif %} align="left" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 8px; font-size:12px; color:#164F95; font-weight:700; text-align:left;{% if loop.first %} border-radius:6px 0 0 0;{% elif loop.last %} border-radius:0 6px 0 0;{% endif %}">{{ h }}</th>
+        {%- endfor %}
+      </tr>
+      {%- for linha in t.linhas %}
+      <tr>
+        {%- for c in linha %}
+        <td class="{% if loop.index0 in t.numericas %}num{% endif %}{% if loop.index0 in t.ocultar_no_celular %} oculta-mobile{% endif %}" align="left" valign="top" style="padding:8px 8px; text-align:left; color:{{ c.cor or '#1B2533' }};{% if c.negrito %} font-weight:700;{% endif %}{% if c.quebra %} word-break:break-all;{% endif %}">{{ c.texto }}{% if c.nota %}<br><span style="font-size:11px; color:#6B7280; font-weight:400;">{{ c.nota }}</span>{% endif %}</td>
+        {%- endfor %}
+      </tr>
+      {%- endfor %}
+    </table>
+    {%- if t.rodape %}
+    <div class="fonte" style="font-size:12px; line-height:16px; color:#6B7280; padding:6px 0 0;">{{ t.rodape }}</div>
+    {%- endif %}
+    {%- else %}
+    <div class="fonte" style="font-size:13px; line-height:18px; color:#6B7280; padding:2px 0 4px;">{{ t.vazio }}</div>
+    {%- endif %}
+  </td>
+</tr>
+{%- endfor %}
+{%- endfor %}
+
+<!-- Definições -->
+{{ titulo_secao("", "Como os números são calculados") }}
+<tr>
+  <td bgcolor="#FFFFFF" class="px fonte" style="background:#FFFFFF; padding:0 32px 8px; font-size:12px; line-height:18px; color:#4A5568;">
+    {%- for termo, definicao in a.definicoes %}
+    <div style="padding:2px 0;"><strong style="color:#1B2533;">{{ termo }}:</strong> {{ definicao }}</div>
+    {%- endfor %}
+  </td>
+</tr>
+{% endblock %}
+
+{% block rodape %}
+Gerado em {{ a.gerado_em }} a partir da API do SGG · Regra de cálculo v{{ a.versao_regra }}
+{%- if a.admin_url %}<br><a href="{{ a.admin_url }}" style="color:#164F95;">Painel administrativo</a>{% endif %}
+{% endblock %}

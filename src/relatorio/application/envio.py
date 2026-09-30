@@ -27,7 +27,7 @@ class Consolidador(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class TipoRelatorio:
-    """O que muda entre o relatório de atendimentos e o financeiro no ciclo de envio."""
+    """O que muda entre os relatórios (atendimentos, financeiro, SESMT) no ciclo de envio."""
 
     nome: str  # usado nos alertas: "Relatório", "Relatório financeiro"
     resumos: Callable[[UnidadeDeTrabalho], ResumoRepository]
@@ -46,6 +46,12 @@ FINANCEIRO = TipoRelatorio(
     resumos=lambda uow: uow.resumos_financeiros,
     destinatarios=lambda uow: uow.destinatarios_financeiro,
     renderizar=lambda r, metricas: r.relatorio_financeiro(metricas),
+)
+SESMT = TipoRelatorio(
+    nome="Relatório do SESMT",
+    resumos=lambda uow: uow.resumos_sesmt,
+    destinatarios=lambda uow: uow.destinatarios_sesmt,
+    renderizar=lambda r, metricas: r.relatorio_sesmt(metricas),
 )
 
 

@@ -25,7 +25,7 @@ from relatorio.infrastructure.container import Container
 from relatorio.infrastructure.email import apresentacao as fmt
 from relatorio.infrastructure.email.apresentacao_financeira import moeda
 from relatorio.infrastructure.logs import configurar_logs
-from relatorio.interfaces.web import rotas_admin, rotas_financeiro, rotas_publicas
+from relatorio.interfaces.web import rotas_admin, rotas_financeiro, rotas_publicas, rotas_sesmt
 from relatorio.interfaces.web.dependencias import ContextoWeb
 from relatorio.interfaces.web.seguranca import ControleTentativas, NaoAutenticado
 
@@ -126,6 +126,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     app.include_router(rotas_publicas.router)
     app.include_router(rotas_admin.router)
     app.include_router(rotas_financeiro.router)
+    app.include_router(rotas_sesmt.router)
     return app
 
 

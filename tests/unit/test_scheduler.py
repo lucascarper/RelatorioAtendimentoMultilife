@@ -109,3 +109,18 @@ def test_financeiro_retentativa_pula_dia_ja_consolidado(
     jobs.verificar_financeiro()
     assert [d for d, _ in sistema.email.enviados] == [["diretoria@multilife.com.br"]]
     assert execucoes(sistema, "verificar_financeiro") == [(StatusJob.SUCESSO, "2026-09-23")]
+
+
+def test_sesmt_retentativa_pula_dia_ja_consolidado(sistema: Sistema, jobs: JobsAgendados) -> None:
+    sistema.uow().destinatarios_sesmt.adicionar("sesmt@multilife.com.br", None)
+    sistema.relogio.instante = hora("02:00", DIA + timedelta(days=1))
+    jobs.consolidar_sesmt(tentativa=1)
+    sistema.relogio.instante = hora("03:30", DIA + timedelta(days=1))
+    jobs.consolidar_sesmt(tentativa=2)
+    assert execucoes(sistema, "consolidar_sesmt") == [(StatusJob.SUCESSO, "2026-09-23")]
+    sistema.relogio.instante = hora("08:00", DIA + timedelta(days=1))
+    jobs.enviar_sesmt(tentativa=1)
+    sistema.relogio.instante = hora("08:12", DIA + timedelta(days=1))
+    jobs.verificar_sesmt()
+    assert [d for d, _ in sistema.email.enviados] == [["sesmt@multilife.com.br"]]
+    assert execucoes(sistema, "verificar_sesmt") == [(StatusJob.SUCESSO, "2026-09-23")]

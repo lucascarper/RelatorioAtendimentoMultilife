@@ -1,0 +1,37 @@
+{{ a.assunto }}
+{% if a.amostra %}PRÉVIA COM DADOS FICTÍCIOS
+{% endif %}
+{{ a.manchete }}
+{% for n in a.notas %}
+{{ n }}
+{%- endfor %}
+{%- for s in a.secoes %}
+
+== {{ s.numero }}. {{ s.titulo }} ==
+{{ s.subtitulo }}
+{%- for c in s.cartoes %}
+- {{ c.rotulo }}: {{ c.valor }}{% if c.contexto %} ({{ c.contexto }}){% endif %}
+{%- endfor %}
+{%- for t in s.tabelas %}
+{% if t.titulo %}
+{{ t.titulo }}
+{%- endif %}
+{%- if t.linhas %}
+{%- for linha in t.linhas %}
+- {% for c in linha %}{{ c.texto }}{% if c.nota %} ({{ c.nota }}){% endif %}{% if not loop.last %} | {% endif %}{% endfor %}
+{%- endfor %}
+{%- if t.rodape %}
+{{ t.rodape }}
+{%- endif %}
+{%- else %}
+{{ t.vazio }}
+{%- endif %}
+{%- endfor %}
+{%- endfor %}
+
+Como os números são calculados
+{% for termo, definicao in a.definicoes -%}
+- {{ termo }}: {{ definicao }}
+{% endfor %}
+Gerado em {{ a.gerado_em }} a partir da API do SGG. Regra de cálculo v{{ a.versao_regra }}.
+{% if a.admin_url %}Painel administrativo: {{ a.admin_url }}{% endif %}

@@ -446,3 +446,85 @@ class TestRelatorioFinanceiro:
             assert trecho in html, trecho
         assert "Saldo operacional de 27/09: -R$ 500,00" in texto
         assert "Contratos a vencer em 30 dias" in texto
+
+
+class TestRelatorioSesmt:
+    def metricas(self, **campos: Any) -> dict[str, Any]:
+        from datetime import datetime  # noqa: PLC0415
+
+        from relatorio.domain.entidades import FUSO_BRASILIA  # noqa: PLC0415
+        from relatorio.domain.sesmt import (  # noqa: PLC0415
+            ContratoSesmt,
+            DadosSesmt,
+            DocumentoSst,
+            EmpresaSesmt,
+            EventoEsocial,
+            calcular_sesmt,
+        )
+
+        ref, hoje = date(2026, 9, 29), date(2026, 9, 30)
+        empresas = {
+            1: EmpresaSesmt(1, "Conplan Sistemas LTDA", "12.345.678/0001-90", "1", True),
+            2: EmpresaSesmt(2, "Transportadora Veloz LTDA", "", "4", True),
+        }
+
+        def evento(codigo: int, hora: int, recibo: str) -> EventoEsocial:
+            gerado = datetime(2026, 9, 29, hora, 15, 22, tzinfo=FUSO_BRASILIA)
+            return EventoEsocial(str(codigo), "S-2220", 1, 20 + codigo, ref, gerado, None, recibo)
+
+        dados = DadosSesmt(
+            referencia=ref,
+            hoje=hoje,
+            empresas=empresas,
+            contratos=[
+                ContratoSesmt(9, 1, date(2026, 10, 28), "Em andamento", True, "2025-089"),
+                ContratoSesmt(8, 2, date(2026, 9, 1), "Vencido", True),
+            ],
+            documentos=[
+                DocumentoSst(1, "PCMSO", date(2026, 10, 15)),
+                DocumentoSst(2, "LTCAT", date(2026, 9, 10)),
+            ],
+            eventos=[evento(1, 9, "1.1.0000000000000000001"), evento(2, 11, "")],
+            nomes_grupos={"1": "GESTÃO PREMIUM"},
+            **campos,
+        )
+        return calcular_sesmt(dados, datetime(2026, 9, 30, 3, 10, tzinfo=FUSO_BRASILIA))
+
+    def test_estrutura_do_email_do_sesmt(self, renderizador: RenderizadorJinja) -> None:
+        conteudo = renderizador.relatorio_sesmt(self.metricas())
+        assert conteudo.assunto == "Relatório de Gestão SESMT — 30/09/2026 (quarta-feira)"
+        html, texto = conteudo.html, conteudo.texto
+        for trecho in (
+            "Contratos e documentos a vencer (próximos 30 dias)",
+            "Contratos e documentos vencidos (atenção crítica)",
+            "Envios para o eSocial (referência: 29/09/2026)",
+            "PCMSO - Conplan Sistemas LTDA",
+            "CT-2025-089 - Conplan Sistemas LTDA",
+            "GESTÃO PREMIUM",
+            "Iniciar renovação/análise",
+            "Enviar renovação do contrato",
+            "LTCAT - Transportadora Veloz LTDA",
+            "20 dias",
+            "Total de eventos gerados",
+            "Sem recibo",
+            "Eventos sem recibo (conferir no SGG)",
+            "Funcionário #21",
+            "1.1.0000000000000000001",
+            "12.345.678/0001-90",
+            "Regra de cálculo v1.0.0",
+            f'src="cid:{LOGO_CID}"',
+        ):
+            assert trecho in html, trecho
+        assert "== 2. Contratos e documentos vencidos (atenção crítica) ==" in texto
+        assert "Vencem nos próximos 30 dias: 2" in texto
+        assert "13372222679" not in html  # nenhum CPF
+
+    def test_aviso_de_coleta_parcial_e_dia_sem_eventos(
+        self, renderizador: RenderizadorJinja
+    ) -> None:
+        metricas = self.metricas(empresas_sem_consulta=2)
+        metricas["esocial"].update(total=0, com_recibo=0, sem_recibo=0, eventos=[], pendentes=[])
+        conteudo = renderizador.relatorio_sesmt(metricas)
+        assert "2 empresas não puderam ser consultada" in conteudo.html
+        assert "Nenhum evento do eSocial foi gerado em 29/09/2026." in conteudo.html
+        assert "Eventos sem recibo" not in conteudo.html

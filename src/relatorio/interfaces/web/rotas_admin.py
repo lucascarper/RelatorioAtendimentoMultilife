@@ -57,6 +57,10 @@ JOBS = {
     "enviar_financeiro": "Relatório financeiro: envio (07:59)",
     "verificar_financeiro": "Relatório financeiro: verificação (08:10)",
     "reprocessar_financeiro": "Relatório financeiro: reprocessamento pelo admin",
+    "consolidar_sesmt": "Relatório do SESMT: coleta (02:00)",
+    "enviar_sesmt": "Relatório do SESMT: envio (08:00)",
+    "verificar_sesmt": "Relatório do SESMT: verificação (08:12)",
+    "reprocessar_sesmt": "Relatório do SESMT: reprocessamento pelo admin",
 }
 ROTULOS_DETALHE = {
     "requisicoes": "requisições",
@@ -81,6 +85,10 @@ ROTULOS_DETALHE = {
     "saldo_dia": "saldo do dia (R$)",
     "faturamento_mes": "faturamento no mês (R$)",
     "contratos_ativos": "contratos ativos",
+    "a_vencer": "a vencer",
+    "vencidos": "vencidos",
+    "eventos_esocial": "eventos do eSocial",
+    "empresas_sem_consulta": "empresas sem consulta",
 }
 CSP_PREVIA = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; frame-ancestors 'self'"
 

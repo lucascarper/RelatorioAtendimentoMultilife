@@ -24,6 +24,7 @@ RAIZ = Path(__file__).resolve().parents[2]
 ESTADO_INICIAL: dict[str, list[str]] = {}
 TABELAS = (
     "agenda, agendamento_snapshot, agendamento_evento, resumo_diario, destinatario, "
+    "resumo_financeiro, destinatario_financeiro, resumo_sesmt, destinatario_sesmt, "
     "execucao_job, configuracao, coletor_cursor"
 )
 

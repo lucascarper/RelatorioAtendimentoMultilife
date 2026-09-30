@@ -24,8 +24,21 @@ from tenacity import RetryCallState, Retrying, retry_if_exception_type, stop_aft
 
 from relatorio.domain.entidades import FUSO_BRASILIA, Agenda, AgendamentoSgg, Situacao
 from relatorio.domain.financeiro import Contrato, PrecoFornecedor, Titulo
+from relatorio.domain.sesmt import (
+    TIPOS_DOCUMENTO,
+    ContratoSesmt,
+    DocumentoSst,
+    EmpresaSesmt,
+    EventoEsocial,
+)
 from relatorio.infrastructure.sgg.dto import formatar_filtro, para_agenda, para_agendamento
 from relatorio.infrastructure.sgg.dto_financeiro import para_contrato, para_preco, para_titulo
+from relatorio.infrastructure.sgg.dto_sesmt import (
+    para_contrato_sesmt,
+    para_documento,
+    para_empresa,
+    para_evento_esocial,
+)
 from relatorio.infrastructure.sgg.erros import (
     ErroSgg,
     ErroSggConfiguracao,
@@ -326,3 +339,55 @@ class ClienteSgg:
             para_preco(item, id_servico)
             for item in self._paginar("fornecedor-valores/", {"id_servico": str(id_servico)})
         ]
+
+    # ------------------------------------------------------------------ SesmtGateway
+
+    def empresas_sesmt(self) -> list[EmpresaSesmt]:
+        empresas: dict[int, EmpresaSesmt] = {}
+        for item in self._paginar("empresa/", {}):
+            try:
+                empresa = para_empresa(item)
+            except ValueError as erro:
+                log.warning("sgg_empresa_ignorada", id=item.get("id_empresa"), motivo=str(erro))
+                continue
+            empresas[empresa.id] = empresa
+        return list(empresas.values())
+
+    def contratos_sesmt(self) -> list[ContratoSesmt]:
+        contratos: dict[int, ContratoSesmt] = {}
+        for situacao in ("Em andamento", "Vencido"):
+            for item in self._paginar("contratoCliente/", {"situacao_contrato": situacao}):
+                try:
+                    contrato = para_contrato_sesmt(item)
+                except ValueError as erro:
+                    log.warning("sgg_contrato_ignorado", id=item.get("id"), motivo=str(erro))
+                    continue
+                contratos[contrato.id] = contrato
+        return list(contratos.values())
+
+    def documentos_sst(self, id_empresa: int) -> list[DocumentoSst]:
+        # A API exige o tipo: uma consulta por tipo do relatório.
+        documentos: dict[tuple[str, str], DocumentoSst] = {}
+        for tipo in TIPOS_DOCUMENTO:
+            filtros = {"id_empresa": str(id_empresa), "tipo": tipo}
+            for item in self._paginar("programasLaudos/", filtros):
+                try:
+                    documento = para_documento(item)
+                except ValueError as erro:
+                    log.warning("sgg_documento_ignorado", empresa=id_empresa, motivo=str(erro))
+                    continue
+                documentos[(documento.tipo, documento.codigo or str(len(documentos)))] = documento
+        return list(documentos.values())
+
+    def eventos_esocial(self, id_empresa: int) -> list[EventoEsocial]:
+        eventos: dict[str, EventoEsocial] = {}
+        for item in self._paginar(
+            "getEvtEsocial/", {"id_empresa": str(id_empresa), "evento": "Todos"}
+        ):
+            try:
+                evento = para_evento_esocial(item)
+            except ValueError as erro:
+                log.warning("sgg_evento_ignorado", empresa=id_empresa, motivo=str(erro))
+                continue
+            eventos[evento.codigo] = evento
+        return list(eventos.values())
