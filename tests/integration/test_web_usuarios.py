@@ -324,7 +324,7 @@ class TestEdicao:
         )
         assert entrar_como(outro, "ana", "senha-da-ana-1") == 303  # a senha antiga vale
 
-    def test_troca_de_senha_e_a_mudanca_vale_na_hora(
+    def test_mudar_permissoes_vale_na_hora_sem_derrubar_a_sessao(
         self,
         cliente: TestClient,  # noqa: F811
         outro: TestClient,
@@ -341,17 +341,68 @@ class TestEdicao:
             data={
                 "nome": "Ana",
                 "usuario": "ana",
+                "senha": "",
+                "modulos": ["financeiro"],
+                "csrf": token,
+            },
+        )
+        assert outro.get("/admin/sesmt").status_code == 403  # perdeu o SESMT na hora
+        assert outro.get("/admin/financeiro").status_code == 200  # mas continua logada
+
+    def test_trocar_a_senha_derruba_as_sessoes_abertas(
+        self,
+        cliente: TestClient,  # noqa: F811
+        outro: TestClient,
+        uow: FabricaUoW,
+    ) -> None:
+        token = entrar(cliente)
+        criar(cliente, token)
+        assert entrar_como(outro, "ana", "senha-da-ana-1") == 303
+        assert outro.get("/admin/financeiro").status_code == 200
+        with uow() as u:
+            [ana] = u.usuarios.listar()
+        cliente.post(
+            f"{URL}/{ana.id}",
+            data={
+                "nome": "Ana",
+                "usuario": "ana",
                 "senha": "outra-senha-9",
                 "modulos": ["financeiro"],
                 "csrf": token,
             },
         )
-        # A sessão que já estava aberta perde o SESMT na próxima página.
-        assert outro.get("/admin/sesmt").status_code == 403
-        assert outro.get("/admin/financeiro").status_code == 200
+        # Quem estava logado com a senha antiga (a sessão de um invasor, por exemplo) cai.
+        queda = outro.get("/admin/financeiro", follow_redirects=False)
+        assert (queda.status_code, queda.headers["location"]) == (303, "/login")
         novo = TestClient(outro.app)
         assert entrar_como(novo, "ana", "senha-da-ana-1") == 401
         assert entrar_como(novo, "ana", "outra-senha-9") == 303
+        assert novo.get("/admin/financeiro").status_code == 200
+
+    def test_quem_troca_a_propria_senha_continua_logado(
+        self,
+        cliente: TestClient,  # noqa: F811
+        outro: TestClient,
+        uow: FabricaUoW,
+    ) -> None:
+        token = entrar(cliente)
+        criar(cliente, token, modulos=("configuracoes", "financeiro"))
+        assert entrar_como(outro, "ana", "senha-da-ana-1") == 303
+        with uow() as u:
+            [ana] = u.usuarios.listar()
+        resposta = outro.post(
+            f"{URL}/{ana.id}",
+            data={
+                "nome": "Ana",
+                "usuario": "ana",
+                "senha": "outra-senha-9",
+                "modulos": ["configuracoes", "financeiro"],
+                "csrf": csrf(outro, URL),
+            },
+        )
+        assert "Usuário ana atualizado." in resposta.text
+        assert outro.get("/admin/financeiro").status_code == 200
+        assert entrar_como(TestClient(outro.app), "ana", "outra-senha-9") == 303
 
     def test_nao_deixa_repetir_login_de_outro_usuario(
         self,

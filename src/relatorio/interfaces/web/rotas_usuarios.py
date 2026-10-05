@@ -30,7 +30,12 @@ from relatorio.interfaces.web.dependencias import (
     mensagem,
     redirecionar,
 )
-from relatorio.interfaces.web.seguranca import CHAVE_USUARIO, gerar_hash_senha
+from relatorio.interfaces.web.seguranca import (
+    CHAVE_MARCA,
+    CHAVE_USUARIO,
+    gerar_hash_senha,
+    marca_da_senha,
+)
 
 log = structlog.get_logger(__name__)
 router = APIRouter(prefix="/admin/configuracoes/usuarios")
@@ -172,14 +177,9 @@ def atualizar(
         )
         if eu and CONFIGURACOES not in permissoes:
             raise ValueError("Você não pode tirar o seu próprio acesso a Configurações.")
+        novo_hash = gerar_hash_senha(senha_ok) if senha_ok else None
         with ctx.container.uow() as uow:
-            uow.usuarios.atualizar(
-                id_usuario,
-                nome_ok,
-                usuario_ok,
-                permissoes,
-                gerar_hash_senha(senha_ok) if senha_ok else None,
-            )
+            uow.usuarios.atualizar(id_usuario, nome_ok, usuario_ok, permissoes, novo_hash)
             uow.commit()
     except ValueError as erro:
         return _formulario(
@@ -194,8 +194,10 @@ def atualizar(
             erro="Já existe um usuário com esse login.",
             status_code=422,
         )
-    if eu:  # mudou o próprio login: a sessão acompanha
+    if eu:  # mudou o próprio login ou a própria senha: a sessão acompanha
         request.session[CHAVE_USUARIO] = usuario_ok
+        if novo_hash:
+            request.session[CHAVE_MARCA] = marca_da_senha(novo_hash)
     log.info(
         "usuario_alterado",
         usuario=usuario_ok,
