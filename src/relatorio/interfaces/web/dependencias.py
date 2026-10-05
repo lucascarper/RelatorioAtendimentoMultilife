@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -26,12 +27,14 @@ from relatorio.domain.acesso import (
 from relatorio.domain.entidades import FUSO_BRASILIA
 from relatorio.infrastructure.container import Container
 from relatorio.interfaces.web.seguranca import (
+    CHAVE_MARCA,
     CHAVE_PERFIL,
     CHAVE_USUARIO,
     PERFIL_ADMIN,
     ControleTentativas,
     NaoAutenticado,
     SemPermissao,
+    marca_da_senha,
     token_csrf,
     validar_csrf,
 )
@@ -92,12 +95,16 @@ class ContextoWeb:
         em_cache: Acesso | None = getattr(request.state, "acesso", None)
         if em_cache is not None:
             return em_cache
-        acesso = self.carregar_acesso(str(login), request.session.get(CHAVE_PERFIL) == PERFIL_ADMIN)
+        acesso = self.carregar_acesso(
+            str(login),
+            request.session.get(CHAVE_PERFIL) == PERFIL_ADMIN,
+            str(request.session.get(CHAVE_MARCA) or ""),
+        )
         if acesso is not None:
             request.state.acesso = acesso
         return acesso
 
-    def carregar_acesso(self, login: str, administrador: bool) -> Acesso | None:
+    def carregar_acesso(self, login: str, administrador: bool, marca: str = "") -> Acesso | None:
         if administrador:
             if login != self.settings.admin_user:  # ADMIN_USER mudou desde o login
                 return None
@@ -106,6 +113,8 @@ class ContextoWeb:
             cadastrado = uow.usuarios.obter_por_usuario(login)
         if cadastrado is None:
             return None
+        if not hmac.compare_digest(marca, marca_da_senha(cadastrado.senha_hash)):
+            return None  # a senha foi trocada depois deste login
         return Acesso(cadastrado.usuario, cadastrado.nome, frozenset(cadastrado.permissoes))
 
     def configuracao_atual(self) -> ConfiguracaoRelatorio:

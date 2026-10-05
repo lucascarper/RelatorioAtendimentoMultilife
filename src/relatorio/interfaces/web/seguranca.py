@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 import secrets
 import threading
@@ -16,6 +17,7 @@ MAX_TENTATIVAS = 5
 BLOQUEIO_SEGUNDOS = 15 * 60
 CHAVE_USUARIO = "usuario"
 CHAVE_PERFIL = "perfil"  # "admin" (o do deploy) ou "usuario" (cadastrado no painel)
+CHAVE_MARCA = "marca"  # impressão da senha com que a sessão foi aberta
 PERFIL_ADMIN = "admin"
 PERFIL_USUARIO = "usuario"
 CHAVE_CSRF = "csrf"
@@ -35,6 +37,12 @@ def conferir_credenciais(usuario: str, senha: str, usuario_ok: str, hash_ok: str
     except ValueError:  # hash malformado na variável de ambiente
         senha_confere = False
     return usuario_confere and senha_confere and bool(hash_ok)
+
+
+def marca_da_senha(senha_hash: str) -> str:
+    """Impressão do hash da senha. Vai na sessão (o cookie é assinado, mas legível): quem
+    troca a senha muda a impressão e derruba as sessões abertas com a senha antiga."""
+    return hashlib.sha256(senha_hash.encode()).hexdigest()[:24]
 
 
 def conferir_senha(senha: str, hash_ok: str | None) -> bool:

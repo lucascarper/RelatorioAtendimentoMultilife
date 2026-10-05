@@ -17,12 +17,14 @@ from relatorio.interfaces.web.dependencias import (
     situacao_coleta,
 )
 from relatorio.interfaces.web.seguranca import (
+    CHAVE_MARCA,
     CHAVE_PERFIL,
     CHAVE_USUARIO,
     PERFIL_ADMIN,
     PERFIL_USUARIO,
     conferir_credenciais,
     conferir_senha,
+    marca_da_senha,
 )
 
 log = structlog.get_logger(__name__)
@@ -63,20 +65,20 @@ def pagina_login(request: Request, ctx: Ctx) -> HTMLResponse:
     return ctx.render(request, "admin/login.html", {"erro": None})
 
 
-def autenticar(ctx: ContextoWeb, usuario: str, senha: str) -> tuple[Acesso, str] | None:
+def autenticar(ctx: ContextoWeb, usuario: str, senha: str) -> tuple[Acesso, str, str] | None:
     """O administrador do deploy (variáveis de ambiente) ou um usuário cadastrado no painel."""
     admin = ctx.settings.admin_user
     if conferir_credenciais(
         usuario, senha, admin, ctx.settings.admin_password_hash.get_secret_value()
     ):
-        return Acesso(admin, admin, TODOS_OS_MODULOS, administrador=True), PERFIL_ADMIN
+        return Acesso(admin, admin, TODOS_OS_MODULOS, administrador=True), PERFIL_ADMIN, ""
     # Sempre confere o bcrypt (com hash fictício se o usuário não existe): o tempo da
     # resposta não revela quais usuários existem.
     with ctx.container.uow() as uow:
         cadastrado = uow.usuarios.obter_por_usuario(usuario)
     if conferir_senha(senha, cadastrado.senha_hash if cadastrado else None) and cadastrado:
         acesso = Acesso(cadastrado.usuario, cadastrado.nome, frozenset(cadastrado.permissoes))
-        return acesso, PERFIL_USUARIO
+        return acesso, PERFIL_USUARIO, marca_da_senha(cadastrado.senha_hash)
     return None
 
 
@@ -108,9 +110,10 @@ def entrar(
         return ctx.render(request, "admin/login.html", {"erro": erro}, status_code=401)
     ctx.tentativas.limpar(chave)
     request.session.clear()  # nova sessão (evita fixação de sessão)
-    acesso, perfil = entrada
+    acesso, perfil, marca = entrada
     request.session[CHAVE_USUARIO] = acesso.login
     request.session[CHAVE_PERFIL] = perfil
+    request.session[CHAVE_MARCA] = marca
     log.info("login_ok", ip=ip, usuario=acesso.login, perfil=perfil)
     return redirecionar("/admin")
 
