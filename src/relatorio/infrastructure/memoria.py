@@ -18,7 +18,9 @@ from relatorio.application.modelos import (
     ResumoRegistro,
     StatusEnvio,
     StatusJob,
+    UsuarioSistema,
 )
+from relatorio.application.ports import UsuarioDuplicado
 from relatorio.domain.entidades import FUSO_BRASILIA, Agenda, Evento, Snapshot
 
 
@@ -33,6 +35,7 @@ class BancoEmMemoria:
     destinatarios_financeiro: dict[int, Destinatario] = field(default_factory=dict)
     resumos_sesmt: dict[date, ResumoRegistro] = field(default_factory=dict)
     destinatarios_sesmt: dict[int, Destinatario] = field(default_factory=dict)
+    usuarios: dict[int, UsuarioSistema] = field(default_factory=dict)
     configuracoes: dict[str, str] = field(default_factory=dict)
     execucoes: dict[int, ExecucaoJob] = field(default_factory=dict)
     cursores: dict[str, datetime] = field(default_factory=dict)
@@ -185,6 +188,60 @@ class _Destinatarios:
         self.d[id_destinatario] = replace(self.d[id_destinatario], ativo=ativo)
 
 
+class _Usuarios:
+    def __init__(self, usuarios: dict[int, UsuarioSistema]) -> None:
+        self.u = usuarios
+
+    def listar(self) -> list[UsuarioSistema]:
+        return sorted(self.u.values(), key=lambda x: x.nome.lower())
+
+    def obter(self, id_usuario: int) -> UsuarioSistema | None:
+        return self.u.get(id_usuario)
+
+    def obter_por_usuario(self, usuario: str) -> UsuarioSistema | None:
+        alvo = usuario.strip().lower()
+        return next((x for x in self.u.values() if x.usuario == alvo), None)
+
+    def criar(
+        self, nome: str, usuario: str, senha_hash: str, permissoes: Sequence[str]
+    ) -> UsuarioSistema:
+        if self.obter_por_usuario(usuario) is not None:
+            raise UsuarioDuplicado(usuario)
+        novo = UsuarioSistema(
+            id=max(self.u, default=0) + 1,
+            nome=nome,
+            usuario=usuario.strip().lower(),
+            senha_hash=senha_hash,
+            permissoes=tuple(permissoes),
+            criado_em=datetime.now(tz=FUSO_BRASILIA),
+        )
+        self.u[novo.id] = novo
+        return novo
+
+    def atualizar(
+        self,
+        id_usuario: int,
+        nome: str,
+        usuario: str,
+        permissoes: Sequence[str],
+        senha_hash: str | None = None,
+    ) -> None:
+        outro = self.obter_por_usuario(usuario)
+        if outro is not None and outro.id != id_usuario:
+            raise UsuarioDuplicado(usuario)
+        atual = self.u[id_usuario]
+        self.u[id_usuario] = replace(
+            atual,
+            nome=nome,
+            usuario=usuario.strip().lower(),
+            permissoes=tuple(permissoes),
+            senha_hash=atual.senha_hash if senha_hash is None else senha_hash,
+        )
+
+    def excluir(self, id_usuario: int) -> bool:
+        return self.u.pop(id_usuario, None) is not None
+
+
 class _Configuracoes:
     def __init__(self, banco: BancoEmMemoria) -> None:
         self.b = banco
@@ -302,6 +359,7 @@ class UoWEmMemoria:
         self.destinatarios_financeiro = _Destinatarios(banco.destinatarios_financeiro)
         self.resumos_sesmt = _Resumos(banco.resumos_sesmt)
         self.destinatarios_sesmt = _Destinatarios(banco.destinatarios_sesmt)
+        self.usuarios = _Usuarios(banco.usuarios)
         self.configuracoes = _Configuracoes(banco)
         self.execucoes = _Execucoes(banco)
         self.cursores = _Cursores(banco)

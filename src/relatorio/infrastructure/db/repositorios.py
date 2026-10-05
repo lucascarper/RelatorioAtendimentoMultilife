@@ -9,6 +9,7 @@ from typing import Any, Self, cast
 
 from sqlalchemy import CursorResult, Engine, Result, delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from relatorio.application.modelos import (
@@ -17,7 +18,9 @@ from relatorio.application.modelos import (
     ResumoRegistro,
     StatusEnvio,
     StatusJob,
+    UsuarioSistema,
 )
+from relatorio.application.ports import UsuarioDuplicado
 from relatorio.domain.entidades import Agenda, Evento, OrigemEvento, Situacao, Snapshot
 from relatorio.infrastructure.db.modelos import (
     AgendamentoEventoModel,
@@ -32,6 +35,7 @@ from relatorio.infrastructure.db.modelos import (
     ResumoDiarioModel,
     ResumoFinanceiroModel,
     ResumoSesmtModel,
+    UsuarioModel,
 )
 
 # Os relatórios (atendimentos, financeiro e SESMT) têm tabelas de resumo e de destinatários
@@ -95,6 +99,17 @@ def _resumo(m: Any) -> ResumoRegistro:  # ResumoDiarioModel, …FinanceiroModel 
         gerado_em=m.gerado_em,
         status_envio=StatusEnvio(m.status_envio),
         enviado_em=m.enviado_em,
+    )
+
+
+def _usuario(m: UsuarioModel) -> UsuarioSistema:
+    return UsuarioSistema(
+        id=m.id,
+        nome=m.nome,
+        usuario=m.usuario,
+        senha_hash=m.senha_hash,
+        permissoes=tuple(m.permissoes or ()),
+        criado_em=m.criado_em,
     )
 
 
@@ -370,6 +385,71 @@ class DestinatarioRepositorioSql:
         self._s.execute(update(self._m).where(self._m.id == id_destinatario).values(ativo=ativo))
 
 
+class UsuarioRepositorioSql:
+    def __init__(self, sessao: Session) -> None:
+        self._s = sessao
+
+    def listar(self) -> list[UsuarioSistema]:
+        modelos = self._s.scalars(
+            select(UsuarioModel).order_by(func.lower(UsuarioModel.nome))
+        ).all()
+        return [_usuario(m) for m in modelos]
+
+    def obter(self, id_usuario: int) -> UsuarioSistema | None:
+        modelo = self._s.get(UsuarioModel, id_usuario)
+        return _usuario(modelo) if modelo else None
+
+    def obter_por_usuario(self, usuario: str) -> UsuarioSistema | None:
+        modelo = self._s.scalars(
+            select(UsuarioModel).where(UsuarioModel.usuario == usuario.strip().lower())
+        ).first()
+        return _usuario(modelo) if modelo else None
+
+    def criar(
+        self, nome: str, usuario: str, senha_hash: str, permissoes: Sequence[str]
+    ) -> UsuarioSistema:
+        modelo = UsuarioModel(
+            nome=nome,
+            usuario=usuario.strip().lower(),
+            senha_hash=senha_hash,
+            permissoes=list(permissoes),
+        )
+        try:
+            with self._s.begin_nested():  # savepoint: a falha não invalida a sessão
+                self._s.add(modelo)
+                self._s.flush()
+        except IntegrityError as erro:
+            raise UsuarioDuplicado(usuario) from erro
+        self._s.refresh(modelo)
+        return _usuario(modelo)
+
+    def atualizar(
+        self,
+        id_usuario: int,
+        nome: str,
+        usuario: str,
+        permissoes: Sequence[str],
+        senha_hash: str | None = None,
+    ) -> None:
+        modelo = self._s.get(UsuarioModel, id_usuario)
+        if modelo is None:
+            raise LookupError(id_usuario)
+        try:
+            with self._s.begin_nested():
+                modelo.nome = nome
+                modelo.usuario = usuario.strip().lower()
+                modelo.permissoes = list(permissoes)
+                if senha_hash is not None:
+                    modelo.senha_hash = senha_hash
+                self._s.flush()
+        except IntegrityError as erro:
+            raise UsuarioDuplicado(usuario) from erro
+
+    def excluir(self, id_usuario: int) -> bool:
+        resultado = self._s.execute(delete(UsuarioModel).where(UsuarioModel.id == id_usuario))
+        return _afetadas(resultado) > 0
+
+
 class ConfiguracaoRepositorioSql:
     def __init__(self, sessao: Session) -> None:
         self._s = sessao
@@ -546,6 +626,7 @@ class UnidadeDeTrabalhoSql:
         self.destinatarios_sesmt = DestinatarioRepositorioSql(
             sessao, DestinatarioSesmtModel, "uq_destinatario_sesmt_email"
         )
+        self.usuarios = UsuarioRepositorioSql(sessao)
         self.configuracoes = ConfiguracaoRepositorioSql(sessao)
         self.execucoes = ExecucaoJobRepositorioSql(sessao)
         self.cursores = CursorRepositorioSql(sessao)

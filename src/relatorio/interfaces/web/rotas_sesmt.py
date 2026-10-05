@@ -17,7 +17,7 @@ from relatorio.application.sesmt import (
 )
 from relatorio.infrastructure.container import Container
 from relatorio.interfaces.demo import html_para_navegador
-from relatorio.interfaces.web.dependencias import Csrf, Ctx, Usuario, mensagem, redirecionar
+from relatorio.interfaces.web.dependencias import Csrf, Ctx, UsuarioSesmt, mensagem, redirecionar
 from relatorio.interfaces.web.rotas_admin import EMAIL_VALIDO
 
 log = structlog.get_logger(__name__)
@@ -34,7 +34,7 @@ def _email_valido(email: str) -> bool:
 
 
 @router.get("", response_class=HTMLResponse)
-def sesmt(request: Request, ctx: Ctx, _usuario: Usuario) -> HTMLResponse:
+def sesmt(request: Request, ctx: Ctx, _usuario: UsuarioSesmt) -> HTMLResponse:
     with ctx.container.uow() as uow:
         resumos = uow.resumos_sesmt.listar_recentes(14)
         destinatarios = uow.destinatarios_sesmt.listar()
@@ -56,7 +56,7 @@ def sesmt(request: Request, ctx: Ctx, _usuario: Usuario) -> HTMLResponse:
 
 
 @router.get("/relatorios/{dia}", response_class=HTMLResponse)
-def ver_relatorio_sesmt(dia: date, ctx: Ctx, _usuario: Usuario) -> HTMLResponse:
+def ver_relatorio_sesmt(dia: date, ctx: Ctx, _usuario: UsuarioSesmt) -> HTMLResponse:
     with ctx.container.uow() as uow:
         registro = uow.resumos_sesmt.obter(dia)
     if registro is None:
@@ -71,7 +71,7 @@ def ver_relatorio_sesmt(dia: date, ctx: Ctx, _usuario: Usuario) -> HTMLResponse:
 def reprocessar_sesmt(
     request: Request,
     ctx: Ctx,
-    _usuario: Usuario,
+    _usuario: UsuarioSesmt,
     _csrf: Csrf,
     tarefas: BackgroundTasks,
     dia: Annotated[date, Form(alias="data")],
@@ -112,7 +112,7 @@ def reprocessar_em_segundo_plano(container: Container, dia: date, enviar: bool) 
 def adicionar_destinatario_sesmt(
     request: Request,
     ctx: Ctx,
-    _usuario: Usuario,
+    _usuario: UsuarioSesmt,
     _csrf: Csrf,
     email: Annotated[str, Form()] = "",
     nome: Annotated[str, Form()] = "",
@@ -133,7 +133,7 @@ def alternar_destinatario_sesmt(
     request: Request,
     id_destinatario: int,
     ctx: Ctx,
-    _usuario: Usuario,
+    _usuario: UsuarioSesmt,
     _csrf: Csrf,
     ativo: Annotated[bool, Form()] = False,
 ) -> HTMLResponse:
@@ -155,7 +155,7 @@ def alternar_destinatario_sesmt(
 def salvar_nomes_grupos(
     request: Request,
     ctx: Ctx,
-    _usuario: Usuario,
+    _usuario: UsuarioSesmt,
     _csrf: Csrf,
     nomes: Annotated[str, Form()] = "",
 ) -> RedirectResponse:

@@ -10,7 +10,7 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from relatorio.application.configuracao import (
     CHAVE_ATIPICO_MAX,
@@ -27,10 +27,14 @@ from relatorio.domain.turnos import ConfiguracaoTurnos
 from relatorio.infrastructure.container import Container
 from relatorio.interfaces.demo import html_para_navegador
 from relatorio.interfaces.web.dependencias import (
+    URL_MODULO,
     ContextoWeb,
     Csrf,
     Ctx,
     Usuario,
+    UsuarioAtendimento,
+    UsuarioConfiguracoes,
+    UsuarioExecucoes,
     mensagem,
     redirecionar,
     situacao_coleta,
@@ -96,24 +100,33 @@ CSP_PREVIA = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; fram
 # ------------------------------------------------------------------ painel e relatórios
 
 
-@router.get("", response_class=HTMLResponse)
-def painel(request: Request, ctx: Ctx, _usuario: Usuario) -> HTMLResponse:
+@router.get("")
+def inicio(request: Request, ctx: Ctx, acesso: Usuario) -> Response:
+    """Leva ao primeiro módulo a que o usuário tem acesso."""
+    for modulo in acesso.permitidos():
+        return redirecionar(URL_MODULO[modulo.chave])
+    return ctx.render(request, "admin/sem_acesso.html", {"pagina": "inicio", "modulo": None})
+
+
+@router.get("/atendimento", response_class=HTMLResponse)
+def atendimento(request: Request, ctx: Ctx, _usuario: UsuarioAtendimento) -> HTMLResponse:
     coleta = situacao_coleta(ctx)
     with ctx.container.uow() as uow:
         resumos = uow.resumos.listar_recentes(14)
         falhas_seguidas = uow.execucoes.falhas_consecutivas("coletar_ciclo")
-        ativos = uow.destinatarios.listar(apenas_ativos=True)
+        lista_destinatarios = uow.destinatarios.listar()
     return ctx.render(
         request,
-        "admin/painel.html",
+        "admin/atendimento.html",
         {
-            "pagina": "painel",
+            "pagina": "atendimento",
             "resumos": resumos,
             "ultimo_sucesso": coleta.ultima,
             "coleta_atrasada": coleta.atrasada,
             "em_coleta": coleta.em_coleta,
             "falhas_seguidas": falhas_seguidas,
-            "destinatarios_ativos": len(ativos),
+            "destinatarios": lista_destinatarios,
+            "destinatarios_ativos": sum(1 for d in lista_destinatarios if d.ativo),
             "coletor_habilitado": ctx.settings.coletor_habilitado,
             "ontem": ctx.hoje() - timedelta(days=1),
             "override": ctx.settings.destinatarios_override,
@@ -122,7 +135,7 @@ def painel(request: Request, ctx: Ctx, _usuario: Usuario) -> HTMLResponse:
 
 
 @router.get("/relatorios/{dia}", response_class=HTMLResponse)
-def ver_relatorio(dia: date, ctx: Ctx, _usuario: Usuario) -> HTMLResponse:
+def ver_relatorio(dia: date, ctx: Ctx, _usuario: UsuarioAtendimento) -> HTMLResponse:
     with ctx.container.uow() as uow:
         registro = uow.resumos.obter(dia)
     if registro is None:
@@ -148,14 +161,14 @@ def _painel_monitor(ctx: ContextoWeb) -> PainelMonitor:
 
 
 @router.get("/monitor", response_class=HTMLResponse)
-def monitor(request: Request, ctx: Ctx, _usuario: Usuario) -> HTMLResponse:
+def monitor(request: Request, ctx: Ctx, _usuario: UsuarioAtendimento) -> HTMLResponse:
     return ctx.render(
         request, "admin/monitor.html", {"pagina": "monitor", "p": _painel_monitor(ctx)}
     )
 
 
 @router.get("/monitor/dados", response_class=HTMLResponse)
-def monitor_dados(request: Request, ctx: Ctx, _usuario: Usuario) -> HTMLResponse:
+def monitor_dados(request: Request, ctx: Ctx, _usuario: UsuarioAtendimento) -> HTMLResponse:
     """Fragmento trocado a cada atualização (não consome as mensagens da sessão)."""
     resposta = ctx.templates.TemplateResponse(
         request, "admin/_monitor.html", {"p": _painel_monitor(ctx)}
@@ -168,7 +181,7 @@ def monitor_dados(request: Request, ctx: Ctx, _usuario: Usuario) -> HTMLResponse
 def reprocessar(
     request: Request,
     ctx: Ctx,
-    _usuario: Usuario,
+    _usuario: UsuarioAtendimento,
     _csrf: Csrf,
     tarefas: BackgroundTasks,
     dia: Annotated[date, Form(alias="data")],
@@ -177,7 +190,7 @@ def reprocessar(
 ) -> RedirectResponse:
     if dia > ctx.hoje():
         mensagem(request, "Não é possível reprocessar uma data futura.", "erro")
-        return redirecionar("/admin")
+        return redirecionar("/admin/atendimento")
     # Reconciliar com o SGG (limitado a SGG_MAX_RPM) e enviar por SMTP pode levar
     # minutos: roda depois da resposta, para o proxy da Railway não derrubar a requisição.
     tarefas.add_task(reprocessar_em_segundo_plano, ctx.container, dia, reconciliar, enviar)
@@ -187,7 +200,7 @@ def reprocessar(
         f"Reprocessamento de {dia:%d/%m/%Y} iniciado. O resultado aparece em Execuções"
         " (Reprocessamento pelo admin) assim que terminar.",
     )
-    return redirecionar("/admin")
+    return redirecionar("/admin/atendimento")
 
 
 def reprocessar_em_segundo_plano(
@@ -221,26 +234,17 @@ def resumir_reprocessamento(detalhe: dict[str, object]) -> dict[str, object]:
 # ------------------------------------------------------------------ destinatários
 
 
-@router.get("/destinatarios", response_class=HTMLResponse)
-def destinatarios(request: Request, ctx: Ctx, _usuario: Usuario) -> HTMLResponse:
-    with ctx.container.uow() as uow:
-        lista = uow.destinatarios.listar()
-    return ctx.render(
-        request,
-        "admin/destinatarios.html",
-        {
-            "pagina": "destinatarios",
-            "destinatarios": lista,
-            "override": ctx.settings.destinatarios_override,
-        },
-    )
+@router.get("/destinatarios")
+def destinatarios() -> RedirectResponse:
+    """Os destinatários agora ficam dentro do módulo Atendimento (links antigos)."""
+    return redirecionar("/admin/atendimento#destinatarios")
 
 
 @router.post("/destinatarios")
 def adicionar_destinatario(
     request: Request,
     ctx: Ctx,
-    _usuario: Usuario,
+    _usuario: UsuarioAtendimento,
     _csrf: Csrf,
     email: Annotated[str, Form()] = "",
     nome: Annotated[str, Form()] = "",
@@ -253,7 +257,7 @@ def adicionar_destinatario(
             uow.destinatarios.adicionar(email, nome.strip()[:120] or None)
             uow.commit()
         mensagem(request, f"{email} cadastrado e ativo.")
-    return redirecionar("/admin/destinatarios")
+    return redirecionar("/admin/atendimento#destinatarios")
 
 
 @router.post("/destinatarios/{id_destinatario}/ativo", response_class=HTMLResponse)
@@ -261,7 +265,7 @@ def alternar_destinatario(
     request: Request,
     id_destinatario: int,
     ctx: Ctx,
-    _usuario: Usuario,
+    _usuario: UsuarioAtendimento,
     _csrf: Csrf,
     ativo: Annotated[bool, Form()] = False,
 ) -> HTMLResponse:
@@ -281,7 +285,7 @@ def alternar_destinatario(
 
 
 @router.get("/agendas", response_class=HTMLResponse)
-def agendas(request: Request, ctx: Ctx, _usuario: Usuario) -> HTMLResponse:
+def agendas(request: Request, ctx: Ctx, _usuario: UsuarioAtendimento) -> HTMLResponse:
     with ctx.container.uow() as uow:
         lista = uow.agendas.listar()
     nomes = {
@@ -305,7 +309,7 @@ def agendas(request: Request, ctx: Ctx, _usuario: Usuario) -> HTMLResponse:
 def salvar_unidades(
     request: Request,
     ctx: Ctx,
-    _usuario: Usuario,
+    _usuario: UsuarioAtendimento,
     _csrf: Csrf,
     modo: Annotated[str, Form()] = "todas",
     unidades: Annotated[list[int] | None, Form()] = None,
@@ -323,7 +327,7 @@ def salvar_unidades(
 
 @router.post("/agendas/sincronizar")
 def sincronizar_agendas(
-    request: Request, ctx: Ctx, _usuario: Usuario, _csrf: Csrf
+    request: Request, ctx: Ctx, _usuario: UsuarioAtendimento, _csrf: Csrf
 ) -> RedirectResponse:
     try:
         r = ctx.container.casos.sincronizar.executar()
@@ -343,7 +347,7 @@ def alternar_agenda(
     request: Request,
     id_agenda: int,
     ctx: Ctx,
-    _usuario: Usuario,
+    _usuario: UsuarioAtendimento,
     _csrf: Csrf,
     incluir: Annotated[bool, Form()] = False,
 ) -> HTMLResponse:
@@ -362,7 +366,7 @@ def alternar_guiche(
     request: Request,
     id_agenda: int,
     ctx: Ctx,
-    _usuario: Usuario,
+    _usuario: UsuarioAtendimento,
     _csrf: Csrf,
     guiche: Annotated[bool, Form()] = False,
 ) -> HTMLResponse:
@@ -380,7 +384,7 @@ def alternar_guiche(
 
 
 @router.get("/configuracoes", response_class=HTMLResponse)
-def configuracoes(request: Request, ctx: Ctx, _usuario: Usuario) -> HTMLResponse:
+def configuracoes(request: Request, ctx: Ctx, _usuario: UsuarioConfiguracoes) -> HTMLResponse:
     return ctx.render(
         request,
         "admin/configuracoes.html",
@@ -396,7 +400,7 @@ def configuracoes(request: Request, ctx: Ctx, _usuario: Usuario) -> HTMLResponse
 def salvar_configuracoes(
     request: Request,
     ctx: Ctx,
-    _usuario: Usuario,
+    _usuario: UsuarioConfiguracoes,
     _csrf: Csrf,
     manha_inicio: Annotated[time, Form()],
     tarde_inicio: Annotated[time, Form()],
@@ -450,7 +454,7 @@ def salvar_configuracoes(
 
 
 @router.get("/execucoes", response_class=HTMLResponse)
-def execucoes(request: Request, ctx: Ctx, _usuario: Usuario) -> HTMLResponse:
+def execucoes(request: Request, ctx: Ctx, _usuario: UsuarioExecucoes) -> HTMLResponse:
     with ctx.container.uow() as uow:
         por_job = uow.execucoes.recentes_por_job(7)
     ordem = [j for j in JOBS if j in por_job] + sorted(j for j in por_job if j not in JOBS)

@@ -64,7 +64,7 @@ Leitura em até 1 minuto, em pirâmide de atenção:
 
 1. **Topo:** manchete em uma frase ("102 atendimentos e 11 faltas… espera média 15 min, +93,7% sobre a semana anterior") e selo de alertas.
 2. **KPIs:** atendimentos, faltas (% dos agendados), espera média e TMA, cada um com variação contra o mesmo dia da semana anterior. A seta sempre vem com o valor e o rótulo, nunca só a cor. Verde e vermelho aparecem só quando subir é claramente bom ou ruim; o TMA é neutro. Taxas variam em pontos percentuais (p.p.).
-3. **Meio (evidência):** tabela por turno (com os **guichês** separados das demais agendas, quando houver agendas marcadas como guichê em *Unidades e agendas*), TMA por consultório e tempos por agenda (qtd., média, mediana, maior), **um bloco por turno**, porque na troca de turno troca o médico. As barras de TMA usam uma única cor, a azul da marca, e a mesma escala nos dois turnos.
+3. **Meio (evidência):** tabela por turno (com os **guichês** separados das demais agendas, quando houver agendas marcadas como guichê em *Atendimento → Configurar Agendas*), TMA por consultório e tempos por agenda (qtd., média, mediana, maior), **um bloco por turno**, porque na troca de turno troca o médico. As barras de TMA usam uma única cor, a azul da marca, e a mesma escala nos dois turnos.
 4. **Base:** comparativo semanal completo, alertas por severidade (ícone + rótulo + cor) e rodapé com a versão da regra e o link do admin.
 
 Tecnicamente: layout em tabelas compatível com Outlook e Gmail, CSS inline (premailer), logo anexada via CID (Outlook não bloqueia), responsivo (KPIs em 2×2 no celular), versão em texto puro e contraste WCAG AA (texto ≥ 4,5:1). O template recebe só o JSON de `resumo_diario.metricas`, e nenhuma regra de cálculo fica nele.
@@ -92,9 +92,28 @@ O SGG só responde documentos e eventos do eSocial **por empresa**, então a col
 
 Regras e decisões no [ADR 0013](docs/adr/0013-relatorio-sesmt.md). O envio automático fica desligado até `SESMT_HABILITADO=true` no worker. A prévia e o reenvio pelo admin funcionam sempre (a coleta manual também leva mais de uma hora).
 
+### Painel administrativo: módulos e usuários
+
+O painel é o **Sistema de Relatórios**, organizado em cinco módulos no menu:
+
+| Módulo | O que tem |
+| --- | --- |
+| **Atendimento** | Painel do relatório de atendimentos (coleta, últimos 14 dias, reprocessar) e os **destinatários**. Os botões **Acompanhar AO VIVO** (monitor) e **Configurar Agendas** (unidades, agendas e guichês) abrem as telas de apoio |
+| **Financeiro** | Relatório financeiro diário e seus destinatários |
+| **SESMT** | Relatório de gestão do SESMT e seus destinatários |
+| **Configurações** | Aba *Regras do relatório* (turnos, atípicos, e-mail técnico) e aba **Usuários** |
+| **Execuções** | Histórico dos jobs |
+
+Em **Configurações → Usuários** ficam a lista de usuários, com **Adicionar usuário**, **Editar** e **Excluir**. O cadastro é simples (nome, usuário e senha) e, abaixo, as **permissões de visualização**: um quadro por módulo. Quem não tem um módulo não vê o item no menu e recebe "Sem acesso" se abrir o endereço. As permissões são lidas do banco a cada página, então editar ou excluir um usuário vale na hora.
+
+- O **administrador do deploy** (`ADMIN_USER` e `ADMIN_PASSWORD_HASH`) sempre tem todos os módulos e não é guardado no banco: aparece na lista, mas não é editado nem excluído por ali. Assim ninguém perde o acesso ao sistema por engano.
+- Usuário: 3 a 40 caracteres (letras minúsculas, números, ponto, hífen ou sublinhado), único sem diferenciar maiúsculas. Senha: de 8 a 72 caracteres, guardada com bcrypt. Ao editar, a senha em branco mantém a atual.
+- Ninguém exclui o próprio usuário nem tira o próprio acesso a Configurações.
+- Regras e decisões no [ADR 0014](docs/adr/0014-usuarios-e-modulos.md).
+
 ### Monitor ao vivo (tela do gerente)
 
-`/admin/monitor`, dentro do login do admin. São os mesmos indicadores do e-mail, calculados para **hoje até agora** e atualizados sozinhos a cada 5 s:
+`/admin/monitor` (em *Atendimento*, botão **Acompanhar AO VIVO**), dentro do login do admin. São os mesmos indicadores do e-mail, calculados para **hoje até agora** e atualizados sozinhos a cada 5 s:
 
 1. **Topo:** situação da coleta ("Dados do SGG de 10:40:00"), uma frase-resumo e os cartões de agora. Com guichês marcados, a espera e o atendimento aparecem por área: **espera recepção** (no guichê), **espera consultório** (aguardando o médico), **em atendimento no guichê** e **no consultório**, cada um com a maior espera ou atendimento em curso. Também mostra quem **ainda não chegou**, destacando os de horário vencido.
 2. **Hoje até agora:** atendimentos, faltas, espera média e TMA, comparados com o mesmo dia da semana anterior **até o mesmo horário**. Com guichês marcados, os cartões ficam em três linhas: **Consultórios** (atendimentos, Tempo de Espera - Consultório, Tempo de Consulta e faltas), **Recepção** (atendimentos nos guichês, Tempo de Espera - Recepção e Tempo de Atendimento - Recepção) e **Permanência total** (Tempo Médio Total de Permanência). O e-mail diário segue o mesmo padrão.
@@ -189,7 +208,7 @@ Veja [`.env.example`](.env.example). Segredos só em variáveis de ambiente (RNF
 | `SMTP_USER` / `SMTP_PASSWORD` | (secretas) | Caixa usada no envio |
 | `EMAIL_FROM` / `EMAIL_ALERTA_TECNICO` | `relatorios@…` / `tecnologia@…` | Remetente e alertas técnicos |
 | `EMAIL_DESTINATARIOS_OVERRIDE` | `tecnologia@multilife.com.br` | Staging: todo e-mail só para o time de TI |
-| `ADMIN_USER` / `ADMIN_PASSWORD_HASH` / `SECRET_KEY` | (secretas) | Login do admin e assinatura da sessão |
+| `ADMIN_USER` / `ADMIN_PASSWORD_HASH` / `SECRET_KEY` | (secretas) | Administrador do sistema (acesso a todos os módulos, não editável pelo painel) e assinatura da sessão |
 | `ADMIN_URL` | `https://….up.railway.app/admin` | Link no rodapé do e-mail |
 | `APP_ENV` / `TZ` / `LOG_LEVEL` | `production` / `America/Sao_Paulo` / `INFO` | Ambiente, fuso e logs |
 
@@ -272,3 +291,4 @@ O ambiente em que o código foi desenvolvido não tinha acesso à rede do `app.s
 - [0010 — Sistema visual do admin e do monitor](docs/adr/0010-sistema-visual-do-admin.md)
 - [0011 — Relatório financeiro diário](docs/adr/0011-relatorio-financeiro-diario.md)
 - [0013 — Relatório de gestão do SESMT](docs/adr/0013-relatorio-sesmt.md)
+- [0014 — Usuários, permissões e módulos do painel](docs/adr/0014-usuarios-e-modulos.md)

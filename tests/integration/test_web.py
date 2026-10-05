@@ -324,7 +324,7 @@ class TestMonitor:
         entrar(cliente)
         pagina = cliente.get("/admin/monitor")
         assert pagina.status_code == 200
-        assert 'aria-current="page">Monitor</a>' in pagina.text
+        assert 'aria-current="page">Atendimento</a>' in pagina.text
         assert "/static/admin/monitor.js" in pagina.text
         assert "1 pessoa na recepção agora; a maior espera é de 20 min." in pagina.text
         assert "Movimento por hora" in pagina.text
