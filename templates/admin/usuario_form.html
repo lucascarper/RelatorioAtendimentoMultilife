@@ -1,0 +1,48 @@
+{% extends "admin/base.html" %}
+{% block titulo %}{{ "Editar usuário" if id_usuario else "Novo usuário" }}{% endblock %}
+{% block conteudo %}
+<h1>Configurações</h1>
+{% include "admin/_abas_configuracoes.html" %}
+
+<p class="voltar"><a href="/admin/configuracoes/usuarios">&larr; Usuários</a></p>
+<form method="post" action="{{ '/admin/configuracoes/usuarios/%d' % id_usuario if id_usuario else '/admin/configuracoes/usuarios' }}" class="form" autocomplete="off">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  {% if erro %}<div class="mensagem mensagem-erro" role="alert">{{ erro }}</div>{% endif %}
+
+  <section class="card">
+    <h2>{{ "Editar usuário" if id_usuario else "Novo usuário" }}</h2>
+    <div class="grade-3">
+      <label>Nome
+        <input name="nome" value="{{ valores.nome }}" maxlength="120" required autofocus>
+      </label>
+      <label>Usuário
+        <input name="usuario" value="{{ valores.usuario }}" maxlength="40" required autocapitalize="none" spellcheck="false">
+        <small>Letras minúsculas, números, ponto, hífen ou sublinhado.</small>
+      </label>
+      <label>Senha
+        <input name="senha" type="password" autocomplete="new-password" minlength="{{ senha_minima }}" maxlength="72" {% if not id_usuario %}required{% endif %}>
+        <small>{% if id_usuario %}Deixe em branco para manter a senha atual.{% else %}Mínimo de {{ senha_minima }} caracteres.{% endif %}</small>
+      </label>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Permissões de visualização</h2>
+    <p class="nota">Marque os módulos que este usuário pode ver e usar. Quem não tiver um módulo marcado nem vê o item no menu.</p>
+    <fieldset class="permissoes">
+      <legend class="sr">Módulos do sistema</legend>
+      {% for m in modulos %}
+      <label class="permissao">
+        <input type="checkbox" name="modulos" value="{{ m.chave }}" {% if m.chave in valores.modulos %}checked{% endif %}>
+        <span><strong>{{ m.rotulo }}</strong><small>{{ m.descricao }}</small></span>
+      </label>
+      {% endfor %}
+    </fieldset>
+  </section>
+
+  <div class="acoes-formulario">
+    <button type="submit" class="btn btn-primario">{{ "Salvar alterações" if id_usuario else "Criar usuário" }}</button>
+    <a href="/admin/configuracoes/usuarios" class="btn btn-secundario">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "admin/base.html" %}
+{% block titulo %}Sem acesso{% endblock %}
+{% block conteudo %}
+<section class="card sem-acesso">
+  {% if modulo %}
+  <h1>Sem acesso ao módulo {{ modulo }}</h1>
+  <p>O seu usuário não tem permissão para este módulo. Se precisar dele, peça a quem administra o sistema (Configurações, Usuários).</p>
+  {% else %}
+  <h1>Nenhum módulo liberado</h1>
+  <p>O seu usuário ainda não tem acesso a nenhum módulo. Peça a quem administra o sistema para liberar o que você precisa.</p>
+  {% endif %}
+  {% if menu %}
+  <p><a href="{{ menu[0].url }}" class="btn btn-primario">Ir para {{ menu[0].rotulo }}</a></p>
+  {% endif %}
+</section>
+{% endblock %}

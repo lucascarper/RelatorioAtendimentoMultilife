@@ -193,6 +193,20 @@ class DestinatarioSesmtModel(Base):
     criado_em: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class UsuarioModel(Base):
+    """Usuários do painel e as chaves dos módulos a que têm acesso."""
+
+    __tablename__ = "usuario"
+    __table_args__ = (UniqueConstraint("usuario", name="uq_usuario_usuario"),)
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    nome: Mapped[str] = mapped_column(String(120))
+    usuario: Mapped[str] = mapped_column(String(40))
+    senha_hash: Mapped[str] = mapped_column(String(100))
+    permissoes: Mapped[list[str]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
+    criado_em: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
 class ExecucaoJobModel(Base):
     __tablename__ = "execucao_job"
     __table_args__ = (Index("ix_execucao_job_job_inicio", "job", "inicio"),)

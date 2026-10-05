@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Annotated, Any
@@ -13,15 +14,46 @@ from fastapi.templating import Jinja2Templates
 from relatorio.application.configuracao import ConfiguracaoRelatorio
 from relatorio.application.modelos import ExecucaoJob, StatusJob
 from relatorio.config import Settings
+from relatorio.domain.acesso import (
+    ATENDIMENTO,
+    CONFIGURACOES,
+    EXECUCOES,
+    FINANCEIRO,
+    SESMT,
+    TODOS_OS_MODULOS,
+    Acesso,
+)
 from relatorio.domain.entidades import FUSO_BRASILIA
 from relatorio.infrastructure.container import Container
 from relatorio.interfaces.web.seguranca import (
+    CHAVE_PERFIL,
     CHAVE_USUARIO,
+    PERFIL_ADMIN,
     ControleTentativas,
     NaoAutenticado,
+    SemPermissao,
     token_csrf,
     validar_csrf,
 )
+
+URL_MODULO = {
+    ATENDIMENTO: "/admin/atendimento",
+    FINANCEIRO: "/admin/financeiro",
+    SESMT: "/admin/sesmt",
+    CONFIGURACOES: "/admin/configuracoes",
+    EXECUCOES: "/admin/execucoes",
+}
+# Página (variável ``pagina`` dos templates) → módulo que fica marcado no menu.
+PAGINA_MODULO = {
+    "atendimento": ATENDIMENTO,
+    "monitor": ATENDIMENTO,
+    "agendas": ATENDIMENTO,
+    "financeiro": FINANCEIRO,
+    "sesmt": SESMT,
+    "configuracoes": CONFIGURACOES,
+    "usuarios": CONFIGURACOES,
+    "execucoes": EXECUCOES,
+}
 
 
 @dataclass
@@ -34,8 +66,15 @@ class ContextoWeb:
     def render(
         self, request: Request, nome: str, contexto: dict[str, Any], status_code: int = 200
     ) -> HTMLResponse:
+        acesso = self.acesso(request)
         base = {
-            "usuario": request.session.get(CHAVE_USUARIO),
+            "usuario": acesso.nome if acesso else None,
+            "acesso": acesso,
+            "menu": [
+                {"chave": m.chave, "rotulo": m.rotulo, "url": URL_MODULO[m.chave]}
+                for m in (acesso.permitidos() if acesso else ())
+            ],
+            "modulo_ativo": PAGINA_MODULO.get(str(contexto.get("pagina"))),
             "csrf": token_csrf(request),
             "mensagens": request.session.pop("mensagens", []),
             "ambiente": self.settings.app_env,
@@ -43,6 +82,31 @@ class ContextoWeb:
         return self.templates.TemplateResponse(
             request, nome, {**base, **contexto}, status_code=status_code
         )
+
+    def acesso(self, request: Request) -> Acesso | None:
+        """Quem está logado, com as permissões de agora (lidas do banco a cada requisição,
+        para que editar ou excluir um usuário valha na hora)."""
+        login = request.session.get(CHAVE_USUARIO)
+        if not login:
+            return None
+        em_cache: Acesso | None = getattr(request.state, "acesso", None)
+        if em_cache is not None:
+            return em_cache
+        acesso = self.carregar_acesso(str(login), request.session.get(CHAVE_PERFIL) == PERFIL_ADMIN)
+        if acesso is not None:
+            request.state.acesso = acesso
+        return acesso
+
+    def carregar_acesso(self, login: str, administrador: bool) -> Acesso | None:
+        if administrador:
+            if login != self.settings.admin_user:  # ADMIN_USER mudou desde o login
+                return None
+            return Acesso(login, login, TODOS_OS_MODULOS, administrador=True)
+        with self.container.uow() as uow:
+            cadastrado = uow.usuarios.obter_por_usuario(login)
+        if cadastrado is None:
+            return None
+        return Acesso(cadastrado.usuario, cadastrado.nome, frozenset(cadastrado.permissoes))
 
     def configuracao_atual(self) -> ConfiguracaoRelatorio:
         with self.container.uow() as uow:
@@ -81,11 +145,22 @@ def obter_contexto(request: Request) -> ContextoWeb:
     return contexto
 
 
-def exigir_login(request: Request) -> str:
-    usuario = request.session.get(CHAVE_USUARIO)
-    if not usuario:
+def exigir_acesso(request: Request) -> Acesso:
+    acesso = obter_contexto(request).acesso(request)
+    if acesso is None:  # sem sessão, ou usuário excluído depois do login
+        request.session.clear()
         raise NaoAutenticado
-    return str(usuario)
+    return acesso
+
+
+def exigir_modulo(modulo: str) -> Callable[[Request], Acesso]:
+    def dependencia(request: Request) -> Acesso:
+        acesso = exigir_acesso(request)
+        if not acesso.pode(modulo):
+            raise SemPermissao(modulo)
+        return acesso
+
+    return dependencia
 
 
 def exigir_csrf(request: Request, csrf: Annotated[str, Form()] = "") -> None:
@@ -93,7 +168,12 @@ def exigir_csrf(request: Request, csrf: Annotated[str, Form()] = "") -> None:
 
 
 Ctx = Annotated[ContextoWeb, Depends(obter_contexto)]
-Usuario = Annotated[str, Depends(exigir_login)]
+Usuario = Annotated[Acesso, Depends(exigir_acesso)]  # logado, de qualquer módulo
+UsuarioAtendimento = Annotated[Acesso, Depends(exigir_modulo(ATENDIMENTO))]
+UsuarioFinanceiro = Annotated[Acesso, Depends(exigir_modulo(FINANCEIRO))]
+UsuarioSesmt = Annotated[Acesso, Depends(exigir_modulo(SESMT))]
+UsuarioConfiguracoes = Annotated[Acesso, Depends(exigir_modulo(CONFIGURACOES))]
+UsuarioExecucoes = Annotated[Acesso, Depends(exigir_modulo(EXECUCOES))]
 Csrf = Annotated[None, Depends(exigir_csrf)]
 
 

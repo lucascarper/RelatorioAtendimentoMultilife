@@ -19,15 +19,22 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from relatorio.config import Settings, obter_settings
+from relatorio.domain.acesso import ROTULO_MODULO
 from relatorio.domain.entidades import FUSO_BRASILIA
 from relatorio.domain.resumo import dia_semana
 from relatorio.infrastructure.container import Container
 from relatorio.infrastructure.email import apresentacao as fmt
 from relatorio.infrastructure.email.apresentacao_financeira import moeda
 from relatorio.infrastructure.logs import configurar_logs
-from relatorio.interfaces.web import rotas_admin, rotas_financeiro, rotas_publicas, rotas_sesmt
+from relatorio.interfaces.web import (
+    rotas_admin,
+    rotas_financeiro,
+    rotas_publicas,
+    rotas_sesmt,
+    rotas_usuarios,
+)
 from relatorio.interfaces.web.dependencias import ContextoWeb
-from relatorio.interfaces.web.seguranca import ControleTentativas, NaoAutenticado
+from relatorio.interfaces.web.seguranca import ControleTentativas, NaoAutenticado, SemPermissao
 
 log = structlog.get_logger(__name__)
 
@@ -85,7 +92,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
         contexto.container.fechar()
 
     app = FastAPI(
-        title="Relatório Diário de Atendimentos — MultiLife",
+        title="Sistema de Relatórios — MultiLife",
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
@@ -122,11 +129,23 @@ def create_app(settings: Settings | None = None, container: Container | None = N
             return Response(status_code=401, headers={"HX-Redirect": "/login"})
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
+    @app.exception_handler(SemPermissao)
+    async def sem_permissao(request: Request, erro: SemPermissao) -> Response:
+        if request.headers.get("HX-Request"):
+            return Response(status_code=status.HTTP_403_FORBIDDEN)
+        return contexto.render(
+            request,
+            "admin/sem_acesso.html",
+            {"pagina": "inicio", "modulo": ROTULO_MODULO.get(erro.modulo, erro.modulo)},
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+
     app.mount("/static", StaticFiles(directory=str(settings.static_dir)), name="static")
     app.include_router(rotas_publicas.router)
     app.include_router(rotas_admin.router)
     app.include_router(rotas_financeiro.router)
     app.include_router(rotas_sesmt.router)
+    app.include_router(rotas_usuarios.router)
     return app
 
 

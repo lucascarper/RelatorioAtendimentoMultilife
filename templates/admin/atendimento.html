@@ -1,8 +1,14 @@
 {% extends "admin/base.html" %}
-{% block titulo %}Painel{% endblock %}
+{% block titulo %}Atendimento{% endblock %}
 {% block conteudo %}
 {%- from "admin/_icones.html" import icone %}
-<h1>Painel</h1>
+<div class="pagina-cabecalho">
+  <h1>Atendimento</h1>
+  <div class="pagina-acoes">
+    <a href="/admin/monitor" class="btn btn-primario">{{ icone("ao-vivo") }}Acompanhar AO VIVO</a>
+    <a href="/admin/agendas" class="btn btn-secundario">Configurar Agendas</a>
+  </div>
+</div>
 
 <section class="status-grade" aria-label="Situação do sistema">
   <article class="card status">
@@ -37,7 +43,7 @@
     <h2>Destinatários ativos</h2>
     <p class="valor">{{ destinatarios_ativos }}</p>
     <p class="nota">{% if override %}Staging: envio só para {{ override | join(", ") }}{% else %}recebem o e-mail às 07:59{% endif %}</p>
-    <p class="acao"><a href="/admin/destinatarios">Gerenciar destinatários</a></p>
+    <p class="acao"><a href="#destinatarios">Gerenciar destinatários</a></p>
   </article>
 </section>
 
@@ -91,5 +97,31 @@
   {% else %}
   <p class="nota">Ainda não há dias consolidados. A primeira consolidação roda às 23:00.</p>
   {% endif %}
+</section>
+
+<section id="destinatarios" class="card">
+  <div class="card-titulo"><h2>Destinatários</h2></div>
+  {% if override %}
+  <div class="mensagem mensagem-aviso">Ambiente de homologação: todos os e-mails vão só para <strong>{{ override | join(", ") }}</strong> (EMAIL_DESTINATARIOS_OVERRIDE).</div>
+  {% endif %}
+  <h3 class="subtitulo">Cadastrar</h3>
+  <form method="post" action="/admin/destinatarios" class="form form-linha">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>E-mail <input type="email" name="email" required maxlength="254" placeholder="nome@multilife.com.br"></label>
+    <label>Nome <input name="nome" maxlength="120" placeholder="Opcional"></label>
+    <button type="submit" class="btn btn-primario">Adicionar</button>
+  </form>
+  <h3 class="subtitulo">Lista</h3>
+  <p class="nota">Destinatários inativos continuam cadastrados, mas não recebem o relatório.</p>
+  <div class="rolagem">
+  <table class="tabela">
+    <thead><tr><th>E-mail</th><th>Nome</th><th>Cadastrado em</th><th>Situação</th></tr></thead>
+    <tbody>
+      {% for d in destinatarios %}{% include "admin/_linha_destinatario.html" %}{% else %}
+      <tr><td colspan="4" class="nota">Nenhum destinatário cadastrado.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
 </section>
 {% endblock %}

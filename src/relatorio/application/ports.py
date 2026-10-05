@@ -17,6 +17,7 @@ from relatorio.application.modelos import (
     ExecucaoJob,
     ResumoRegistro,
     StatusJob,
+    UsuarioSistema,
 )
 from relatorio.domain.entidades import Agenda, AgendamentoSgg, Evento, Situacao, Snapshot
 from relatorio.domain.financeiro import Contrato, PrecoFornecedor, Titulo
@@ -178,6 +179,37 @@ class DestinatarioRepository(Protocol):
     def definir_ativo(self, id_destinatario: int, ativo: bool) -> None: ...
 
 
+class UsuarioDuplicado(Exception):
+    """Já existe um usuário com esse login."""
+
+
+class UsuarioRepository(Protocol):
+    def listar(self) -> list[UsuarioSistema]: ...
+
+    def obter(self, id_usuario: int) -> UsuarioSistema | None: ...
+
+    def obter_por_usuario(self, usuario: str) -> UsuarioSistema | None: ...
+
+    def criar(
+        self, nome: str, usuario: str, senha_hash: str, permissoes: Sequence[str]
+    ) -> UsuarioSistema:
+        """Lança ``UsuarioDuplicado`` se o login já existe (sem diferenciar maiúsculas)."""
+        ...
+
+    def atualizar(
+        self,
+        id_usuario: int,
+        nome: str,
+        usuario: str,
+        permissoes: Sequence[str],
+        senha_hash: str | None = None,
+    ) -> None:
+        """``senha_hash`` None mantém a senha atual. Lança ``UsuarioDuplicado``."""
+        ...
+
+    def excluir(self, id_usuario: int) -> bool: ...
+
+
 class ConfiguracaoRepository(Protocol):
     def obter_todas(self) -> dict[str, str]: ...
 
@@ -239,6 +271,9 @@ class UnidadeDeTrabalho(Protocol):
 
     @property
     def destinatarios_financeiro(self) -> DestinatarioRepository: ...
+
+    @property
+    def usuarios(self) -> UsuarioRepository: ...
 
     @property
     def resumos_sesmt(self) -> ResumoRepository: ...

@@ -42,6 +42,18 @@ class Destinatario:
 
 
 @dataclass(frozen=True, slots=True)
+class UsuarioSistema:
+    """Usuário do painel administrativo (o administrador do deploy não é guardado aqui)."""
+
+    id: int
+    nome: str
+    usuario: str
+    senha_hash: str = field(repr=False)
+    permissoes: tuple[str, ...]
+    criado_em: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class ExecucaoJob:
     id: int
     job: str

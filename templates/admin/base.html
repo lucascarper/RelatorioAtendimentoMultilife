@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block titulo %}Admin{% endblock %} · Relatório de Atendimentos · MultiLife</title>
+  <title>{% block titulo %}Admin{% endblock %} · Sistema de Relatórios · MultiLife</title>
   <link rel="icon" type="image/png" href="/static/brand/favicon.png">
   <link rel="stylesheet" href="/static/admin/admin.css">
   <script src="/static/admin/htmx.min.js" defer></script>
@@ -17,17 +17,12 @@
     <div class="topo-conteudo">
       <a href="/admin" class="marca" aria-label="Início do painel">
         <img src="/static/brand/logo-multilife-admin.png" alt="MultiLife, Saúde e Segurança do Trabalho" height="34">
-        <span class="marca-produto">Relatório de Atendimentos</span>
+        <span class="marca-produto">Sistema de Relatórios</span>
       </a>
       <nav class="menu" aria-label="Principal">
-        <a href="/admin" {% if pagina == "painel" %}aria-current="page"{% endif %}>Painel</a>
-        <a href="/admin/monitor" {% if pagina == "monitor" %}aria-current="page"{% endif %}>Monitor</a>
-        <a href="/admin/destinatarios" {% if pagina == "destinatarios" %}aria-current="page"{% endif %}>Destinatários</a>
-        <a href="/admin/financeiro" {% if pagina == "financeiro" %}aria-current="page"{% endif %}>Financeiro</a>
-        <a href="/admin/sesmt" {% if pagina == "sesmt" %}aria-current="page"{% endif %}>SESMT</a>
-        <a href="/admin/agendas" {% if pagina == "agendas" %}aria-current="page"{% endif %}>Agendas</a>
-        <a href="/admin/configuracoes" {% if pagina == "configuracoes" %}aria-current="page"{% endif %}>Configurações</a>
-        <a href="/admin/execucoes" {% if pagina == "execucoes" %}aria-current="page"{% endif %}>Execuções</a>
+        {% for m in menu %}
+        <a href="{{ m.url }}" {% if modulo_ativo == m.chave %}aria-current="page"{% endif %}>{{ m.rotulo }}</a>
+        {% endfor %}
       </nav>
       <form method="post" action="/logout" class="sair">
         <input type="hidden" name="csrf" value="{{ csrf }}">

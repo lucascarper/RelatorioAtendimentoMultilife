@@ -8,8 +8,22 @@ import structlog
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
-from relatorio.interfaces.web.dependencias import Csrf, Ctx, redirecionar, situacao_coleta
-from relatorio.interfaces.web.seguranca import CHAVE_USUARIO, conferir_credenciais
+from relatorio.domain.acesso import TODOS_OS_MODULOS, Acesso
+from relatorio.interfaces.web.dependencias import (
+    ContextoWeb,
+    Csrf,
+    Ctx,
+    redirecionar,
+    situacao_coleta,
+)
+from relatorio.interfaces.web.seguranca import (
+    CHAVE_PERFIL,
+    CHAVE_USUARIO,
+    PERFIL_ADMIN,
+    PERFIL_USUARIO,
+    conferir_credenciais,
+    conferir_senha,
+)
 
 log = structlog.get_logger(__name__)
 router = APIRouter(include_in_schema=False)
@@ -49,6 +63,23 @@ def pagina_login(request: Request, ctx: Ctx) -> HTMLResponse:
     return ctx.render(request, "admin/login.html", {"erro": None})
 
 
+def autenticar(ctx: ContextoWeb, usuario: str, senha: str) -> tuple[Acesso, str] | None:
+    """O administrador do deploy (variáveis de ambiente) ou um usuário cadastrado no painel."""
+    admin = ctx.settings.admin_user
+    if conferir_credenciais(
+        usuario, senha, admin, ctx.settings.admin_password_hash.get_secret_value()
+    ):
+        return Acesso(admin, admin, TODOS_OS_MODULOS, administrador=True), PERFIL_ADMIN
+    # Sempre confere o bcrypt (com hash fictício se o usuário não existe): o tempo da
+    # resposta não revela quais usuários existem.
+    with ctx.container.uow() as uow:
+        cadastrado = uow.usuarios.obter_por_usuario(usuario)
+    if conferir_senha(senha, cadastrado.senha_hash if cadastrado else None) and cadastrado:
+        acesso = Acesso(cadastrado.usuario, cadastrado.nome, frozenset(cadastrado.permissoes))
+        return acesso, PERFIL_USUARIO
+    return None
+
+
 @router.post("/login", response_model=None)
 def entrar(
     request: Request,
@@ -67,12 +98,8 @@ def entrar(
             {"erro": "Muitas tentativas. Aguarde 15 minutos e tente de novo."},
             status_code=429,
         )
-    if not conferir_credenciais(
-        usuario.strip(),
-        senha,
-        ctx.settings.admin_user,
-        ctx.settings.admin_password_hash.get_secret_value(),
-    ):
+    entrada = autenticar(ctx, usuario.strip(), senha)
+    if entrada is None:
         restantes = ctx.tentativas.registrar_falha(chave)
         log.warning("login_falhou", ip=ip, restantes=restantes)
         erro = "Usuário ou senha inválidos."
@@ -81,8 +108,10 @@ def entrar(
         return ctx.render(request, "admin/login.html", {"erro": erro}, status_code=401)
     ctx.tentativas.limpar(chave)
     request.session.clear()  # nova sessão (evita fixação de sessão)
-    request.session[CHAVE_USUARIO] = ctx.settings.admin_user
-    log.info("login_ok", ip=ip)
+    acesso, perfil = entrada
+    request.session[CHAVE_USUARIO] = acesso.login
+    request.session[CHAVE_PERFIL] = perfil
+    log.info("login_ok", ip=ip, usuario=acesso.login, perfil=perfil)
     return redirecionar("/admin")
 
 

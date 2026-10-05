@@ -15,6 +15,9 @@ from fastapi import HTTPException, Request, status
 MAX_TENTATIVAS = 5
 BLOQUEIO_SEGUNDOS = 15 * 60
 CHAVE_USUARIO = "usuario"
+CHAVE_PERFIL = "perfil"  # "admin" (o do deploy) ou "usuario" (cadastrado no painel)
+PERFIL_ADMIN = "admin"
+PERFIL_USUARIO = "usuario"
 CHAVE_CSRF = "csrf"
 # Hash de referência para que usuário inexistente custe o mesmo tempo que senha errada.
 _HASH_FICTICIO = bcrypt.hashpw(b"senha-ficticia", bcrypt.gensalt(rounds=12))
@@ -32,6 +35,17 @@ def conferir_credenciais(usuario: str, senha: str, usuario_ok: str, hash_ok: str
     except ValueError:  # hash malformado na variável de ambiente
         senha_confere = False
     return usuario_confere and senha_confere and bool(hash_ok)
+
+
+def conferir_senha(senha: str, hash_ok: str | None) -> bool:
+    """Confere a senha de um usuário do painel; sem usuário gasta o mesmo tempo (bcrypt)."""
+    try:
+        senha_confere = bcrypt.checkpw(
+            senha.encode(), hash_ok.encode() if hash_ok else _HASH_FICTICIO
+        )
+    except ValueError:  # hash malformado ou senha maior que o limite do bcrypt
+        return False
+    return senha_confere and bool(hash_ok)
 
 
 @dataclass
@@ -84,3 +98,11 @@ def validar_csrf(request: Request, enviado: str | None) -> None:
 
 class NaoAutenticado(Exception):
     """Levada ao handler que redireciona para o login."""
+
+
+class SemPermissao(Exception):
+    """O usuário está logado, mas não tem acesso ao módulo."""
+
+    def __init__(self, modulo: str) -> None:
+        super().__init__(modulo)
+        self.modulo = modulo

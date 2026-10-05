@@ -1,0 +1,49 @@
+{% extends "admin/base.html" %}
+{% block titulo %}Usuários{% endblock %}
+{% block conteudo %}
+<h1>Configurações</h1>
+{% include "admin/_abas_configuracoes.html" %}
+
+<section class="card">
+  <div class="card-titulo">
+    <div>
+      <h2>Usuários</h2>
+      <p class="nota">Quem pode entrar no sistema e a quais módulos tem acesso. As alterações valem na próxima página que o usuário abrir.</p>
+    </div>
+    <a href="/admin/configuracoes/usuarios/novo" class="btn btn-primario">Adicionar usuário</a>
+  </div>
+  <div class="rolagem">
+  <table class="tabela tabela-compacta tabela-usuarios">
+    <thead><tr><th>Nome</th><th class="oculta-celular">Usuário</th><th>Módulos</th><th><span class="sr">Ações</span></th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Administrador do sistema</strong><br><span class="nota usuario-celular">{{ administrador }}</span><span class="nota oculta-celular">Definido na configuração do deploy (ADMIN_USER). Não pode ser editado ou excluído aqui.</span></td>
+        <td class="oculta-celular">{{ administrador }}</td>
+        <td><span class="badge badge-ok">Todos os módulos</span></td>
+        <td></td>
+      </tr>
+      {% for u in usuarios %}
+      <tr>
+        <td><strong>{{ u.nome }}</strong>{% if u.usuario == eu %} <span class="badge badge-neutro">você</span>{% endif %}<br><span class="nota usuario-celular">{{ u.usuario }}</span></td>
+        <td class="oculta-celular">{{ u.usuario }}</td>
+        <td class="modulos">
+          {% for chave in u.permissoes %}<span class="badge badge-neutro">{{ rotulos.get(chave, chave) }}</span> {% else %}<span class="nota">Nenhum módulo</span>{% endfor %}
+        </td>
+        <td class="acoes">
+          <a href="/admin/configuracoes/usuarios/{{ u.id }}/editar" class="btn btn-secundario btn-pequeno">Editar</a>
+          {% if u.usuario != eu %}
+          <button type="button" class="btn btn-perigo btn-pequeno"
+                  hx-post="/admin/configuracoes/usuarios/{{ u.id }}/excluir"
+                  hx-confirm="Excluir o usuário {{ u.usuario }}? Ele perde o acesso ao sistema na hora. Essa ação não pode ser desfeita."
+                  hx-swap="none">Excluir</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="nota">Nenhum usuário cadastrado além do administrador. Use "Adicionar usuário" para criar o primeiro.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}
