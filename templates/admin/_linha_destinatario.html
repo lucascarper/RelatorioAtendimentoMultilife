@@ -10,14 +10,18 @@
       <span class="alternador-trilho" aria-hidden="true"></span>{{ "Ativo" if d.ativo else "Inativo" }}
     </button>
   </td>
-  {%- if base == "/admin" %}
+  {%- if com_planilha | default(false) %}
   <td>
+    {%- if pode_autorizar_planilha | default(false) %}
     <button type="button" class="alternador" role="switch" aria-checked="{{ 'true' if d.recebe_anexo else 'false' }}"
             aria-label="{{ d.email }} recebe a planilha dos atendimentos por médico"
             hx-post="/admin/destinatarios/{{ d.id }}/anexo" hx-vals='{"recebe": "{{ 'false' if d.recebe_anexo else 'true' }}"}'
             hx-target="#destinatario-{{ d.id }}" hx-swap="outerHTML">
       <span class="alternador-trilho" aria-hidden="true"></span>{{ "Recebe" if d.recebe_anexo else "Não recebe" }}
     </button>
+    {%- else %}
+    <span class="badge {{ 'badge-ok' if d.recebe_anexo else 'badge-neutro' }}" title="Só quem tem o módulo Configurações altera">{{ "Recebe" if d.recebe_anexo else "Não recebe" }}</span>
+    {%- endif %}
   </td>
   {%- endif %}
 </tr>

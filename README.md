@@ -99,7 +99,7 @@ Em **Configurações → Médicos** ficam os médicos que apareceram nos exames 
 
 - Processado às 23:20 (uma consulta ao SGG, mais uma por empresa nova), fora do expediente; o botão **Processar uma data** roda na hora. O envio processa de novo se a escolha de médicos mudou.
 - Só os exames dos médicos marcados são gravados. O **nome do trabalhador nunca é gravado**: é lido do SGG no envio, só para a planilha anexa. O corpo do e-mail traz apenas contagens.
-- A planilha vai **só para os destinatários marcados em "Planilha (LGPD)"** (Atendimento → Destinatários; desmarcado por padrão). Os demais recebem o mesmo e-mail sem o anexo.
+- A planilha vai **só para os destinatários marcados em "Planilha (LGPD)"** (Atendimento → Destinatários; desmarcado por padrão; marcar exige o módulo Configurações e desativar o destinatário desmarca). Os demais recebem o mesmo e-mail sem o anexo, enviado primeiro; se um dos dois falhar, a nova tentativa manda só para quem ainda não recebeu.
 - Sem médico marcado, o e-mail sai como antes. Se a seção falhar, o relatório principal sai mesmo assim e o técnico é alertado.
 - Regras e decisões no [ADR 0015](docs/adr/0015-atendimentos-por-medico.md).
 

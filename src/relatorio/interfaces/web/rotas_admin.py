@@ -22,6 +22,7 @@ from relatorio.application.configuracao import (
     CHAVE_UNIDADES,
 )
 from relatorio.application.ports import ErroIntegracao
+from relatorio.domain.acesso import CONFIGURACOES, Acesso
 from relatorio.domain.metricas import RegrasMetricas
 from relatorio.domain.turnos import ConfiguracaoTurnos
 from relatorio.infrastructure.container import Container
@@ -118,7 +119,7 @@ def inicio(request: Request, ctx: Ctx, acesso: Usuario) -> Response:
 
 
 @router.get("/atendimento", response_class=HTMLResponse)
-def atendimento(request: Request, ctx: Ctx, _usuario: UsuarioAtendimento) -> HTMLResponse:
+def atendimento(request: Request, ctx: Ctx, acesso: UsuarioAtendimento) -> HTMLResponse:
     coleta = situacao_coleta(ctx)
     with ctx.container.uow() as uow:
         resumos = uow.resumos.listar_recentes(14)
@@ -136,6 +137,7 @@ def atendimento(request: Request, ctx: Ctx, _usuario: UsuarioAtendimento) -> HTM
             "falhas_seguidas": falhas_seguidas,
             "destinatarios": lista_destinatarios,
             "destinatarios_ativos": sum(1 for d in lista_destinatarios if d.ativo),
+            **_contexto_planilha(acesso),
             "coletor_habilitado": ctx.settings.coletor_habilitado,
             "ontem": ctx.hoje() - timedelta(days=1),
             "override": ctx.settings.destinatarios_override,
@@ -273,25 +275,42 @@ def adicionar_destinatario(
     return redirecionar("/admin/atendimento#destinatarios")
 
 
+def _linha_destinatario(
+    request: Request, ctx: ContextoWeb, acesso: Acesso, id_destinatario: int
+) -> HTMLResponse:
+    """Linha da lista de destinatários do relatório de atendimentos (com a coluna Planilha)."""
+    with ctx.container.uow() as uow:
+        destinatario = next(
+            (d for d in uow.destinatarios.listar() if d.id == id_destinatario), None
+        )
+    if destinatario is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    return ctx.render(
+        request,
+        "admin/_linha_destinatario.html",
+        {"d": destinatario, **_contexto_planilha(acesso)},
+    )
+
+
+def _contexto_planilha(acesso: Acesso) -> dict[str, bool]:
+    # Autorizar a planilha nominal (LGPD) exige também o módulo Configurações.
+    return {"com_planilha": True, "pode_autorizar_planilha": acesso.pode(CONFIGURACOES)}
+
+
 @router.post("/destinatarios/{id_destinatario}/ativo", response_class=HTMLResponse)
 def alternar_destinatario(
     request: Request,
     id_destinatario: int,
     ctx: Ctx,
-    _usuario: UsuarioAtendimento,
+    acesso: UsuarioAtendimento,
     _csrf: Csrf,
     ativo: Annotated[bool, Form()] = False,
 ) -> HTMLResponse:
     with ctx.container.uow() as uow:
         uow.destinatarios.definir_ativo(id_destinatario, ativo)
         uow.commit()
-        destinatario = next(
-            (d for d in uow.destinatarios.listar() if d.id == id_destinatario), None
-        )
-    if destinatario is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
     log.info("destinatario_alterado", id=id_destinatario, ativo=ativo)
-    return ctx.render(request, "admin/_linha_destinatario.html", {"d": destinatario})
+    return _linha_destinatario(request, ctx, acesso, id_destinatario)
 
 
 @router.post("/destinatarios/{id_destinatario}/anexo", response_class=HTMLResponse)
@@ -299,21 +318,20 @@ def alternar_anexo(
     request: Request,
     id_destinatario: int,
     ctx: Ctx,
-    _usuario: UsuarioAtendimento,
+    acesso: UsuarioAtendimento,
     _csrf: Csrf,
     recebe: Annotated[bool, Form()] = False,
 ) -> HTMLResponse:
     """Quem recebe a planilha nominal dos atendimentos por médico (LGPD, ADR 0015)."""
+    if not acesso.pode(CONFIGURACOES):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Autorizar a planilha exige o módulo Configurações."
+        )
     with ctx.container.uow() as uow:
         uow.destinatarios.definir_anexo(id_destinatario, recebe)
         uow.commit()
-        destinatario = next(
-            (d for d in uow.destinatarios.listar() if d.id == id_destinatario), None
-        )
-    if destinatario is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
-    log.info("destinatario_anexo_alterado", id=id_destinatario, recebe=recebe)
-    return ctx.render(request, "admin/_linha_destinatario.html", {"d": destinatario})
+    log.info("destinatario_anexo_alterado", id=id_destinatario, recebe=recebe, por=acesso.login)
+    return _linha_destinatario(request, ctx, acesso, id_destinatario)
 
 
 # ------------------------------------------------------------------ unidades e agendas
