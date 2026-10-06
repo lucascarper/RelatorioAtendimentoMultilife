@@ -420,7 +420,7 @@ html:fullscreen .conteudo-monitor { max-width: 1680px; padding: 20px 32px; }
 }
 
 /* ---------------------------------------------------------------- módulos e usuários */
-.pagina-cabecalho { display: flex; justify-content: space-between; align-items: center; gap: 12px 16px; flex-wrap: wrap; margin-bottom: 4px; }
+.pagina-cabecalho { display: flex; justify-content: space-between; align-items: center; gap: 12px 16px; flex-wrap: wrap; margin-bottom: 16px; }
 .pagina-cabecalho h1 { margin: 0; }
 .pagina-acoes { display: flex; gap: 10px; flex-wrap: wrap; }
 .subtitulo { color: var(--texto-2); font-size: 13px; font-weight: 600; margin: 18px 0 8px; }
@@ -451,8 +451,31 @@ html:fullscreen .conteudo-monitor { max-width: 1680px; padding: 20px 32px; }
 .form .permissao span { display: flex; flex-direction: column; gap: 2px; }
 .form .permissao strong { font-weight: 600; }
 .acoes-formulario { display: flex; gap: 10px; flex-wrap: wrap; }
-.sem-acesso { max-width: 560px; margin: 40px auto; }
-.sem-acesso h1 { margin-top: 0; }
+.sem-acesso { max-width: 520px; margin: 48px auto; padding: 32px; }
+.sem-acesso h1 { margin: 14px 0 8px; font-size: 20px; }
+.sem-acesso p { color: var(--texto-2); margin: 0 0 16px; }
+.sem-acesso-icone {
+  display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 50%;
+  background: var(--aviso-suave); color: var(--aviso); font-size: 22px;
+}
+.valor-vazio { color: var(--texto-3); font-size: 22px !important; font-weight: 600 !important; letter-spacing: 0 !important; }
+.form-adicionar { margin: 12px 0 18px; padding: 14px 16px; background: var(--superficie-2); border: 1px solid var(--borda); border-radius: var(--raio-controle); }
+.pessoa { display: flex; align-items: center; gap: 12px; }
+.pessoa > span:last-child { display: flex; flex-direction: column; min-width: 0; }
+.avatar {
+  flex: none; display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
+  background: var(--acento-suave); color: var(--acento-texto); font-size: 14px; font-weight: 700;
+}
+.avatar-marca { background: var(--acento); color: #FDFDFE; }
+.voltar a { text-decoration: none; }
+.voltar a:hover { text-decoration: underline; }
+.btn-perigo { background: transparent; border-color: transparent; }
+.btn-perigo:hover { background: var(--erro-suave); border-color: var(--erro-borda); }
+.form .permissao:has(input:checked) { border-color: var(--acento); background: var(--acento-suave); }
+.form .permissao:has(input:focus-visible) { outline: 3px solid var(--acento-anel); outline-offset: 2px; }
+.form .permissao small { line-height: 1.4; }
+.tabela-usuarios td { padding-top: 12px; padding-bottom: 12px; }
+.ambiente { margin-bottom: 8px; }
 
 @media (max-width: 1100px) {
   .kpi-grade { grid-template-columns: repeat(2, 1fr); }
@@ -486,6 +509,9 @@ html:fullscreen .conteudo-monitor { max-width: 1680px; padding: 20px 32px; }
   .tabela-usuarios .badge { white-space: normal; font-size: 11px; padding: 1px 7px; }
   .tabela-usuarios .btn-pequeno { padding: 5px 8px; font-size: 12px; }
   .usuario-celular { display: block; }
+  .avatar { display: none; }
+  .pessoa { gap: 8px; }
+  .form-adicionar { padding: 12px; }
   .tabela td.acoes { white-space: normal; }
   .tabela td.acoes .btn { margin: 0 0 6px; display: flex; }
   .tabela-compacta td, .tabela-compacta th { padding: 7px 6px; }
@@ -498,3 +524,7 @@ html:fullscreen .conteudo-monitor { max-width: 1680px; padding: 20px 32px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* Cartões de formulário: título com respiro antes dos campos. */
+.form .card > h2:first-child { margin-bottom: 14px; }
+.form .card > h2 + .nota { margin-top: -8px; }

@@ -4,7 +4,7 @@
 <h1>Configurações</h1>
 {% include "admin/_abas_configuracoes.html" %}
 
-<p class="voltar"><a href="/admin/configuracoes/usuarios">&larr; Usuários</a></p>
+<p class="voltar"><a href="/admin/configuracoes/usuarios">&larr; Voltar para Usuários</a></p>
 <form method="post" action="{{ '/admin/configuracoes/usuarios/%d' % id_usuario if id_usuario else '/admin/configuracoes/usuarios' }}" class="form" autocomplete="off">
   <input type="hidden" name="csrf" value="{{ csrf }}">
   {% if erro %}<div class="mensagem mensagem-erro" role="alert">{{ erro }}</div>{% endif %}

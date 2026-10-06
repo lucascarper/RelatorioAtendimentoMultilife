@@ -1,7 +1,9 @@
 {% extends "admin/base.html" %}
 {% block titulo %}Sem acesso{% endblock %}
 {% block conteudo %}
+{%- from "admin/_icones.html" import icone %}
 <section class="card sem-acesso">
+  <span class="sem-acesso-icone" aria-hidden="true">{{ icone("aviso") }}</span>
   {% if modulo %}
   <h1>Sem acesso ao módulo {{ modulo }}</h1>
   <p>O seu usuário não tem permissão para este módulo. Se precisar dele, peça a quem administra o sistema (Configurações, Usuários).</p>
