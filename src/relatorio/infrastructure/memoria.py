@@ -172,8 +172,9 @@ class _Resumos:
 
 
 class _Destinatarios:
-    def __init__(self, destinatarios: dict[int, Destinatario]) -> None:
+    def __init__(self, destinatarios: dict[int, Destinatario], aceita_anexo: bool = False) -> None:
         self.d = destinatarios
+        self.aceita_anexo = aceita_anexo
 
     def listar(self, apenas_ativos: bool = False) -> list[Destinatario]:
         return [d for d in self.d.values() if d.ativo or not apenas_ativos]
@@ -191,8 +192,12 @@ class _Destinatarios:
 
     def definir_ativo(self, id_destinatario: int, ativo: bool) -> None:
         self.d[id_destinatario] = replace(self.d[id_destinatario], ativo=ativo)
+        if not ativo and self.aceita_anexo:
+            self.definir_anexo(id_destinatario, False)
 
     def definir_anexo(self, id_destinatario: int, recebe: bool) -> None:
+        if not self.aceita_anexo:  # mesma regra do repositório SQL
+            raise ValueError("Só a lista do relatório de atendimentos recebe anexo.")
         self.d[id_destinatario] = replace(self.d[id_destinatario], recebe_anexo=recebe)
 
 
@@ -328,6 +333,9 @@ class _Configuracoes:
     def definir(self, chave: str, valor: str) -> None:
         self.b.configuracoes[chave] = valor
 
+    def remover(self, chave: str) -> None:
+        self.b.configuracoes.pop(chave, None)
+
 
 class _Execucoes:
     def __init__(self, banco: BancoEmMemoria) -> None:
@@ -430,7 +438,7 @@ class UoWEmMemoria:
         self.snapshots = _Snapshots(banco)
         self.eventos = _Eventos(banco)
         self.resumos = _Resumos(banco.resumos)
-        self.destinatarios = _Destinatarios(banco.destinatarios)
+        self.destinatarios = _Destinatarios(banco.destinatarios, aceita_anexo=True)
         self.resumos_financeiros = _Resumos(banco.resumos_financeiros)
         self.destinatarios_financeiro = _Destinatarios(banco.destinatarios_financeiro)
         self.resumos_sesmt = _Resumos(banco.resumos_sesmt)

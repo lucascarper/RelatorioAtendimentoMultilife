@@ -10,7 +10,7 @@ import pytest
 from openpyxl import load_workbook
 
 from relatorio.application.exames import TIPO_XLSX
-from relatorio.application.modelos import Anexo, ConteudoEmail
+from relatorio.application.modelos import Anexo, ConteudoEmail, StatusEnvio
 from relatorio.domain.exames import (
     ExameClinico,
     Medico,
@@ -314,7 +314,8 @@ def test_planilha_so_para_quem_esta_autorizado(com_exames: Sistema) -> None:
     autorizar_planilha(s, 1)
     resultado = s.enviar.executar(DIA)
     assert (resultado["destinatarios"], resultado["com_anexo"]) == (2, 1)
-    (com, conteudo_com), (sem, conteudo_sem) = s.email.enviados
+    # O e-mail sem planilha vai primeiro.
+    (sem, conteudo_sem), (com, conteudo_com) = s.email.enviados
     assert com == ["glauco@multilife.com.br"] and len(conteudo_com.anexos) == 1
     assert conteudo_com.texto == "exames=3"
     assert sem == ["tecnologia@multilife.com.br"] and conteudo_sem.anexos == ()
@@ -327,11 +328,49 @@ def test_ninguem_autorizado_nem_le_nomes_no_sgg(com_exames: Sistema) -> None:
     s.processar_exames.executar(DIA)
     preparar_envio(s)
     s.exames.chamadas.clear()
-    s.enviar.executar(DIA)
+    resultado = s.enviar.executar(DIA)
+    assert (resultado["anexos"], resultado["com_anexo"]) == (0, 0)  # fica registrado
     ((destinatarios, conteudo),) = s.email.enviados
     assert len(destinatarios) == 2 and conteudo.anexos == ()
     assert conteudo.texto == "exames=3 restrito"
     assert s.exames.chamadas == []  # sem planilha, os nomes não são lidos
+
+
+def test_falha_so_no_anexo_nao_segura_os_demais_e_nao_duplica(com_exames: Sistema) -> None:
+    s = com_exames
+    escolher(s, ANA)
+    s.processar_exames.executar(DIA)
+    preparar_envio(s)
+    autorizar_planilha(s, 1)
+    s.email.falhar_com_anexo = True
+    with pytest.raises(ConnectionError, match="552"):
+        s.enviar.executar_agendado(DIA, tentativa=1)
+    assert [d for d, _ in s.email.enviados] == [["tecnologia@multilife.com.br"]]
+    assert s.banco.resumos[DIA].status_envio is StatusEnvio.FALHA
+    # Na nova tentativa, só quem ainda não recebeu.
+    s.email.falhar_com_anexo = False
+    assert s.enviar.executar_agendado(DIA, tentativa=2)["status"] == "enviado"
+    assert [d for d, _ in s.email.enviados] == [
+        ["tecnologia@multilife.com.br"],
+        ["glauco@multilife.com.br"],
+    ]
+    assert len(s.email.enviados[1][1].anexos) == 1
+    assert not any(k.startswith("envio_parcial") for k in s.banco.configuracoes)  # limpou
+    # O reenvio forçado (admin) manda de novo para todos.
+    s.enviar.executar(DIA, forcar=True)
+    assert len(s.email.enviados) == 4
+
+
+def test_desativar_revoga_a_planilha_e_outras_listas_nao_tem(sistema: Sistema) -> None:
+    uow = sistema.uow()
+    d = uow.destinatarios.adicionar("rh@multilife.com.br", None)
+    uow.destinatarios.definir_anexo(d.id, True)
+    uow.destinatarios.definir_ativo(d.id, False)
+    uow.destinatarios.definir_ativo(d.id, True)
+    assert not sistema.banco.destinatarios[d.id].recebe_anexo
+    s = uow.destinatarios_sesmt.adicionar("sesmt@multilife.com.br", None)
+    with pytest.raises(ValueError, match="atendimentos"):
+        uow.destinatarios_sesmt.definir_anexo(s.id, True)
 
 
 def test_retencao_apaga_exames_antigos(com_exames: Sistema) -> None:

@@ -369,6 +369,8 @@ class DestinatarioRepositorioSql:
         self._s = sessao
         self._m = modelo
         self._restricao = restricao_email
+        # Só a lista do relatório de atendimentos tem a planilha nominal (LGPD).
+        self.aceita_anexo = modelo is DestinatarioModel
 
     def listar(self, apenas_ativos: bool = False) -> list[Destinatario]:
         consulta = select(self._m).order_by(self._m.email)
@@ -395,9 +397,12 @@ class DestinatarioRepositorioSql:
 
     def definir_ativo(self, id_destinatario: int, ativo: bool) -> None:
         self._s.execute(update(self._m).where(self._m.id == id_destinatario).values(ativo=ativo))
+        if not ativo and self.aceita_anexo:
+            # Desativar revoga a planilha: reativar exige autorizar de novo.
+            self.definir_anexo(id_destinatario, False)
 
     def definir_anexo(self, id_destinatario: int, recebe: bool) -> None:
-        if self._m is not DestinatarioModel:
+        if not self.aceita_anexo:
             raise ValueError("Só a lista do relatório de atendimentos recebe anexo.")
         self._s.execute(
             update(DestinatarioModel)
@@ -643,6 +648,9 @@ class ConfiguracaoRepositorioSql:
                 set_={"valor": comando.excluded.valor, "atualizado_em": func.now()},
             )
         )
+
+    def remover(self, chave: str) -> None:
+        self._s.execute(delete(ConfiguracaoModel).where(ConfiguracaoModel.chave == chave))
 
 
 class ExecucaoJobRepositorioSql:

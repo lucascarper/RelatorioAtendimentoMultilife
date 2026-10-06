@@ -186,6 +186,11 @@ class ResumoRepository(Protocol):
 
 
 class DestinatarioRepository(Protocol):
+    @property
+    def aceita_anexo(self) -> bool:
+        """Só a lista do relatório de atendimentos tem a planilha nominal."""
+        ...
+
     def listar(self, apenas_ativos: bool = False) -> list[Destinatario]: ...
 
     def adicionar(self, email: str, nome: str | None) -> Destinatario: ...
@@ -268,6 +273,8 @@ class ConfiguracaoRepository(Protocol):
     def obter_todas(self) -> dict[str, str]: ...
 
     def definir(self, chave: str, valor: str) -> None: ...
+
+    def remover(self, chave: str) -> None: ...
 
 
 class ExecucaoJobRepository(Protocol):

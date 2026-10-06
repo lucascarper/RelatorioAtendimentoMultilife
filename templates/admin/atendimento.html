@@ -103,7 +103,7 @@
   <div class="card-titulo">
     <div>
       <h2>Destinatários</h2>
-      <p class="nota">Recebem o relatório de atendimento por e-mail. Os inativos continuam cadastrados, mas não recebem. A <strong>planilha dos atendimentos por médico</strong> traz nomes de trabalhadores (dados pessoais de saúde): só vai para quem estiver marcado em "Planilha"; os demais recebem o e-mail sem ela.</p>
+      <p class="nota">Recebem o relatório de atendimento por e-mail. Os inativos continuam cadastrados, mas não recebem. A <strong>planilha dos atendimentos por médico</strong> traz nomes de trabalhadores (dados pessoais de saúde): só vai para quem estiver marcado em "Planilha"; os demais recebem o e-mail sem ela. Marcar exige o módulo Configurações, e desativar um destinatário desmarca a planilha.</p>
     </div>
   </div>
   {% if override %}
@@ -118,7 +118,7 @@
   </form>
   <div class="rolagem">
   <table class="tabela">
-    <thead><tr><th>E-mail</th><th>Nome</th><th class="oculta-celular">Cadastrado em</th><th>Situação</th><th>Planilha (LGPD)</th></tr></thead>
+    <thead><tr><th>E-mail</th><th>Nome</th><th class="oculta-celular">Cadastrado em</th><th>Situação</th>{% if com_planilha %}<th>Planilha (LGPD)</th>{% endif %}</tr></thead>
     <tbody>
       {% for d in destinatarios %}{% include "admin/_linha_destinatario.html" %}{% else %}
       <tr><td colspan="5" class="nota">Nenhum destinatário cadastrado.</td></tr>

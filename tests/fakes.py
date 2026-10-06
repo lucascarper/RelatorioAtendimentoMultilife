@@ -191,10 +191,13 @@ class ExamesFake:
 class EmailFake:
     enviados: list[tuple[list[str], ConteudoEmail]] = field(default_factory=list)
     falhar: bool = False
+    falhar_com_anexo: bool = False  # ex.: o servidor recusa a mensagem pelo tamanho do anexo
 
     def enviar(self, destinatarios: Sequence[str], conteudo: ConteudoEmail) -> None:
         if self.falhar:
             raise ConnectionError("SMTP fora do ar")
+        if self.falhar_com_anexo and conteudo.anexos:
+            raise ConnectionError("552 mensagem grande demais")
         self.enviados.append((list(destinatarios), conteudo))
 
 

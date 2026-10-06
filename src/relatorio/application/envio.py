@@ -66,6 +66,9 @@ SESMT = TipoRelatorio(
 )
 
 
+PREFIXO_ENVIO_PARCIAL = "envio_parcial"
+
+
 class RelatorioIndisponivel(Exception):
     """Não há resumo para a data, nem foi possível consolidá-lo."""
 
@@ -160,20 +163,11 @@ class EnviarRelatorio:
             return {"referencia": referencia, "status": "sem_destinatarios"}
 
         complemento = self._complementar(dia, com_anexo=bool(com_anexo))
-        try:
-            for grupo, extra, anexos in self._grupos(destinatarios, com_anexo, complemento):
-                conteudo = self._tipo.renderizar(self._renderizador, {**registro.metricas, **extra})
-                if anexos:
-                    conteudo = replace(conteudo, anexos=anexos)
-                self._email.enviar(grupo, conteudo)
-        except Exception:
-            with self._uow() as uow:
-                self._tipo.resumos(uow).marcar_falha_envio(dia)
-                uow.commit()
-            raise
+        self._enviar_grupos(dia, forcar, registro.metricas, destinatarios, com_anexo, complemento)
 
         with self._uow() as uow:
             self._tipo.resumos(uow).marcar_enviado(dia, self._relogio.agora())
+            uow.configuracoes.remover(self._chave_parcial(dia))
             uow.commit()
         resultado: dict[str, object] = {
             "referencia": referencia,
@@ -181,25 +175,79 @@ class EnviarRelatorio:
             "destinatarios": len(destinatarios),
             "sem_movimento": bool(registro.metricas.get("sem_movimento")),
         }
-        if complemento.anexos:
+        if complemento.metricas:
+            # Também registra quando a planilha não foi para ninguém (ninguém autorizado).
             resultado["anexos"] = len(complemento.anexos)
-            resultado["com_anexo"] = sum(1 for d in destinatarios if d in com_anexo)
+            resultado["com_anexo"] = (
+                sum(1 for d in destinatarios if d in com_anexo) if complemento.anexos else 0
+            )
         return resultado
+
+    def _chave_parcial(self, dia: date) -> str:
+        return f"{PREFIXO_ENVIO_PARCIAL}:{self._tipo.nome}:{dia.isoformat()}"
+
+    def _enviar_grupos(
+        self,
+        dia: date,
+        forcar: bool,
+        metricas: Mapping[str, Any],
+        destinatarios: Sequence[str],
+        com_anexo: set[str],
+        complemento: Complemento,
+    ) -> None:
+        """Envia cada grupo (sem e com planilha); marca falha e relança se algum falhar."""
+        # Com e sem planilha são dois e-mails: quem já recebeu numa tentativa anterior do dia
+        # não recebe de novo (nem a planilha nominal), a não ser num reenvio forçado.
+        chave = self._chave_parcial(dia)
+        with self._uow() as uow:
+            if forcar:
+                uow.configuracoes.remover(chave)
+                uow.commit()
+                ja_receberam: set[str] = set()
+            else:
+                texto = uow.configuracoes.obter_todas().get(chave, "")
+                ja_receberam = {e for e in texto.split(",") if e}
+        falha: Exception | None = None
+        for grupo, extra, anexos in self._grupos(destinatarios, com_anexo, complemento):
+            pendentes = [d for d in grupo if d not in ja_receberam]
+            if not pendentes:
+                continue
+            try:
+                conteudo = self._tipo.renderizar(self._renderizador, {**metricas, **extra})
+                if anexos:
+                    conteudo = replace(conteudo, anexos=anexos)
+                self._email.enviar(pendentes, conteudo)
+            except Exception as erro:  # um grupo que falha não impede o outro
+                falha = falha or erro
+                continue
+            ja_receberam.update(pendentes)
+            with self._uow() as uow:
+                uow.configuracoes.definir(chave, ",".join(sorted(ja_receberam)))
+                uow.commit()
+        if falha is not None:
+            with self._uow() as uow:
+                self._tipo.resumos(uow).marcar_falha_envio(dia)
+                uow.commit()
+            raise falha
 
     @staticmethod
     def _grupos(
         destinatarios: Sequence[str], com_anexo: set[str], complemento: Complemento
     ) -> list[tuple[list[str], Mapping[str, Any], tuple[Anexo, ...]]]:
-        """Um e-mail com a planilha para os autorizados e outro, sem ela, para os demais."""
+        """Um e-mail sem a planilha para os demais e outro, com ela, para os autorizados.
+
+        O sem planilha vai primeiro: um problema só no anexo (ex.: limite de tamanho do
+        servidor) não deixa os demais sem o relatório.
+        """
         if not complemento.anexos:
             return [(list(destinatarios), complemento.metricas, ())]
         autorizados = [d for d in destinatarios if d in com_anexo]
         demais = [d for d in destinatarios if d not in com_anexo]
         grupos: list[tuple[list[str], Mapping[str, Any], tuple[Anexo, ...]]] = []
-        if autorizados:
-            grupos.append((autorizados, complemento.metricas, complemento.anexos))
         if demais:
             grupos.append((demais, complemento.para_quem_nao_recebe_anexo(), ()))
+        if autorizados:
+            grupos.append((autorizados, complemento.metricas, complemento.anexos))
         return grupos
 
     def executar_agendado(self, dia: date, tentativa: int, total: int = 3) -> dict[str, object]:

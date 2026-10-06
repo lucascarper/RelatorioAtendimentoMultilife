@@ -141,7 +141,36 @@ def test_destinatario_autorizado_a_receber_a_planilha(
     assert linha.status_code == 200 and "</span>Recebe\n" in linha.text
     with uow() as u:
         assert next(d for d in u.destinatarios.listar() if d.id == destinatario.id).recebe_anexo
+    # Desativar revoga a planilha (reativar exige autorizar de novo).
+    cliente.post(
+        f"/admin/destinatarios/{destinatario.id}/ativo",
+        data={"ativo": "false"},
+        headers={"X-CSRF-Token": token},
+    )
+    with uow() as u:
+        assert not next(d for d in u.destinatarios.listar() if d.id == destinatario.id).recebe_anexo
     # As listas do financeiro e do SESMT não têm a coluna nem a opção.
     assert "Planilha (LGPD)" not in cliente.get("/admin/sesmt").text
     with uow() as u, pytest.raises(ValueError, match="atendimentos"):
         u.destinatarios_sesmt.definir_anexo(1, True)
+
+
+def test_so_quem_tem_configuracoes_autoriza_a_planilha(
+    cliente: TestClient,  # noqa: F811
+    outro: TestClient,  # noqa: F811
+) -> None:
+    token = entrar(cliente)
+    cliente.post("/admin/destinatarios", data={"email": "rh@multilife.com.br", "csrf": token})
+    criar(cliente, token, modulos=("atendimento",))
+    assert entrar_como(outro, "ana", "senha-da-ana-1") == 303
+    pagina = outro.get("/admin/atendimento")
+    assert "Planilha (LGPD)" in pagina.text
+    assert "/anexo" not in pagina.text  # vê a situação, mas sem a chave
+    assert "Só quem tem o módulo Configurações altera" in pagina.text
+    token_ana = csrf(outro, "/admin/atendimento")
+    resposta = outro.post(
+        "/admin/destinatarios/1/anexo",
+        data={"recebe": "true"},
+        headers={"X-CSRF-Token": token_ana},
+    )
+    assert resposta.status_code == 403
