@@ -12,6 +12,7 @@ from types import TracebackType
 from typing import Any, Protocol, Self
 
 from relatorio.application.modelos import (
+    ColetaExames,
     ConteudoEmail,
     Destinatario,
     ExecucaoJob,
@@ -20,6 +21,7 @@ from relatorio.application.modelos import (
     UsuarioSistema,
 )
 from relatorio.domain.entidades import Agenda, AgendamentoSgg, Evento, Situacao, Snapshot
+from relatorio.domain.exames import ExameClinico, Medico
 from relatorio.domain.financeiro import Contrato, PrecoFornecedor, Titulo
 from relatorio.domain.sesmt import ContratoSesmt, DocumentoSst, EmpresaSesmt, EventoEsocial
 
@@ -86,6 +88,18 @@ class SesmtGateway(Protocol):
     def eventos_esocial(self, id_empresa: int) -> list[EventoEsocial]:
         """Todos os eventos da empresa; a API não filtra por data."""
         ...
+
+
+class ExamesGateway(Protocol):
+    """Leitura dos exames realizados, empresas e médicos (atendimentos por médico)."""
+
+    def exames_clinicos(self, dia: date) -> list[ExameClinico]:
+        """Exames clínicos do dia, com o nome do trabalhador em ``funcionario`` (só memória)."""
+        ...
+
+    def empresa(self, id_empresa: int) -> EmpresaSesmt | None: ...
+
+    def medico(self, crm: str) -> Medico | None: ...
 
 
 class EnviadorEmail(Protocol):
@@ -210,6 +224,42 @@ class UsuarioRepository(Protocol):
     def excluir(self, id_usuario: int) -> bool: ...
 
 
+class MedicoRepository(Protocol):
+    def listar(self) -> list[Medico]: ...
+
+    def selecionados(self) -> list[Medico]: ...
+
+    def registrar_vistos(self, medicos: Sequence[Medico], dia: date) -> None:
+        """Cadastra os médicos que apareceram no dia (sem mudar a escolha) e atualiza o nome."""
+        ...
+
+    def adicionar(self, medico: Medico) -> None:
+        """Cadastra (ou atualiza) e já marca como escolhido."""
+        ...
+
+    def definir_selecionado(self, crm: str, selecionado: bool) -> None: ...
+
+
+class ExameRepository(Protocol):
+    def substituir_dia(self, dia: date, exames: Sequence[ExameClinico]) -> None:
+        """Troca os exames gravados do dia (o processamento é idempotente). Nunca grava nomes."""
+        ...
+
+    def do_dia(self, dia: date) -> list[ExameClinico]: ...
+
+    def nomes_empresas(self, ids: Collection[int]) -> dict[int, str]:
+        """Nomes de empresas já conhecidos (de dias anteriores), para não consultar de novo."""
+        ...
+
+    def registrar_coleta(self, coleta: ColetaExames) -> None: ...
+
+    def coleta(self, dia: date) -> ColetaExames | None: ...
+
+    def coletas_recentes(self, limite: int = 14) -> list[ColetaExames]: ...
+
+    def apagar_anteriores_a(self, limite: date) -> int: ...
+
+
 class ConfiguracaoRepository(Protocol):
     def obter_todas(self) -> dict[str, str]: ...
 
@@ -280,6 +330,12 @@ class UnidadeDeTrabalho(Protocol):
 
     @property
     def destinatarios_sesmt(self) -> DestinatarioRepository: ...
+
+    @property
+    def medicos(self) -> MedicoRepository: ...
+
+    @property
+    def exames(self) -> ExameRepository: ...
 
     @property
     def configuracoes(self) -> ConfiguracaoRepository: ...

@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from relatorio.application.modelos import (
+    ColetaExames,
     Destinatario,
     ExecucaoJob,
     ResumoRegistro,
@@ -22,16 +23,20 @@ from relatorio.application.modelos import (
 )
 from relatorio.application.ports import UsuarioDuplicado
 from relatorio.domain.entidades import Agenda, Evento, OrigemEvento, Situacao, Snapshot
+from relatorio.domain.exames import ExameClinico, Medico
 from relatorio.infrastructure.db.modelos import (
     AgendamentoEventoModel,
     AgendamentoSnapshotModel,
     AgendaModel,
+    ColetaExamesModel,
     ConfiguracaoModel,
     CursorColetaModel,
     DestinatarioFinanceiroModel,
     DestinatarioModel,
     DestinatarioSesmtModel,
+    ExameClinicoModel,
     ExecucaoJobModel,
+    MedicoRelatorioModel,
     ResumoDiarioModel,
     ResumoFinanceiroModel,
     ResumoSesmtModel,
@@ -450,6 +455,163 @@ class UsuarioRepositorioSql:
         return _afetadas(resultado) > 0
 
 
+def _medico(m: MedicoRelatorioModel) -> Medico:
+    return Medico(crm=m.crm, nome=m.nome, selecionado=m.selecionado, visto_em=m.visto_em)
+
+
+def _exame(m: ExameClinicoModel) -> ExameClinico:
+    return ExameClinico(
+        id=m.id,
+        data=m.data,
+        id_empresa=m.id_empresa,
+        id_funcionario=m.id_funcionario,
+        crm=m.crm,
+        medico=m.medico,
+        tipo=m.tipo,
+        empresa=m.empresa,
+    )
+
+
+def _coleta(m: ColetaExamesModel) -> ColetaExames:
+    return ColetaExames(
+        data=m.data,
+        processado_em=m.processado_em,
+        clinicos=m.clinicos,
+        selecionados=m.selecionados,
+        medicos=tuple(m.medicos),
+    )
+
+
+class MedicoRepositorioSql:
+    def __init__(self, sessao: Session) -> None:
+        self._s = sessao
+
+    def listar(self) -> list[Medico]:
+        consulta = select(MedicoRelatorioModel).order_by(
+            MedicoRelatorioModel.selecionado.desc(), func.lower(MedicoRelatorioModel.nome)
+        )
+        return [_medico(m) for m in self._s.scalars(consulta).all()]
+
+    def selecionados(self) -> list[Medico]:
+        consulta = (
+            select(MedicoRelatorioModel)
+            .where(MedicoRelatorioModel.selecionado.is_(True))
+            .order_by(func.lower(MedicoRelatorioModel.nome))
+        )
+        return [_medico(m) for m in self._s.scalars(consulta).all()]
+
+    def registrar_vistos(self, medicos: Sequence[Medico], dia: date) -> None:
+        for medico in medicos:
+            comando = insert(MedicoRelatorioModel).values(
+                crm=medico.crm, nome=medico.nome, visto_em=dia
+            )
+            self._s.execute(
+                comando.on_conflict_do_update(
+                    index_elements=[MedicoRelatorioModel.crm],
+                    set_={
+                        "nome": comando.excluded.nome,
+                        "visto_em": func.greatest(
+                            func.coalesce(MedicoRelatorioModel.visto_em, comando.excluded.visto_em),
+                            comando.excluded.visto_em,
+                        ),
+                    },
+                )
+            )
+
+    def adicionar(self, medico: Medico) -> None:
+        comando = insert(MedicoRelatorioModel).values(
+            crm=medico.crm, nome=medico.nome, selecionado=True
+        )
+        self._s.execute(
+            comando.on_conflict_do_update(
+                index_elements=[MedicoRelatorioModel.crm],
+                set_={"nome": comando.excluded.nome, "selecionado": True},
+            )
+        )
+
+    def definir_selecionado(self, crm: str, selecionado: bool) -> None:
+        self._s.execute(
+            update(MedicoRelatorioModel)
+            .where(MedicoRelatorioModel.crm == crm)
+            .values(selecionado=selecionado)
+        )
+
+
+class ExameRepositorioSql:
+    def __init__(self, sessao: Session) -> None:
+        self._s = sessao
+
+    def substituir_dia(self, dia: date, exames: Sequence[ExameClinico]) -> None:
+        self._s.execute(delete(ExameClinicoModel).where(ExameClinicoModel.data == dia))
+        if exames:
+            self._s.execute(
+                insert(ExameClinicoModel)
+                .values(
+                    [
+                        {
+                            "id": e.id,
+                            "data": e.data,
+                            "id_empresa": e.id_empresa,
+                            "empresa": e.empresa[:200],
+                            "id_funcionario": e.id_funcionario,
+                            "crm": e.crm,
+                            "medico": e.medico[:200],
+                            "tipo": e.tipo[:60],
+                        }
+                        for e in exames
+                    ]
+                )
+                # O SGG pode trocar a data de um exame já gravado em outro dia.
+                .on_conflict_do_nothing(index_elements=[ExameClinicoModel.id])
+            )
+
+    def do_dia(self, dia: date) -> list[ExameClinico]:
+        consulta = (
+            select(ExameClinicoModel)
+            .where(ExameClinicoModel.data == dia)
+            .order_by(ExameClinicoModel.id)
+        )
+        return [_exame(m) for m in self._s.scalars(consulta).all()]
+
+    def nomes_empresas(self, ids: Collection[int]) -> dict[int, str]:
+        if not ids:
+            return {}
+        consulta = (
+            select(ExameClinicoModel.id_empresa, ExameClinicoModel.empresa)
+            .where(ExameClinicoModel.id_empresa.in_(list(ids)))
+            .distinct(ExameClinicoModel.id_empresa)
+            .order_by(ExameClinicoModel.id_empresa, ExameClinicoModel.data.desc())
+        )
+        return {id_empresa: nome for id_empresa, nome in self._s.execute(consulta).all()}
+
+    def registrar_coleta(self, coleta: ColetaExames) -> None:
+        valores = {
+            "processado_em": coleta.processado_em,
+            "clinicos": coleta.clinicos,
+            "selecionados": coleta.selecionados,
+            "medicos": list(coleta.medicos),
+        }
+        comando = insert(ColetaExamesModel).values(data=coleta.data, **valores)
+        self._s.execute(
+            comando.on_conflict_do_update(index_elements=[ColetaExamesModel.data], set_=valores)
+        )
+
+    def coleta(self, dia: date) -> ColetaExames | None:
+        modelo = self._s.get(ColetaExamesModel, dia, populate_existing=True)
+        return _coleta(modelo) if modelo else None
+
+    def coletas_recentes(self, limite: int = 14) -> list[ColetaExames]:
+        consulta = select(ColetaExamesModel).order_by(ColetaExamesModel.data.desc()).limit(limite)
+        return [_coleta(m) for m in self._s.scalars(consulta).all()]
+
+    def apagar_anteriores_a(self, limite: date) -> int:
+        resultado = self._s.execute(
+            delete(ExameClinicoModel).where(ExameClinicoModel.data < limite)
+        )
+        self._s.execute(delete(ColetaExamesModel).where(ColetaExamesModel.data < limite))
+        return _afetadas(resultado)
+
+
 class ConfiguracaoRepositorioSql:
     def __init__(self, sessao: Session) -> None:
         self._s = sessao
@@ -627,6 +789,8 @@ class UnidadeDeTrabalhoSql:
             sessao, DestinatarioSesmtModel, "uq_destinatario_sesmt_email"
         )
         self.usuarios = UsuarioRepositorioSql(sessao)
+        self.medicos = MedicoRepositorioSql(sessao)
+        self.exames = ExameRepositorioSql(sessao)
         self.configuracoes = ConfiguracaoRepositorioSql(sessao)
         self.execucoes = ExecucaoJobRepositorioSql(sessao)
         self.cursores = CursorRepositorioSql(sessao)

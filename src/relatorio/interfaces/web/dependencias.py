@@ -55,6 +55,7 @@ PAGINA_MODULO = {
     "sesmt": SESMT,
     "configuracoes": CONFIGURACOES,
     "usuarios": CONFIGURACOES,
+    "medicos": CONFIGURACOES,
     "execucoes": EXECUCOES,
 }
 

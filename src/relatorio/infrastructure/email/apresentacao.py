@@ -182,6 +182,7 @@ class Apresentacao:
     gerado_em: str
     versao_regra: str
     admin_url: str
+    exames_medicos: dict[str, Any] | None = None
     cores: dict[str, str] = field(
         default_factory=lambda: {
             "azul": AZUL,
@@ -684,6 +685,7 @@ def montar_apresentacao(m: Mapping[str, Any], admin_url: str = "") -> Apresentac
             gerado_em=_gerado_em(m),
             versao_regra=m.get("versao_regra", ""),
             admin_url=admin_url,
+            exames_medicos=_exames_medicos(m),
         )
 
     alertas = _alertas(m)
@@ -735,7 +737,41 @@ def montar_apresentacao(m: Mapping[str, Any], admin_url: str = "") -> Apresentac
         gerado_em=_gerado_em(m),
         versao_regra=m.get("versao_regra", ""),
         admin_url=admin_url,
+        exames_medicos=_exames_medicos(m),
     )
+
+
+def _exames_medicos(m: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Seção "Atendimentos por médico": só contagens (a lista nominal vai na planilha)."""
+    dados = m.get("exames_medicos")
+    if not dados:
+        return None
+    medicos = [
+        {
+            "nome": item["nome"],
+            "crm": item["crm"],
+            "total": numero(item["total"]),
+            "tipos": " · ".join(f"{t['tipo']} {numero(t['total'])}" for t in item["por_tipo"])
+            or "Nenhum atendimento",
+        }
+        for item in dados.get("medicos", [])
+    ]
+    total = int(dados.get("total") or 0)
+    if dados.get("anexo"):
+        nota = f"Lista com empresa, funcionário e tipo na planilha anexa ({dados['anexo']})."
+        if dados.get("nomes_indisponiveis"):
+            nota += " O SGG não respondeu no envio: a planilha traz o código do funcionário."
+    else:
+        nota = "Nenhum exame clínico dos médicos selecionados neste dia."
+    return {
+        "total": numero(total),
+        "medicos": medicos,
+        "nota": nota,
+        "anexo": bool(dados.get("anexo")),
+        "subtitulo": (
+            f"{numero(total)} exame(s) clínico(s) dos médicos selecionados em Configurações."
+        ),
+    }
 
 
 def _gerado_em(m: Mapping[str, Any]) -> str:

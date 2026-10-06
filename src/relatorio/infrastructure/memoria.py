@@ -13,6 +13,7 @@ from types import TracebackType
 from typing import Any, Self
 
 from relatorio.application.modelos import (
+    ColetaExames,
     Destinatario,
     ExecucaoJob,
     ResumoRegistro,
@@ -22,6 +23,7 @@ from relatorio.application.modelos import (
 )
 from relatorio.application.ports import UsuarioDuplicado
 from relatorio.domain.entidades import FUSO_BRASILIA, Agenda, Evento, Snapshot
+from relatorio.domain.exames import ExameClinico, Medico
 
 
 @dataclass
@@ -36,6 +38,9 @@ class BancoEmMemoria:
     resumos_sesmt: dict[date, ResumoRegistro] = field(default_factory=dict)
     destinatarios_sesmt: dict[int, Destinatario] = field(default_factory=dict)
     usuarios: dict[int, UsuarioSistema] = field(default_factory=dict)
+    medicos: dict[str, Medico] = field(default_factory=dict)
+    exames: dict[int, ExameClinico] = field(default_factory=dict)
+    coletas_exames: dict[date, ColetaExames] = field(default_factory=dict)
     configuracoes: dict[str, str] = field(default_factory=dict)
     execucoes: dict[int, ExecucaoJob] = field(default_factory=dict)
     cursores: dict[str, datetime] = field(default_factory=dict)
@@ -242,6 +247,74 @@ class _Usuarios:
         return self.u.pop(id_usuario, None) is not None
 
 
+class _Medicos:
+    def __init__(self, banco: BancoEmMemoria) -> None:
+        self.b = banco
+
+    def listar(self) -> list[Medico]:
+        return sorted(self.b.medicos.values(), key=lambda m: (not m.selecionado, m.nome.lower()))
+
+    def selecionados(self) -> list[Medico]:
+        return sorted(
+            (m for m in self.b.medicos.values() if m.selecionado), key=lambda m: m.nome.lower()
+        )
+
+    def registrar_vistos(self, medicos: Sequence[Medico], dia: date) -> None:
+        for medico in medicos:
+            atual = self.b.medicos.get(medico.crm)
+            visto = max(dia, atual.visto_em) if atual and atual.visto_em else dia
+            self.b.medicos[medico.crm] = Medico(
+                medico.crm, medico.nome, bool(atual and atual.selecionado), visto
+            )
+
+    def adicionar(self, medico: Medico) -> None:
+        atual = self.b.medicos.get(medico.crm)
+        self.b.medicos[medico.crm] = replace(atual or medico, nome=medico.nome, selecionado=True)
+
+    def definir_selecionado(self, crm: str, selecionado: bool) -> None:
+        if crm in self.b.medicos:
+            self.b.medicos[crm] = replace(self.b.medicos[crm], selecionado=selecionado)
+
+
+class _Exames:
+    def __init__(self, banco: BancoEmMemoria) -> None:
+        self.b = banco
+
+    def substituir_dia(self, dia: date, exames: Sequence[ExameClinico]) -> None:
+        for id_exame in [i for i, e in self.b.exames.items() if e.data == dia]:
+            del self.b.exames[id_exame]
+        for exame in exames:
+            # Como no banco: o nome do trabalhador nunca é guardado.
+            self.b.exames.setdefault(exame.id, replace(exame, funcionario=""))
+
+    def do_dia(self, dia: date) -> list[ExameClinico]:
+        return sorted((e for e in self.b.exames.values() if e.data == dia), key=lambda e: e.id)
+
+    def nomes_empresas(self, ids: Collection[int]) -> dict[int, str]:
+        nomes: dict[int, str] = {}
+        for exame in sorted(self.b.exames.values(), key=lambda e: e.data):
+            if exame.id_empresa in ids:
+                nomes[exame.id_empresa] = exame.empresa
+        return nomes
+
+    def registrar_coleta(self, coleta: ColetaExames) -> None:
+        self.b.coletas_exames[coleta.data] = coleta
+
+    def coleta(self, dia: date) -> ColetaExames | None:
+        return self.b.coletas_exames.get(dia)
+
+    def coletas_recentes(self, limite: int = 14) -> list[ColetaExames]:
+        return sorted(self.b.coletas_exames.values(), key=lambda c: c.data, reverse=True)[:limite]
+
+    def apagar_anteriores_a(self, limite: date) -> int:
+        antigos = [i for i, e in self.b.exames.items() if e.data < limite]
+        for id_exame in antigos:
+            del self.b.exames[id_exame]
+        for dia in [d for d in self.b.coletas_exames if d < limite]:
+            del self.b.coletas_exames[dia]
+        return len(antigos)
+
+
 class _Configuracoes:
     def __init__(self, banco: BancoEmMemoria) -> None:
         self.b = banco
@@ -360,6 +433,8 @@ class UoWEmMemoria:
         self.resumos_sesmt = _Resumos(banco.resumos_sesmt)
         self.destinatarios_sesmt = _Destinatarios(banco.destinatarios_sesmt)
         self.usuarios = _Usuarios(banco.usuarios)
+        self.medicos = _Medicos(banco)
+        self.exames = _Exames(banco)
         self.configuracoes = _Configuracoes(banco)
         self.execucoes = _Execucoes(banco)
         self.cursores = _Cursores(banco)

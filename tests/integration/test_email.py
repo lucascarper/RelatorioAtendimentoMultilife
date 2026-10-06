@@ -96,6 +96,41 @@ class TestRelatorio:
             assert trecho in texto
         assert "<" not in texto
 
+    def test_atendimentos_por_medico(
+        self, previa: tuple[dict[str, Any], ConteudoEmail], renderizador: RenderizadorJinja
+    ) -> None:
+        metricas, sem_secao = previa
+        assert "Atendimentos por médico" not in sem_secao.html
+        exames = {
+            "total": 3,
+            "anexo": "atendimentos-por-medico-2026-09-23.xlsx",
+            "medicos": [
+                {
+                    "crm": "34985-DF",
+                    "nome": "Ana Souza",
+                    "total": 3,
+                    "por_tipo": [
+                        {"tipo": "Admissional", "total": 2},
+                        {"tipo": "Periódico", "total": 1},
+                    ],
+                },
+                {"crm": "31096-DF", "nome": "Beto Lima", "total": 0, "por_tipo": []},
+            ],
+        }
+        conteudo = renderizador.relatorio({**metricas, "exames_medicos": exames})
+        for trecho in (
+            "Atendimentos por médico",
+            "Ana Souza",
+            "CRM 34985-DF",
+            "Admissional 2 · Periódico 1",
+            "Nenhum atendimento",
+            "atendimentos-por-medico-2026-09-23.xlsx",
+            "não encaminhe (LGPD)",
+        ):
+            assert trecho in conteudo.html, trecho
+        assert "ATENDIMENTOS POR MÉDICO (3 exames clínicos)" in conteudo.texto
+        assert "- Ana Souza (CRM 34985-DF): 3 | Admissional 2 · Periódico 1" in conteudo.texto
+
     def test_sem_movimento(self, renderizador: RenderizadorJinja) -> None:
         metricas = {
             "assunto": "Resumo de Atendimentos — 27/09/2026 (domingo)",

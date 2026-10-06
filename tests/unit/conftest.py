@@ -6,10 +6,12 @@ import pytest
 
 from relatorio.application.configuracao import ConfiguracaoRelatorio, JanelaColeta
 from relatorio.application.montagem import montar_casos_de_uso
+from relatorio.infrastructure.planilha import GeradorPlanilhaXlsx
 from tests.fabricas import hora
 from tests.fakes import (
     BancoEmMemoria,
     EmailFake,
+    ExamesFake,
     FinanceiroFake,
     RelogioFixo,
     RenderizadorFake,
@@ -29,6 +31,7 @@ class Sistema:
     email: EmailFake = field(default_factory=EmailFake)
     financeiro: FinanceiroFake = field(default_factory=FinanceiroFake)
     sesmt: SesmtFake = field(default_factory=SesmtFake)
+    exames: ExamesFake = field(default_factory=ExamesFake)
     coletor_habilitado: bool = True
 
     def __post_init__(self) -> None:
@@ -44,6 +47,8 @@ class Sistema:
             coletor_habilitado=self.coletor_habilitado,
             financeiro=self.financeiro,
             sesmt=self.sesmt,
+            exames=self.exames,
+            planilha=GeradorPlanilhaXlsx(),
         )
         self.alertar = casos.alertar
         self.coletar = casos.coletar
@@ -66,6 +71,9 @@ class Sistema:
         self.consolidar_sesmt = casos.consolidar_sesmt
         self.enviar_sesmt = casos.enviar_sesmt
         self.verificar_sesmt = casos.verificar_sesmt
+        assert casos.processar_exames is not None and casos.complemento_exames is not None
+        self.processar_exames = casos.processar_exames
+        self.complemento_exames = casos.complemento_exames
 
     def alertas_enviados(self) -> list[str]:
         return [c.assunto for _, c in self.email.enviados if c.assunto.startswith("[Alerta]")]

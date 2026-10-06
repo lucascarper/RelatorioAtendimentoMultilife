@@ -15,6 +15,7 @@ from relatorio.infrastructure.db.repositorios import UnidadeDeTrabalhoSql, criar
 from relatorio.infrastructure.email.envio import EnviadorArquivo, EnviadorSmtp
 from relatorio.infrastructure.email.renderizador import RenderizadorJinja
 from relatorio.infrastructure.jobs import ExecutorJobs
+from relatorio.infrastructure.planilha import GeradorPlanilhaXlsx
 from relatorio.infrastructure.relogio import RelogioSistema
 from relatorio.infrastructure.sgg.cliente import ClienteSgg
 
@@ -96,6 +97,8 @@ class Container:
             destinatarios_override=s.destinatarios_override,
             financeiro=self.sgg,
             sesmt=self.sgg,
+            exames=self.sgg,
+            planilha=GeradorPlanilhaXlsx(),
         )
 
     @cached_property

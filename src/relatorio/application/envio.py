@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from typing import Any, Protocol
 
+import structlog
+
 from relatorio.application.alertas import AlertarTecnico
+from relatorio.application.exames import Complemento
 from relatorio.application.modelos import ConteudoEmail, StatusEnvio
 from relatorio.application.ports import (
     DestinatarioRepository,
@@ -20,9 +23,17 @@ from relatorio.application.ports import (
 )
 from relatorio.domain.entidades import FUSO_BRASILIA
 
+log = structlog.get_logger(__name__)
+
 
 class Consolidador(Protocol):
     def executar(self, dia: date) -> Mapping[str, object]: ...
+
+
+class ComplementoRelatorio(Protocol):
+    """Parte opcional do e-mail (ex.: atendimentos por médico): métricas extras e anexos."""
+
+    def para(self, dia: date) -> Complemento: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +86,7 @@ class EnviarRelatorio:
         alertar: AlertarTecnico,
         destinatarios_override: Sequence[str] = (),
         tipo: TipoRelatorio = ATENDIMENTOS,
+        complemento: ComplementoRelatorio | None = None,
     ) -> None:
         self._uow = uow
         self._relogio = relogio
@@ -84,6 +96,23 @@ class EnviarRelatorio:
         self._alertar = alertar
         self._override = tuple(destinatarios_override)
         self._tipo = tipo
+        self._complemento = complemento
+
+    def _complementar(self, dia: date) -> Complemento:
+        """O complemento nunca impede o relatório principal: se falhar, sai sem ele."""
+        if self._complemento is None:
+            return Complemento({})
+        try:
+            return self._complemento.para(dia)
+        except Exception as erro:
+            log.warning("complemento_falhou", dia=dia.isoformat(), erro=type(erro).__name__)
+            self._alertar.enviar(
+                f"{self._tipo.nome} enviado sem os atendimentos por médico",
+                "Não foi possível montar a seção de atendimentos por médico e a planilha "
+                "anexa. O relatório principal foi enviado normalmente.",
+                {"Data": f"{dia:%d/%m/%Y}", "Erro": f"{type(erro).__name__}: {erro}"},
+            )
+            return Complemento({})
 
     def executar(self, dia: date, *, forcar: bool = False) -> dict[str, object]:
         referencia = dia.isoformat()
@@ -125,8 +154,12 @@ class EnviarRelatorio:
             )
             return {"referencia": referencia, "status": "sem_destinatarios"}
 
+        complemento = self._complementar(dia)
         try:
-            conteudo = self._tipo.renderizar(self._renderizador, registro.metricas)
+            metricas = {**registro.metricas, **complemento.metricas}
+            conteudo = self._tipo.renderizar(self._renderizador, metricas)
+            if complemento.anexos:
+                conteudo = replace(conteudo, anexos=complemento.anexos)
             self._email.enviar(destinatarios, conteudo)
         except Exception:
             with self._uow() as uow:
@@ -137,12 +170,15 @@ class EnviarRelatorio:
         with self._uow() as uow:
             self._tipo.resumos(uow).marcar_enviado(dia, self._relogio.agora())
             uow.commit()
-        return {
+        resultado: dict[str, object] = {
             "referencia": referencia,
             "status": "enviado",
             "destinatarios": len(destinatarios),
             "sem_movimento": bool(registro.metricas.get("sem_movimento")),
         }
+        if complemento.anexos:
+            resultado["anexos"] = len(complemento.anexos)
+        return resultado
 
     def executar_agendado(self, dia: date, tentativa: int, total: int = 3) -> dict[str, object]:
         """07:59, 08:01 e 08:03. Na última falha, alerta o técnico."""

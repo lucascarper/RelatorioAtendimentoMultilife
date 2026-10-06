@@ -23,6 +23,7 @@ import structlog
 from tenacity import RetryCallState, Retrying, retry_if_exception_type, stop_after_attempt
 
 from relatorio.domain.entidades import FUSO_BRASILIA, Agenda, AgendamentoSgg, Situacao
+from relatorio.domain.exames import EXAME_CLINICO, ExameClinico, Medico
 from relatorio.domain.financeiro import Contrato, PrecoFornecedor, Titulo
 from relatorio.domain.sesmt import (
     TIPOS_DOCUMENTO,
@@ -32,6 +33,7 @@ from relatorio.domain.sesmt import (
     EventoEsocial,
 )
 from relatorio.infrastructure.sgg.dto import formatar_filtro, para_agenda, para_agendamento
+from relatorio.infrastructure.sgg.dto_exames import para_exame_clinico, para_medico
 from relatorio.infrastructure.sgg.dto_financeiro import para_contrato, para_preco, para_titulo
 from relatorio.infrastructure.sgg.dto_sesmt import (
     para_contrato_sesmt,
@@ -392,3 +394,43 @@ class ClienteSgg:
                 continue
             eventos[evento.codigo] = evento
         return list(eventos.values())
+
+    # ------------------------------------------------------------------ ExamesGateway
+
+    def exames_clinicos(self, dia: date) -> list[ExameClinico]:
+        exames: dict[int, ExameClinico] = {}
+        filtros = {
+            "dataExame_aPartirDe": dia.isoformat(),
+            "dataExame_ate": dia.isoformat(),
+            "exame": EXAME_CLINICO,
+        }
+        for item in self._paginar("exames-realizados/", filtros):
+            try:
+                exame = para_exame_clinico(item)
+            except ValueError as erro:
+                # Nunca registra o item bruto: ele traz nome e dados de saúde do trabalhador.
+                log.warning(
+                    "sgg_exame_ignorado", id=item.get("id_exames_lancados"), motivo=str(erro)
+                )
+                continue
+            if exame.data == dia:
+                exames[exame.id] = exame
+        return list(exames.values())
+
+    def empresa(self, id_empresa: int) -> EmpresaSesmt | None:
+        for item in self._paginar("empresa/", {"codigo": str(id_empresa)}):
+            try:
+                return para_empresa(item)
+            except ValueError:
+                return None
+        return None
+
+    def medico(self, crm: str) -> Medico | None:
+        for item in self._paginar("medico/", {"crm": crm}):
+            try:
+                medico = para_medico(item)
+            except ValueError:
+                continue
+            if medico.crm == crm:
+                return medico
+        return None
