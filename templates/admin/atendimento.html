@@ -109,6 +109,7 @@
   {% if override %}
   <div class="mensagem mensagem-aviso">Ambiente de homologação: todos os e-mails vão só para <strong>{{ override | join(", ") }}</strong> (EMAIL_DESTINATARIOS_OVERRIDE).</div>
   {% endif %}
+  <h3 class="subtitulo">Cadastrar novo destinatário</h3>
   <form method="post" action="/admin/destinatarios" class="form form-linha form-adicionar">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <label>E-mail <input type="email" name="email" required maxlength="254" placeholder="nome@multilife.com.br"></label>

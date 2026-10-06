@@ -459,7 +459,7 @@ html:fullscreen .conteudo-monitor { max-width: 1680px; padding: 20px 32px; }
   background: var(--aviso-suave); color: var(--aviso); font-size: 22px;
 }
 .valor-vazio { color: var(--texto-3); font-size: 22px !important; font-weight: 600 !important; letter-spacing: 0 !important; }
-.form-adicionar { margin: 12px 0 18px; padding: 14px 16px; background: var(--superficie-2); border: 1px solid var(--borda); border-radius: var(--raio-controle); }
+.form-adicionar { margin: 0 0 20px; padding: 14px 16px; background: var(--superficie-2); border: 1px solid var(--borda); border-radius: var(--raio-controle); }
 .pessoa { display: flex; align-items: center; gap: 12px; }
 .pessoa > span:last-child { display: flex; flex-direction: column; min-width: 0; }
 .avatar {
