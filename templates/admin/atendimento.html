@@ -24,7 +24,7 @@
       {% elif em_coleta %}<p><span class="badge badge-ok">{{ icone("ok") }}Coletando</span></p>
       {% else %}<p><span class="badge badge-neutro">Fora do horário de coleta</span></p>{% endif %}
     {% else %}
-      <p class="valor">-</p>
+      <p class="valor valor-vazio">Sem coleta</p>
       <p class="nota">Nenhum ciclo de coleta ainda.</p>
     {% endif %}
   </article>
@@ -36,7 +36,7 @@
       <p class="nota">{{ ultimo.data | dia_semana }}</p>
       <p>{% include "admin/_status_envio.html" %}</p>
     {% else %}
-      <p class="valor">-</p><p class="nota">Nenhum dia consolidado ainda.</p>
+      <p class="valor valor-vazio">Sem relatório</p><p class="nota">Nenhum dia consolidado ainda.</p>
     {% endif %}
   </article>
   <article class="card status">
@@ -100,19 +100,22 @@
 </section>
 
 <section id="destinatarios" class="card">
-  <div class="card-titulo"><h2>Destinatários</h2></div>
+  <div class="card-titulo">
+    <div>
+      <h2>Destinatários</h2>
+      <p class="nota">Recebem o relatório de atendimento por e-mail. Os inativos continuam cadastrados, mas não recebem.</p>
+    </div>
+  </div>
   {% if override %}
   <div class="mensagem mensagem-aviso">Ambiente de homologação: todos os e-mails vão só para <strong>{{ override | join(", ") }}</strong> (EMAIL_DESTINATARIOS_OVERRIDE).</div>
   {% endif %}
-  <h3 class="subtitulo">Cadastrar</h3>
-  <form method="post" action="/admin/destinatarios" class="form form-linha">
+  <h3 class="subtitulo">Cadastrar novo destinatário</h3>
+  <form method="post" action="/admin/destinatarios" class="form form-linha form-adicionar">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <label>E-mail <input type="email" name="email" required maxlength="254" placeholder="nome@multilife.com.br"></label>
     <label>Nome <input name="nome" maxlength="120" placeholder="Opcional"></label>
     <button type="submit" class="btn btn-primario">Adicionar</button>
   </form>
-  <h3 class="subtitulo">Lista</h3>
-  <p class="nota">Destinatários inativos continuam cadastrados, mas não recebem o relatório.</p>
   <div class="rolagem">
   <table class="tabela">
     <thead><tr><th>E-mail</th><th>Nome</th><th>Cadastrado em</th><th>Situação</th></tr></thead>

@@ -17,14 +17,14 @@
     <thead><tr><th>Nome</th><th class="oculta-celular">Usuário</th><th>Módulos</th><th><span class="sr">Ações</span></th></tr></thead>
     <tbody>
       <tr>
-        <td><strong>Administrador do sistema</strong><br><span class="nota usuario-celular">{{ administrador }}</span><span class="nota oculta-celular">Definido na configuração do deploy (ADMIN_USER). Não pode ser editado ou excluído aqui.</span></td>
+        <td><div class="pessoa"><span class="avatar avatar-marca" aria-hidden="true">A</span><span><strong>Administrador do sistema</strong><span class="nota usuario-celular">{{ administrador }}</span><span class="nota oculta-celular">Definido no deploy (ADMIN_USER). Não é editado aqui.</span></span></div></td>
         <td class="oculta-celular">{{ administrador }}</td>
         <td><span class="badge badge-ok">Todos os módulos</span></td>
         <td></td>
       </tr>
       {% for u in usuarios %}
       <tr>
-        <td><strong>{{ u.nome }}</strong>{% if u.usuario == eu %} <span class="badge badge-neutro">você</span>{% endif %}<br><span class="nota usuario-celular">{{ u.usuario }}</span></td>
+        <td><div class="pessoa"><span class="avatar" aria-hidden="true">{{ u.nome[:1] | upper }}</span><span><strong>{{ u.nome }}</strong>{% if u.usuario == eu %} <span class="badge badge-neutro">você</span>{% endif %}<span class="nota usuario-celular">{{ u.usuario }}</span></span></div></td>
         <td class="oculta-celular">{{ u.usuario }}</td>
         <td class="modulos">
           {% for chave in u.permissoes %}<span class="badge badge-neutro">{{ rotulos.get(chave, chave) }}</span> {% else %}<span class="nota">Nenhum módulo</span>{% endfor %}

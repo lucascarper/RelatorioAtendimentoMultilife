@@ -3,8 +3,8 @@
 {% block conteudo %}
 <section class="login">
   <img src="/static/brand/logo-multilife-admin.png" alt="MultiLife, Saúde e Segurança do Trabalho" class="login-logo">
-  <h1>Sistema de Relatórios</h1>
-  <p class="sub">Painel administrativo</p>
+  <h1>Entrar no Sistema de Relatórios</h1>
+  <p class="sub">Use o usuário e a senha que você recebeu.</p>
   {% if erro %}<div class="mensagem mensagem-erro" role="alert">{{ erro }}</div>{% endif %}
   <form method="post" action="/login" class="form">
     <input type="hidden" name="csrf" value="{{ csrf }}">

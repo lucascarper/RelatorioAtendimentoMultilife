@@ -2,7 +2,8 @@
 {% block titulo %}Relatório do SESMT{% endblock %}
 {% block conteudo %}
 {%- from "admin/_icones.html" import icone %}
-<h1>Relatório do SESMT</h1>
+<div class="pagina-cabecalho"><h1>Relatório do SESMT</h1></div>
+<p class="subtitulo-pagina">Relatório de gestão diário: documentos e contratos a vencer, vencidos e eventos do eSocial.</p>
 
 {% if not habilitado %}
 <div class="mensagem mensagem-aviso">{{ icone("aviso") }}<span>O envio automático está desligado (<code>SESMT_HABILITADO=false</code>). Gere a prévia abaixo, confira os números com o SESMT e só então ligue a variável no worker na Railway.</span></div>
@@ -25,7 +26,7 @@
       <p class="nota">Gerado em {{ ultimo.gerado_em | datahora_br }}</p>
       <p>{% include "admin/_status_envio.html" %}</p>
     {% else %}
-      <p class="valor">-</p><p class="nota">Nenhum dia gerado ainda.</p>
+      <p class="valor valor-vazio">Sem relatório</p><p class="nota">Nenhum dia gerado ainda.</p>
     {% endif %}
   </article>
   <article class="card status">
@@ -81,7 +82,9 @@
 
 <section class="card">
   <h2>Destinatários do relatório do SESMT</h2>
-  <form method="post" action="/admin/sesmt/destinatarios" class="form form-linha">
+  <p class="nota">Recebem o relatório por e-mail. Os inativos continuam cadastrados, mas não recebem.</p>
+  <h3 class="subtitulo">Cadastrar novo destinatário</h3>
+  <form method="post" action="/admin/sesmt/destinatarios" class="form form-linha form-adicionar">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <label>E-mail <input type="email" name="email" required maxlength="254" placeholder="nome@multilife.com.br"></label>
     <label>Nome <input name="nome" maxlength="120" placeholder="Opcional"></label>
@@ -102,9 +105,9 @@
 <section class="card">
   <h2>Nomes dos grupos</h2>
   <p class="nota">A API do SGG informa só o código do grupo de cada empresa. Dê um nome a cada código, no formato <code>1=GESTÃO PREMIUM; 2=GESTÃO 2</code>. Já vem preenchido com os grupos cadastrados hoje no SGG.</p>
-  <form method="post" action="/admin/sesmt/grupos" class="form form-linha">
+  <form method="post" action="/admin/sesmt/grupos" class="form form-linha form-grupos">
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <label>Códigos e nomes <input name="nomes" value="{{ nomes_grupos }}" maxlength="2000" placeholder="1=GESTÃO PREMIUM; 2=GESTÃO 2" size="40"></label>
+    <label>Códigos e nomes <input name="nomes" value="{{ nomes_grupos }}" maxlength="2000" placeholder="1=GESTÃO PREMIUM; 2=GESTÃO 2"></label>
     <button type="submit" class="btn btn-secundario">Salvar nomes</button>
   </form>
 </section>
