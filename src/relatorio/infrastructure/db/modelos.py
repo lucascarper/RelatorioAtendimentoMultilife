@@ -207,6 +207,43 @@ class UsuarioModel(Base):
     criado_em: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class MedicoRelatorioModel(Base):
+    """Médicos vistos nos exames clínicos; ``selecionado`` = entra nos atendimentos por médico."""
+
+    __tablename__ = "medico_relatorio"
+
+    crm: Mapped[str] = mapped_column(String(20), primary_key=True)
+    nome: Mapped[str] = mapped_column(String(200))
+    selecionado: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    visto_em: Mapped[date | None] = mapped_column(Date)
+    criado_em: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class ExameClinicoModel(Base):
+    """Exames clínicos dos médicos escolhidos. LGPD: sem nome nem CPF do trabalhador."""
+
+    __tablename__ = "exame_clinico"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    data: Mapped[date] = mapped_column(Date, index=True)
+    id_empresa: Mapped[int] = mapped_column(Integer)
+    empresa: Mapped[str] = mapped_column(String(200))
+    id_funcionario: Mapped[int] = mapped_column(Integer)
+    crm: Mapped[str] = mapped_column(String(20))
+    medico: Mapped[str] = mapped_column(String(200))
+    tipo: Mapped[str] = mapped_column(String(60))
+
+
+class ColetaExamesModel(Base):
+    __tablename__ = "coleta_exames"
+
+    data: Mapped[date] = mapped_column(Date, primary_key=True)
+    processado_em: Mapped[datetime]
+    clinicos: Mapped[int] = mapped_column(Integer)
+    selecionados: Mapped[int] = mapped_column(Integer)
+    medicos: Mapped[list[str]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
+
+
 class ExecucaoJobModel(Base):
     __tablename__ = "execucao_job"
     __table_args__ = (Index("ix_execucao_job_job_inicio", "job", "inicio"),)

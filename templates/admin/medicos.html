@@ -1,0 +1,66 @@
+{% extends "admin/base.html" %}
+{% block titulo %}Médicos{% endblock %}
+{% block conteudo %}
+<h1>Configurações</h1>
+{% include "admin/_abas_configuracoes.html" %}
+
+<section class="card">
+  <div class="card-titulo">
+    <div>
+      <h2>Atendimentos por médico</h2>
+      <p class="nota">Os médicos marcados entram no e-mail diário de atendimentos: uma seção com o total de exames clínicos por tipo e uma planilha anexa com empresa, funcionário, médico, tipo e data. Os demais não são processados.</p>
+    </div>
+    <span class="badge {{ 'badge-ok' if escolhidos else 'badge-neutro' }}">{{ escolhidos }} no relatório</span>
+  </div>
+
+  <h3 class="subtitulo">Cadastrar um médico que ainda não apareceu</h3>
+  <form method="post" action="/admin/configuracoes/medicos" class="form form-linha form-adicionar">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>CRM <input name="crm" required maxlength="20" placeholder="34985-DF" autocapitalize="characters" spellcheck="false"></label>
+    <button type="submit" class="btn btn-primario">Adicionar</button>
+  </form>
+
+  {% if medicos %}
+  <div class="rolagem">
+  <table class="tabela tabela-compacta tabela-usuarios">
+    <thead><tr><th>Médico</th><th class="oculta-celular">CRM</th><th class="oculta-celular">Último exame clínico</th><th>Relatório</th></tr></thead>
+    <tbody>
+      {% for m in medicos %}{% include "admin/_linha_medico.html" %}{% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="nota">A lista aparece depois do primeiro processamento: use "Processar uma data" abaixo (ou aguarde o processamento das 23:20) e marque os médicos desejados.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Processar uma data</h2>
+  <p class="nota">Lê os exames clínicos do dia no SGG (uma consulta, mais uma por empresa ainda sem nome). Roda sozinho às 23:20; o envio das 07:59 processa de novo se a escolha de médicos mudou.</p>
+  <form method="post" action="/admin/configuracoes/medicos/processar" class="form form-linha">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Data
+      <input type="date" name="data" value="{{ hoje.isoformat() }}" max="{{ hoje.isoformat() }}" required>
+    </label>
+    <button type="submit" class="btn btn-secundario">Processar</button>
+  </form>
+  {% if coletas %}
+  <h3 class="subtitulo">Últimos processamentos</h3>
+  <div class="rolagem">
+  <table class="tabela tabela-compacta">
+    <thead><tr><th>Data</th><th class="num">Clínicos no SGG</th><th class="num">Dos escolhidos</th><th class="oculta-celular">Processado em</th></tr></thead>
+    <tbody>
+      {% for c in coletas %}
+      <tr>
+        <td><strong>{{ c.data | data_br }}</strong> <span class="nota">{{ (c.data | dia_semana)[:3] }}</span></td>
+        <td class="num">{{ c.clinicos }}</td>
+        <td class="num">{{ c.selecionados }}</td>
+        <td class="oculta-celular">{{ c.processado_em | datahora_br }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

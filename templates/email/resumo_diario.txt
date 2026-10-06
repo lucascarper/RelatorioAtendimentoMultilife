@@ -26,6 +26,10 @@ INDICADORES DO DIA
 {% if a.comparativo_disponivel %}{% for linha in a.comparativo %}- {{ linha.rotulo }}: {{ linha.atual }} vs {{ linha.anterior }}{% if linha.delta %} ({{ linha.delta.seta }} {{ linha.delta.texto }}){% endif %}
 {% endfor %}{% else %}- Sem base de comparação.
 {% endif %}{% endif %}
+{% if a.exames_medicos %}ATENDIMENTOS POR MÉDICO ({{ a.exames_medicos.total }} exames clínicos)
+{% for med in a.exames_medicos.medicos %}- {{ med.nome }} (CRM {{ med.crm }}): {{ med.total }} | {{ med.tipos }}
+{% endfor %}{{ a.exames_medicos.nota }}
+{% endif %}
 ALERTAS
 {% for al in a.alertas %}- [{{ al.rotulo }}] {{ al.titulo }}: {{ al.descricao }}
 {% for item in al.itens %}  {{ item }}{% if al.restantes %} e mais {{ al.restantes }}{% endif %}
@@ -36,4 +40,4 @@ ALERTAS
 --
 Gerado em {{ a.gerado_em }} · Regra de cálculo v{{ a.versao_regra }}{% if a.admin_url %}
 Painel administrativo: {{ a.admin_url }}{% endif %}
-MultiLife · Saúde e Segurança do Trabalho — números agregados, sem dados de pacientes (LGPD).
+{% if a.exames_medicos and a.exames_medicos.anexo %}MultiLife · Saúde e Segurança do Trabalho. A planilha anexa tem nomes de trabalhadores: uso interno, não encaminhe (LGPD).{% else %}MultiLife · Saúde e Segurança do Trabalho — números agregados, sem dados de pacientes (LGPD).{% endif %}

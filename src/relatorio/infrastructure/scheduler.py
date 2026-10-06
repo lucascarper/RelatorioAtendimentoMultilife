@@ -13,6 +13,7 @@
 | 02:00                    | consolidar_sesmt   | reexecuta às 03:30 e 04:30 (~85 min)   |
 | 08:00                    | enviar_sesmt       | 08:02 e 08:04; depois alerta técnico   |
 | 08:12                    | verificar_sesmt    | alerta se não foi entregue             |
+| 23:20                    | processar_exames   | 02:20 e 05:20; o envio das 07:59 tenta |
 
 Todos com ``max_instances=1`` e ``coalesce=True``; o advisory lock do PostgreSQL impede
 que dois containers (ex.: durante um deploy) rodem o mesmo job.
@@ -169,6 +170,20 @@ class JobsAgendados:
             return
         self._executor.executar("verificar_sesmt", lambda: verificar.executar(dia))
 
+    # ------------------------------------------------------------------ atendimentos por médico
+
+    def processar_exames(self, tentativa: int) -> None:
+        # 23:20 processa o próprio dia; as retentativas (02:20, 05:20), o dia anterior.
+        dia = dia_para_consolidar(self._c.relogio.agora())
+        if tentativa > 1 and self._ja_executado("processar_exames", dia.isoformat()):
+            return
+        processar = self._casos.processar_exames
+        if processar is None:
+            return
+        self._executor.executar(
+            "processar_exames", lambda: processar.executar_agendado(dia, tentativa)
+        )
+
     def limpar_retencao(self) -> None:
         mes = f"{self._hoje():%Y-%m}"
         if self._ja_executado("limpar_retencao", mes):
@@ -292,6 +307,15 @@ def registrar_jobs(agendador: BlockingScheduler, jobs: JobsAgendados, settings: 
                 tolerancia_s=120,
             )
         adicionar("verificar_sesmt", jobs.verificar_sesmt, _cron(hour=8, minute=12))
+
+    # Atendimentos por médico: à noite, fora do expediente (cota maior da API depois das 20h).
+    for tentativa, hora in enumerate((23, 2, 5), start=1):
+        adicionar(
+            f"processar_exames_{tentativa}",
+            jobs.processar_exames,
+            _cron(hour=hora, minute=20),
+            {"tentativa": tentativa},
+        )
 
     adicionar("limpar_retencao", jobs.limpar_retencao, _cron(day="1-2", hour=3, minute=0))
     adicionar("compactar_execucoes", jobs.compactar_execucoes, _cron(hour=3, minute=20))

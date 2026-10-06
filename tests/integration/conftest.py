@@ -25,7 +25,7 @@ ESTADO_INICIAL: dict[str, list[str]] = {}
 TABELAS = (
     "agenda, agendamento_snapshot, agendamento_evento, resumo_diario, destinatario, "
     "resumo_financeiro, destinatario_financeiro, resumo_sesmt, destinatario_sesmt, usuario, "
-    "execucao_job, configuracao, coletor_cursor"
+    "medico_relatorio, exame_clinico, coleta_exames, execucao_job, configuracao, coletor_cursor"
 )
 
 

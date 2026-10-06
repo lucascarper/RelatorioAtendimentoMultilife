@@ -1,0 +1,13 @@
+<tr id="medico-{{ m.crm }}">
+  <td><strong>{{ m.nome }}</strong><span class="nota usuario-celular">CRM {{ m.crm }}</span></td>
+  <td class="oculta-celular">{{ m.crm }}</td>
+  <td class="oculta-celular">{{ m.visto_em | data_br if m.visto_em else "Cadastrado manualmente" }}</td>
+  <td>
+    <button type="button" class="alternador" role="switch" aria-checked="{{ 'true' if m.selecionado else 'false' }}"
+            aria-label="Incluir {{ m.nome }} no relatório"
+            hx-post="/admin/configuracoes/medicos/{{ m.crm }}/selecionado" hx-vals='{"selecionado": "{{ 'false' if m.selecionado else 'true' }}"}'
+            hx-target="#medico-{{ m.crm }}" hx-swap="outerHTML">
+      <span class="alternador-trilho" aria-hidden="true"></span>{{ "No relatório" if m.selecionado else "Fora" }}
+    </button>
+  </td>
+</tr>

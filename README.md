@@ -43,6 +43,7 @@ flowchart LR
 | 07:59 | `enviar_financeiro`: e-mail financeiro do dia anterior, lista própria | 08:01 e 08:03; verificação às 08:10 |
 | 02:00 | `consolidar_sesmt`: lê empresas, contratos, programas/laudos e eventos do eSocial e grava `resumo_sesmt` (só com `SESMT_HABILITADO`; leva mais de 1 h no limite de requisições) | 03:30 e 04:30; na 3ª falha, alerta técnico |
 | 08:00 | `enviar_sesmt`: e-mail de gestão do SESMT, lista própria | 08:02 e 08:04; verificação às 08:12 |
+| 23:20 | `processar_exames`: exames clínicos do dia dos médicos escolhidos (atendimentos por médico) | 02:20 e 05:20; o envio das 07:59 tenta de novo |
 
 Todos os jobs usam `max_instances=1` e `coalesce=True`, com **advisory lock** do PostgreSQL (dois containers nunca rodam o mesmo job), e cada execução fica registrada em `execucao_job`.
 
@@ -92,6 +93,15 @@ O SGG só responde documentos e eventos do eSocial **por empresa**, então a col
 
 Regras e decisões no [ADR 0013](docs/adr/0013-relatorio-sesmt.md). O envio automático fica desligado até `SESMT_HABILITADO=true` no worker. A prévia e o reenvio pelo admin funcionam sempre (a coleta manual também leva mais de uma hora).
 
+### Atendimentos por médico (no e-mail de atendimentos)
+
+Em **Configurações → Médicos** ficam os médicos que apareceram nos exames clínicos do SGG; quem estiver marcado entra no relatório. O e-mail diário de atendimentos ganha a seção **Atendimentos por médico** (total de exames clínicos por médico e por tipo) e a planilha anexa `atendimentos-por-medico-AAAA-MM-DD.xlsx`, com uma aba por médico e as colunas Empresa, Funcionário, Médico, Tipo exame e Data exame.
+
+- Processado às 23:20 (uma consulta ao SGG, mais uma por empresa nova), fora do expediente; o botão **Processar uma data** roda na hora. O envio processa de novo se a escolha de médicos mudou.
+- Só os exames dos médicos marcados são gravados. O **nome do trabalhador nunca é gravado**: é lido do SGG no envio, só para a planilha anexa. O corpo do e-mail traz apenas contagens.
+- Sem médico marcado, o e-mail sai como antes. Se a seção falhar, o relatório principal sai mesmo assim e o técnico é alertado.
+- Regras e decisões no [ADR 0015](docs/adr/0015-atendimentos-por-medico.md).
+
 ### Painel administrativo: módulos e usuários
 
 O painel é o **Sistema de Relatórios**, organizado em cinco módulos no menu:
@@ -101,7 +111,7 @@ O painel é o **Sistema de Relatórios**, organizado em cinco módulos no menu:
 | **Atendimento** | Painel do relatório de atendimentos (coleta, últimos 14 dias, reprocessar) e os **destinatários**. Os botões **Acompanhar AO VIVO** (monitor) e **Configurar Agendas** (unidades, agendas e guichês) abrem as telas de apoio |
 | **Financeiro** | Relatório financeiro diário e seus destinatários |
 | **SESMT** | Relatório de gestão do SESMT e seus destinatários |
-| **Configurações** | Aba *Regras do relatório* (turnos, atípicos, e-mail técnico) e aba **Usuários** |
+| **Configurações** | Abas *Regras do relatório* (turnos, atípicos, e-mail técnico), **Médicos** (atendimentos por médico) e **Usuários** |
 | **Execuções** | Histórico dos jobs |
 
 Em **Configurações → Usuários** ficam a lista de usuários, com **Adicionar usuário**, **Editar** e **Excluir**. O cadastro é simples (nome, usuário e senha) e, abaixo, as **permissões de visualização**: um quadro por módulo. Quem não tem um módulo não vê o item no menu e recebe "Sem acesso" se abrir o endereço. As permissões são lidas do banco a cada página, então editar ou excluir um usuário vale na hora.
@@ -185,6 +195,7 @@ uv run python -m relatorio.infrastructure.scheduler          # worker
 | `relatorio reprocessar --data 2026-09-23 [--reconciliar] [--enviar]` | Recalcula um dia; `--enviar` reenvia o e-mail (forçado) (RF08) |
 | `relatorio enviar --data 2026-09-23 [--forcar]` | Envia o e-mail de um dia |
 | `relatorio consolidar --data …` / `reconciliar --data …` / `coletar` | Roda um job na hora |
+| `relatorio processar-exames --data …` | Lê os exames clínicos de um dia (atendimentos por médico) |
 | `relatorio previa --data … --saida previa.html` | Grava o HTML do e-mail para abrir no navegador |
 | `relatorio previa --simulado` | Prévia com um dia fictício, sem banco |
 | `relatorio spike-sgg --data …` | Valida a API real (só leitura, só agregados) |
@@ -262,6 +273,7 @@ TEST_DATABASE_URL=postgresql://…/relatorio_teste uv run pytest --cov=relatorio
 ## Segurança e LGPD
 
 - **Somente leitura no SGG.** Do agendamento, só lemos ID, agenda, unidade, data/hora, situação e data de edição. Nome, CPF, nascimento, setor, cargo e observações são descartados no DTO e nunca chegam ao banco, aos logs nem ao e-mail (RNF06).
+- **Atendimentos por médico (exceção):** o nome do trabalhador aparece só na planilha anexa ao e-mail de atendimentos. É lido do SGG no envio e não é gravado no banco nem nos logs (ADR 0015).
 - **Admin:** senha com hash bcrypt, bloqueio por 15 min após 5 tentativas, CSRF em todos os POSTs, cookie de sessão assinado (`HttpOnly`, `SameSite=Lax`, `Secure` em produção), CSP sem scripts externos (o htmx é servido localmente) e HSTS em produção.
 - **Rotação da chave do SGG:** gere uma chave nova no SGG, atualize `SGG_API_KEY` nos serviços `web` e `worker`, faça o redeploy, confira com `relatorio spike-sgg` e só então revogue a chave antiga.
 
@@ -292,3 +304,4 @@ O ambiente em que o código foi desenvolvido não tinha acesso à rede do `app.s
 - [0011 — Relatório financeiro diário](docs/adr/0011-relatorio-financeiro-diario.md)
 - [0013 — Relatório de gestão do SESMT](docs/adr/0013-relatorio-sesmt.md)
 - [0014 — Usuários, permissões e módulos do painel](docs/adr/0014-usuarios-e-modulos.md)
+- [0015 — Atendimentos por médico](docs/adr/0015-atendimentos-por-medico.md)

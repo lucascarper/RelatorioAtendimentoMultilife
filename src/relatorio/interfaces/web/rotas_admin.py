@@ -65,6 +65,7 @@ JOBS = {
     "enviar_sesmt": "Relatório do SESMT: envio (08:00)",
     "verificar_sesmt": "Relatório do SESMT: verificação (08:12)",
     "reprocessar_sesmt": "Relatório do SESMT: reprocessamento pelo admin",
+    "processar_exames": "Atendimentos por médico: exames clínicos (23:20)",
 }
 ROTULOS_DETALHE = {
     "requisicoes": "requisições",
@@ -93,6 +94,14 @@ ROTULOS_DETALHE = {
     "vencidos": "vencidos",
     "eventos_esocial": "eventos do eSocial",
     "empresas_sem_consulta": "empresas sem consulta",
+    "exames": "exames apagados",
+    "clinicos": "exames clínicos no SGG",
+    "selecionados": "dos médicos escolhidos",
+    "medicos_vistos": "médicos no dia",
+    "medicos_escolhidos": "médicos escolhidos",
+    "empresas_consultadas": "empresas consultadas",
+    "empresas_sem_nome": "empresas sem nome",
+    "anexos": "anexos",
 }
 CSP_PREVIA = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; frame-ancestors 'self'"
 
@@ -140,7 +149,11 @@ def ver_relatorio(dia: date, ctx: Ctx, _usuario: UsuarioAtendimento) -> HTMLResp
         registro = uow.resumos.obter(dia)
     if registro is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Resumo não encontrado")
-    conteudo = ctx.container.renderizador.relatorio(registro.metricas)
+    metricas = dict(registro.metricas)
+    complemento = ctx.container.casos.complemento_exames
+    if complemento is not None:  # só o que está gravado: a prévia não consulta o SGG
+        metricas.update(complemento.resumo_gravado(dia))
+    conteudo = ctx.container.renderizador.relatorio(metricas)
     # A prévia é o próprio e-mail (CSS inline): CSP própria, sem scripts.
     return HTMLResponse(
         html_para_navegador(conteudo), headers={"Content-Security-Policy": CSP_PREVIA}

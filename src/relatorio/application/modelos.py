@@ -77,8 +77,27 @@ class ImagemInline:
 
 
 @dataclass(frozen=True, slots=True)
+class Anexo:
+    nome: str
+    conteudo: bytes = field(repr=False)
+    tipo: str = "application/octet-stream"
+
+
+@dataclass(frozen=True, slots=True)
 class ConteudoEmail:
     assunto: str
     html: str
     texto: str
     imagens: tuple[ImagemInline, ...] = ()
+    anexos: tuple[Anexo, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ColetaExames:
+    """Processamento dos exames clínicos de um dia (atendimentos por médico)."""
+
+    data: date
+    processado_em: datetime
+    clinicos: int  # exames clínicos do dia no SGG, de todos os médicos
+    selecionados: int  # dos médicos escolhidos (os gravados)
+    medicos: tuple[str, ...]  # CRMs escolhidos no momento do processamento

@@ -10,6 +10,7 @@ from relatorio.application.coleta import ColetarCiclo, ReconciliarDia, Sincroniz
 from relatorio.application.configuracao import ConfiguracaoRelatorio, JanelaColeta
 from relatorio.application.consolidacao import ConsolidarDia
 from relatorio.application.envio import FINANCEIRO, SESMT, EnviarRelatorio, VerificarEnvio
+from relatorio.application.exames import ComplementoExames, GeradorPlanilha, ProcessarExames
 from relatorio.application.financeiro import ConsolidarFinanceiro
 from relatorio.application.manutencao import (
     AlertaFalhasColeta,
@@ -21,6 +22,7 @@ from relatorio.application.metricas import ObterMetricasPeriodo
 from relatorio.application.monitor import ObterMonitor
 from relatorio.application.ports import (
     EnviadorEmail,
+    ExamesGateway,
     FabricaUoW,
     FinanceiroGateway,
     Relogio,
@@ -52,6 +54,8 @@ class CasosDeUso:
     consolidar_sesmt: ConsolidarSesmt | None = None
     enviar_sesmt: EnviarRelatorio | None = None
     verificar_sesmt: VerificarEnvio | None = None
+    processar_exames: ProcessarExames | None = None
+    complemento_exames: ComplementoExames | None = None
 
 
 def montar_casos_de_uso(
@@ -67,13 +71,30 @@ def montar_casos_de_uso(
     destinatarios_override: Sequence[str] = (),
     financeiro: FinanceiroGateway | None = None,
     sesmt: SesmtGateway | None = None,
+    exames: ExamesGateway | None = None,
+    planilha: GeradorPlanilha | None = None,
 ) -> CasosDeUso:
     alertar = AlertarTecnico(uow, email, renderizador, configuracao_padrao)
     reconciliar = ReconciliarDia(sgg, uow, relogio)
     metricas = ObterMetricasPeriodo(uow, relogio, configuracao_padrao, janela, coletor_habilitado)
     consolidar = ConsolidarDia(uow, relogio, metricas, sgg, alertar)
+    processar_exames = (
+        ProcessarExames(exames, uow, relogio, alertar) if exames is not None else None
+    )
+    complemento_exames = (
+        ComplementoExames(processar_exames, exames, uow, planilha)
+        if processar_exames is not None and exames is not None and planilha is not None
+        else None
+    )
     enviar = EnviarRelatorio(
-        uow, relogio, consolidar, renderizador, email, alertar, destinatarios_override
+        uow,
+        relogio,
+        consolidar,
+        renderizador,
+        email,
+        alertar,
+        destinatarios_override,
+        complemento=complemento_exames,
     )
     consolidar_financeiro = (
         ConsolidarFinanceiro(financeiro, uow, relogio, alertar) if financeiro is not None else None
@@ -125,4 +146,6 @@ def montar_casos_de_uso(
             else None
         ),
         verificar_sesmt=VerificarEnvio(uow, alertar, SESMT),
+        processar_exames=processar_exames,
+        complemento_exames=complemento_exames,
     )

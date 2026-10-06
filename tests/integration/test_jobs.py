@@ -97,6 +97,9 @@ def test_agenda_de_jobs_da_documentacao() -> None:
         "enviar_relatorio_2",
         "enviar_relatorio_3",
         "verificar_envio",
+        "processar_exames_1",
+        "processar_exames_2",
+        "processar_exames_3",
         "limpar_retencao",
         "compactar_execucoes",
     }
@@ -108,6 +111,8 @@ def test_agenda_de_jobs_da_documentacao() -> None:
     assert "hour='2', minute='0'" in gatilhos["consolidar_dia_2"]
     assert "hour='7', minute='59'" in gatilhos["enviar_relatorio_1"]
     assert "hour='8', minute='3'" in gatilhos["enviar_relatorio_3"]
+    assert "hour='23', minute='20'" in gatilhos["processar_exames_1"]
+    assert "hour='5', minute='20'" in gatilhos["processar_exames_3"]
     assert "day='1-2', hour='3', minute='0'" in gatilhos["limpar_retencao"]
     assert "hour='3', minute='20'" in gatilhos["compactar_execucoes"]
     jobs = _jobs(Settings(_env_file=None))  # type: ignore[call-arg]

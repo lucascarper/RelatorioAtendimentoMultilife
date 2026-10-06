@@ -8,9 +8,10 @@ from datetime import date, timedelta
 
 import pytest
 
-from relatorio.application.modelos import StatusEnvio, StatusJob
+from relatorio.application.modelos import ColetaExames, StatusEnvio, StatusJob
 from relatorio.application.ports import FabricaUoW
 from relatorio.domain.entidades import OrigemEvento, Situacao
+from relatorio.domain.exames import ExameClinico, Medico
 from tests.fabricas import DIA, agenda, evento, hora, snapshot
 from tests.integration.conftest import ESTADO_INICIAL
 
@@ -299,3 +300,52 @@ class TestRelatorioSesmt:
                 ("sesmt@multilife.com.br", "SESMT")
             ]
             assert not u.destinatarios.listar() and not u.destinatarios_financeiro.listar()
+
+
+class TestExamesPorMedico:
+    def test_medicos_vistos_escolha_e_nome_atualizado(self, uow: FabricaUoW) -> None:
+        ana, beto = Medico("34985-DF", "Ana"), Medico("31096-DF", "Beto")
+        with uow() as u:
+            u.medicos.registrar_vistos([ana, beto], DIA)
+            u.medicos.registrar_vistos([replace(ana, nome="Ana Souza")], DIA - timedelta(days=3))
+            u.medicos.definir_selecionado(beto.crm, True)
+            u.medicos.adicionar(Medico("123-RS", "Caio"))  # cadastro manual já vem escolhido
+            u.commit()
+        with uow() as u:
+            todos = {m.crm: m for m in u.medicos.listar()}
+            escolhidos = [m.crm for m in u.medicos.selecionados()]
+        assert todos[ana.crm].nome == "Ana Souza"
+        assert todos[ana.crm].visto_em == DIA  # dia mais antigo não volta a data
+        assert not todos[ana.crm].selecionado
+        assert escolhidos == ["31096-DF", "123-RS"]  # pelo nome: Beto, Caio
+        assert todos["123-RS"].visto_em is None
+
+    def test_exames_do_dia_sem_nome_coleta_e_retencao(self, uow: FabricaUoW) -> None:
+        def exame(id_: int, dia: date, empresa: str) -> ExameClinico:
+            return ExameClinico(
+                id_, dia, 10, 77, "34985-DF", "Ana", "Periódico", empresa, funcionario="Fulano"
+            )
+
+        ontem = DIA - timedelta(days=1)
+        with uow() as u:
+            u.exames.substituir_dia(ontem, [exame(1, ontem, "Nome antigo")])
+            u.exames.substituir_dia(DIA, [exame(2, DIA, "Conplan"), exame(3, DIA, "Conplan")])
+            u.exames.substituir_dia(DIA, [exame(2, DIA, "Conplan")])  # reprocessamento
+            u.exames.registrar_coleta(ColetaExames(DIA, hora("23:20"), 5, 1, ("34985-DF",)))
+            u.exames.registrar_coleta(ColetaExames(DIA, hora("23:30"), 6, 1, ("34985-DF",)))
+            u.commit()
+        with uow() as u:
+            do_dia = u.exames.do_dia(DIA)
+            nomes = u.exames.nomes_empresas({10, 99})
+            coleta = u.exames.coleta(DIA)
+            recentes = u.exames.coletas_recentes()
+        assert [e.id for e in do_dia] == [2]
+        assert do_dia[0].funcionario == ""  # nunca vai para o banco
+        assert nomes == {10: "Conplan"}  # o nome mais recente da empresa
+        assert coleta is not None and (coleta.clinicos, coleta.medicos) == (6, ("34985-DF",))
+        assert [c.data for c in recentes] == [DIA]
+        with uow() as u:
+            assert u.exames.apagar_anteriores_a(DIA) == 1
+            u.commit()
+        with uow() as u:
+            assert u.exames.do_dia(ontem) == []

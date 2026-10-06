@@ -74,6 +74,14 @@ def cmd_enviar(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+def cmd_processar_exames(args: argparse.Namespace, settings: Settings) -> int:
+    processar = _container(settings).casos.processar_exames
+    if processar is None:  # pragma: no cover - o container real sempre monta
+        return 1
+    _imprimir(processar.executar(args.data))
+    return 0
+
+
 def cmd_coletar(_args: argparse.Namespace, settings: Settings) -> int:
     _imprimir(_container(settings).casos.coletar.executar())
     return 0
@@ -166,6 +174,12 @@ def criar_parser() -> argparse.ArgumentParser:
     p.add_argument("--data", type=_data, default=None)
     p.add_argument("--forcar", action="store_true", help="envia mesmo se já enviado")
     p.set_defaults(funcao=cmd_enviar)
+
+    p = sub.add_parser(
+        "processar-exames", help="lê os exames clínicos de uma data (atendimentos por médico)"
+    )
+    p.add_argument("--data", type=_data, default=None)
+    p.set_defaults(funcao=cmd_processar_exames)
 
     p = sub.add_parser("coletar", help="roda um ciclo de coleta agora")
     p.set_defaults(funcao=cmd_coletar)

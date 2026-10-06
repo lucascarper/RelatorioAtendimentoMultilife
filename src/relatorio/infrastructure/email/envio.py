@@ -1,7 +1,8 @@
 """Envio de e-mail: SMTP da KingHost (produção) ou arquivo local (desenvolvimento).
 
 A mensagem é ``multipart/alternative`` (texto puro + HTML) com a logo anexada como
-imagem inline (CID) — o formato que Outlook e Gmail exibem sem bloquear a imagem.
+imagem inline (CID) — o formato que Outlook e Gmail exibem sem bloquear a imagem. Quando
+há anexos (planilha dos atendimentos por médico), ela é embrulhada em ``multipart/mixed``.
 """
 
 from __future__ import annotations
@@ -49,6 +50,12 @@ def montar_mensagem(
             cid=f"<{imagem.cid}>",
             filename=f"{imagem.cid}.{imagem.subtipo}",
             disposition="inline",
+        )
+    # Com anexo, a mensagem vira multipart/mixed: [alternative(texto, html+logo), anexos].
+    for anexo in conteudo.anexos:
+        principal, _, sub = anexo.tipo.partition("/")
+        mensagem.add_attachment(
+            anexo.conteudo, maintype=principal, subtype=sub or "octet-stream", filename=anexo.nome
         )
     return mensagem
 

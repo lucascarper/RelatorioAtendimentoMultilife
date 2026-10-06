@@ -73,6 +73,7 @@ class LimparRetencao:
             eventos = uow.eventos.apagar_anteriores_a(limite_instante)
             snapshots = uow.snapshots.apagar_anteriores_a(limite)
             resumos = uow.resumos.apagar_anteriores_a(limite)
+            exames = uow.exames.apagar_anteriores_a(limite)
             execucoes = uow.execucoes.apagar_anteriores_a(limite_instante)
             uow.commit()
         return {
@@ -81,6 +82,7 @@ class LimparRetencao:
             "eventos": eventos,
             "snapshots": snapshots,
             "resumos": resumos,
+            "exames": exames,
             "execucoes": execucoes,
         }
 
