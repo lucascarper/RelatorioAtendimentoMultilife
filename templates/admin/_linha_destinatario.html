@@ -2,7 +2,7 @@
 <tr id="destinatario-{{ d.id }}">
   <td><strong>{{ d.email }}</strong></td>
   <td>{{ d.nome or "-" }}</td>
-  <td>{{ d.criado_em | data_br }}</td>
+  <td class="oculta-celular">{{ d.criado_em | data_br }}</td>
   <td>
     <button type="button" class="alternador" role="switch" aria-checked="{{ 'true' if d.ativo else 'false' }}"
             hx-post="{{ base }}/destinatarios/{{ d.id }}/ativo" hx-vals='{"ativo": "{{ 'false' if d.ativo else 'true' }}"}'
@@ -10,4 +10,14 @@
       <span class="alternador-trilho" aria-hidden="true"></span>{{ "Ativo" if d.ativo else "Inativo" }}
     </button>
   </td>
+  {%- if base == "/admin" %}
+  <td>
+    <button type="button" class="alternador" role="switch" aria-checked="{{ 'true' if d.recebe_anexo else 'false' }}"
+            aria-label="{{ d.email }} recebe a planilha dos atendimentos por médico"
+            hx-post="/admin/destinatarios/{{ d.id }}/anexo" hx-vals='{"recebe": "{{ 'false' if d.recebe_anexo else 'true' }}"}'
+            hx-target="#destinatario-{{ d.id }}" hx-swap="outerHTML">
+      <span class="alternador-trilho" aria-hidden="true"></span>{{ "Recebe" if d.recebe_anexo else "Não recebe" }}
+    </button>
+  </td>
+  {%- endif %}
 </tr>

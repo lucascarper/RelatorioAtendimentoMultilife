@@ -120,3 +120,28 @@ def test_sem_configuracoes_nao_entra(
     criar(cliente, token, modulos=("atendimento",))
     assert entrar_como(outro, "ana", "senha-da-ana-1") == 303
     assert outro.get(URL).status_code == 403
+
+
+def test_destinatario_autorizado_a_receber_a_planilha(
+    cliente: TestClient,  # noqa: F811
+    uow: FabricaUoW,
+) -> None:
+    token = entrar(cliente)
+    cliente.post("/admin/destinatarios", data={"email": "rh@multilife.com.br", "csrf": token})
+    pagina = cliente.get("/admin/atendimento")
+    assert "Planilha (LGPD)" in pagina.text and "Não recebe" in pagina.text
+    with uow() as u:
+        (destinatario,) = [d for d in u.destinatarios.listar() if d.email == "rh@multilife.com.br"]
+    assert not destinatario.recebe_anexo  # ninguém recebe por padrão
+    linha = cliente.post(
+        f"/admin/destinatarios/{destinatario.id}/anexo",
+        data={"recebe": "true"},
+        headers={"X-CSRF-Token": token},
+    )
+    assert linha.status_code == 200 and "</span>Recebe\n" in linha.text
+    with uow() as u:
+        assert next(d for d in u.destinatarios.listar() if d.id == destinatario.id).recebe_anexo
+    # As listas do financeiro e do SESMT não têm a coluna nem a opção.
+    assert "Planilha (LGPD)" not in cliente.get("/admin/sesmt").text
+    with uow() as u, pytest.raises(ValueError, match="atendimentos"):
+        u.destinatarios_sesmt.definir_anexo(1, True)

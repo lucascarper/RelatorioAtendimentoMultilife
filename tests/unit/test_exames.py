@@ -45,6 +45,13 @@ def exame(
     )
 
 
+def autorizar_planilha(sistema: Sistema, *ids: int) -> None:
+    """Marca destinatários (de ``preparar_envio``: 1 = glauco, 2 = tecnologia)."""
+    uow = sistema.uow()
+    for id_destinatario in ids:
+        uow.destinatarios.definir_anexo(id_destinatario, True)
+
+
 def escolher(sistema: Sistema, *medicos: Medico) -> None:
     uow = sistema.uow()
     for medico in medicos:
@@ -217,6 +224,7 @@ def test_email_traz_resumo_e_planilha_com_nomes(com_exames: Sistema) -> None:
     escolher(s, ANA, BETO)
     s.processar_exames.executar(DIA)
     preparar_envio(s)
+    autorizar_planilha(s, 1, 2)
     resultado = s.enviar.executar(DIA)
     assert resultado["anexos"] == 1
     _, conteudo = s.email.enviados[0]
@@ -238,6 +246,7 @@ def test_envio_processa_quando_a_noite_nao_rodou_ou_a_escolha_mudou(com_exames: 
     s.processar_exames.executar(DIA)
     escolher(s, BETO)  # escolha mudou depois do processamento
     preparar_envio(s)
+    autorizar_planilha(s, 1, 2)
     s.enviar.executar(DIA)
     _, conteudo = s.email.enviados[0]
     assert conteudo.texto == "exames=4"
@@ -249,6 +258,7 @@ def test_sem_sgg_no_envio_a_planilha_sai_com_codigo(com_exames: Sistema) -> None
     escolher(s, ANA)
     s.processar_exames.executar(DIA)
     preparar_envio(s)
+    autorizar_planilha(s, 1, 2)
     s.exames.falhar = True
     s.enviar.executar(DIA)
     (anexo,) = s.email.enviados[0][1].anexos
@@ -264,6 +274,7 @@ def test_complemento_que_falha_nao_segura_o_relatorio(com_exames: Sistema) -> No
     s = com_exames
     escolher(s, ANA)
     preparar_envio(s)
+    autorizar_planilha(s, 1, 2)
     s.exames.falhar = True  # nem processado à noite, nem no envio
     assert s.enviar.executar(DIA)["status"] == "enviado"
     relatorio = [c for _, c in s.email.enviados if not c.assunto.startswith("[Alerta]")]
@@ -276,6 +287,7 @@ def test_dia_sem_exame_dos_escolhidos_tem_secao_sem_anexo(com_exames: Sistema) -
     s.exames.exames[DIA] = [exame(5, CAIO, "Outro", empresa=12)]
     escolher(s, ANA)
     preparar_envio(s)
+    autorizar_planilha(s, 1, 2)
     s.enviar.executar(DIA)
     _, conteudo = s.email.enviados[0]
     assert conteudo.texto == "exames=0"
@@ -292,6 +304,34 @@ def test_previa_do_admin_le_so_o_banco(com_exames: Sistema) -> None:
     resumo = s.complemento_exames.resumo_gravado(DIA)["exames_medicos"]
     assert resumo["total"] == 3
     assert s.exames.chamadas == []
+
+
+def test_planilha_so_para_quem_esta_autorizado(com_exames: Sistema) -> None:
+    s = com_exames
+    escolher(s, ANA)
+    s.processar_exames.executar(DIA)
+    preparar_envio(s)
+    autorizar_planilha(s, 1)
+    resultado = s.enviar.executar(DIA)
+    assert (resultado["destinatarios"], resultado["com_anexo"]) == (2, 1)
+    (com, conteudo_com), (sem, conteudo_sem) = s.email.enviados
+    assert com == ["glauco@multilife.com.br"] and len(conteudo_com.anexos) == 1
+    assert conteudo_com.texto == "exames=3"
+    assert sem == ["tecnologia@multilife.com.br"] and conteudo_sem.anexos == ()
+    assert conteudo_sem.texto == "exames=3 restrito"
+
+
+def test_ninguem_autorizado_nem_le_nomes_no_sgg(com_exames: Sistema) -> None:
+    s = com_exames
+    escolher(s, ANA)
+    s.processar_exames.executar(DIA)
+    preparar_envio(s)
+    s.exames.chamadas.clear()
+    s.enviar.executar(DIA)
+    ((destinatarios, conteudo),) = s.email.enviados
+    assert len(destinatarios) == 2 and conteudo.anexos == ()
+    assert conteudo.texto == "exames=3 restrito"
+    assert s.exames.chamadas == []  # sem planilha, os nomes não são lidos
 
 
 def test_retencao_apaga_exames_antigos(com_exames: Sistema) -> None:

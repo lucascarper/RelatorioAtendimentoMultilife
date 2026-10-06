@@ -192,6 +192,9 @@ class _Destinatarios:
     def definir_ativo(self, id_destinatario: int, ativo: bool) -> None:
         self.d[id_destinatario] = replace(self.d[id_destinatario], ativo=ativo)
 
+    def definir_anexo(self, id_destinatario: int, recebe: bool) -> None:
+        self.d[id_destinatario] = replace(self.d[id_destinatario], recebe_anexo=recebe)
+
 
 class _Usuarios:
     def __init__(self, usuarios: dict[int, UsuarioSistema]) -> None:

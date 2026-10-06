@@ -88,7 +88,7 @@
   </form>
   <div class="rolagem">
   <table class="tabela">
-    <thead><tr><th>E-mail</th><th>Nome</th><th>Cadastrado em</th><th>Situação</th></tr></thead>
+    <thead><tr><th>E-mail</th><th>Nome</th><th class="oculta-celular">Cadastrado em</th><th>Situação</th></tr></thead>
     <tbody>
       {% for d in destinatarios %}{% with url_base = "/admin/financeiro" %}{% include "admin/_linha_destinatario.html" %}{% endwith %}{% else %}
       <tr><td colspan="4" class="nota">Nenhum destinatário cadastrado.</td></tr>

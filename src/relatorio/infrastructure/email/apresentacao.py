@@ -761,6 +761,11 @@ def _exames_medicos(m: Mapping[str, Any]) -> dict[str, Any] | None:
         nota = f"Lista com empresa, funcionário e tipo na planilha anexa ({dados['anexo']})."
         if dados.get("nomes_indisponiveis"):
             nota += " O SGG não respondeu no envio: a planilha traz o código do funcionário."
+    elif dados.get("anexo_restrito"):
+        nota = (
+            "A lista com empresa, funcionário e tipo segue em planilha só para os "
+            "destinatários autorizados (LGPD)."
+        )
     else:
         nota = "Nenhum exame clínico dos médicos selecionados neste dia."
     return {

@@ -128,6 +128,8 @@ class DestinatarioModel(Base):
     email: Mapped[str] = mapped_column(String(254))
     nome: Mapped[str | None] = mapped_column(String(120))
     ativo: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    # LGPD: só quem estiver marcado recebe a planilha nominal (atendimentos por médico).
+    recebe_anexo: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     criado_em: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
