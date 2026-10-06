@@ -129,6 +129,10 @@ class TestRelatorio:
         ):
             assert trecho in conteudo.html, trecho
         assert "ATENDIMENTOS POR MÉDICO (3 exames clínicos)" in conteudo.texto
+        restrito = {**exames, "anexo": None, "anexo_restrito": True}
+        sem_planilha = renderizador.relatorio({**metricas, "exames_medicos": restrito})
+        assert "só para os destinatários autorizados (LGPD)" in sem_planilha.html
+        assert "não encaminhe" not in sem_planilha.html
         assert "- Ana Souza (CRM 34985-DF): 3 | Admissional 2 · Periódico 1" in conteudo.texto
 
     def test_sem_movimento(self, renderizador: RenderizadorJinja) -> None:

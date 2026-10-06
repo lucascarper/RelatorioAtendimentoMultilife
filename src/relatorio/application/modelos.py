@@ -39,6 +39,8 @@ class Destinatario:
     nome: str | None
     ativo: bool
     criado_em: datetime
+    # Só no relatório de atendimentos: recebe a planilha nominal dos atendimentos por médico.
+    recebe_anexo: bool = False
 
 
 @dataclass(frozen=True, slots=True)

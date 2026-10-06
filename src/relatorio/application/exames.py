@@ -42,10 +42,18 @@ class GeradorPlanilha(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class Complemento:
-    """O que um relatório acrescenta ao e-mail de outro: métricas extras e anexos."""
+    """O que um relatório acrescenta ao e-mail de outro: métricas extras e anexos.
+
+    Os anexos vão só para os destinatários autorizados; os demais recebem o e-mail com
+    ``metricas_sem_anexo`` (que avisam que a lista é restrita).
+    """
 
     metricas: Mapping[str, Any]
     anexos: tuple[Anexo, ...] = ()
+    metricas_sem_anexo: Mapping[str, Any] | None = None
+
+    def para_quem_nao_recebe_anexo(self) -> Mapping[str, Any]:
+        return self.metricas if self.metricas_sem_anexo is None else self.metricas_sem_anexo
 
 
 class ProcessarExames:
@@ -142,7 +150,9 @@ class ComplementoExames:
             return {}
         return {"exames_medicos": resumo_por_medico(exames, medicos, dia)}
 
-    def para(self, dia: date) -> Complemento:
+    def para(self, dia: date, *, com_anexo: bool = True) -> Complemento:
+        """``com_anexo=False`` (ninguém autorizado a receber a planilha): só as contagens, sem
+        ler nomes no SGG."""
         with self._uow() as uow:
             medicos = uow.medicos.selecionados()
             coleta = uow.exames.coleta(dia)
@@ -157,6 +167,9 @@ class ComplementoExames:
         resumo = resumo_por_medico(exames, medicos, dia)
         if not exames:
             return Complemento({"exames_medicos": resumo})
+        sem_anexo = {"exames_medicos": {**resumo, "anexo_restrito": True}}
+        if not com_anexo:
+            return Complemento(sem_anexo)
 
         try:
             nomes = {e.id: e.funcionario for e in self._sgg.exames_clinicos(dia)}
@@ -174,4 +187,4 @@ class ComplementoExames:
         )
         anexo = Anexo(f"atendimentos-por-medico-{dia:%Y-%m-%d}.xlsx", conteudo, TIPO_XLSX)
         resumo["anexo"] = anexo.nome
-        return Complemento({"exames_medicos": resumo}, (anexo,))
+        return Complemento({"exames_medicos": resumo}, (anexo,), sem_anexo)

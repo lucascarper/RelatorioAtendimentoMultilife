@@ -294,6 +294,28 @@ def alternar_destinatario(
     return ctx.render(request, "admin/_linha_destinatario.html", {"d": destinatario})
 
 
+@router.post("/destinatarios/{id_destinatario}/anexo", response_class=HTMLResponse)
+def alternar_anexo(
+    request: Request,
+    id_destinatario: int,
+    ctx: Ctx,
+    _usuario: UsuarioAtendimento,
+    _csrf: Csrf,
+    recebe: Annotated[bool, Form()] = False,
+) -> HTMLResponse:
+    """Quem recebe a planilha nominal dos atendimentos por médico (LGPD, ADR 0015)."""
+    with ctx.container.uow() as uow:
+        uow.destinatarios.definir_anexo(id_destinatario, recebe)
+        uow.commit()
+        destinatario = next(
+            (d for d in uow.destinatarios.listar() if d.id == id_destinatario), None
+        )
+    if destinatario is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    log.info("destinatario_anexo_alterado", id=id_destinatario, recebe=recebe)
+    return ctx.render(request, "admin/_linha_destinatario.html", {"d": destinatario})
+
+
 # ------------------------------------------------------------------ unidades e agendas
 
 

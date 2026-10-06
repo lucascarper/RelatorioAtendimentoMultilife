@@ -192,6 +192,10 @@ class DestinatarioRepository(Protocol):
 
     def definir_ativo(self, id_destinatario: int, ativo: bool) -> None: ...
 
+    def definir_anexo(self, id_destinatario: int, recebe: bool) -> None:
+        """Só na lista do relatório de atendimentos (as outras listas não têm anexo)."""
+        ...
+
 
 class UsuarioDuplicado(Exception):
     """Já existe um usuário com esse login."""

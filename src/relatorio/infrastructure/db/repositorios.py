@@ -119,7 +119,14 @@ def _usuario(m: UsuarioModel) -> UsuarioSistema:
 
 
 def _destinatario(m: Any) -> Destinatario:  # DestinatarioModel ou …FinanceiroModel
-    return Destinatario(id=m.id, email=m.email, nome=m.nome, ativo=m.ativo, criado_em=m.criado_em)
+    return Destinatario(
+        id=m.id,
+        email=m.email,
+        nome=m.nome,
+        ativo=m.ativo,
+        criado_em=m.criado_em,
+        recebe_anexo=bool(getattr(m, "recebe_anexo", False)),  # só a lista de atendimentos tem
+    )
 
 
 def _execucao(m: ExecucaoJobModel) -> ExecucaoJob:
@@ -388,6 +395,15 @@ class DestinatarioRepositorioSql:
 
     def definir_ativo(self, id_destinatario: int, ativo: bool) -> None:
         self._s.execute(update(self._m).where(self._m.id == id_destinatario).values(ativo=ativo))
+
+    def definir_anexo(self, id_destinatario: int, recebe: bool) -> None:
+        if self._m is not DestinatarioModel:
+            raise ValueError("Só a lista do relatório de atendimentos recebe anexo.")
+        self._s.execute(
+            update(DestinatarioModel)
+            .where(DestinatarioModel.id == id_destinatario)
+            .values(recebe_anexo=recebe)
+        )
 
 
 class UsuarioRepositorioSql:

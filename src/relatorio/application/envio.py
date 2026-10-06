@@ -11,7 +11,7 @@ import structlog
 
 from relatorio.application.alertas import AlertarTecnico
 from relatorio.application.exames import Complemento
-from relatorio.application.modelos import ConteudoEmail, StatusEnvio
+from relatorio.application.modelos import Anexo, ConteudoEmail, StatusEnvio
 from relatorio.application.ports import (
     DestinatarioRepository,
     EnviadorEmail,
@@ -33,7 +33,7 @@ class Consolidador(Protocol):
 class ComplementoRelatorio(Protocol):
     """Parte opcional do e-mail (ex.: atendimentos por médico): métricas extras e anexos."""
 
-    def para(self, dia: date) -> Complemento: ...
+    def para(self, dia: date, *, com_anexo: bool = True) -> Complemento: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,12 +98,12 @@ class EnviarRelatorio:
         self._tipo = tipo
         self._complemento = complemento
 
-    def _complementar(self, dia: date) -> Complemento:
+    def _complementar(self, dia: date, com_anexo: bool) -> Complemento:
         """O complemento nunca impede o relatório principal: se falhar, sai sem ele."""
         if self._complemento is None:
             return Complemento({})
         try:
-            return self._complemento.para(dia)
+            return self._complemento.para(dia, com_anexo=com_anexo)
         except Exception as erro:
             log.warning("complemento_falhou", dia=dia.isoformat(), erro=type(erro).__name__)
             self._alertar.enviar(
@@ -138,10 +138,15 @@ class EnviarRelatorio:
         with self._uow() as uow:
             if not self._tipo.resumos(uow).reservar_envio(dia, forcar=forcar):
                 return {"referencia": referencia, "status": "ja_enviado"}
-            destinatarios = list(self._override) or [
-                d.email for d in self._tipo.destinatarios(uow).listar(apenas_ativos=True)
-            ]
+            ativos = self._tipo.destinatarios(uow).listar(apenas_ativos=True)
             uow.commit()
+        if self._override:
+            # Homologação: a caixa de teste recebe tudo, inclusive a planilha.
+            destinatarios = list(self._override)
+            com_anexo = set(destinatarios)
+        else:
+            destinatarios = [d.email for d in ativos]
+            com_anexo = {d.email for d in ativos if d.recebe_anexo}
 
         if not destinatarios:
             with self._uow() as uow:
@@ -154,13 +159,13 @@ class EnviarRelatorio:
             )
             return {"referencia": referencia, "status": "sem_destinatarios"}
 
-        complemento = self._complementar(dia)
+        complemento = self._complementar(dia, com_anexo=bool(com_anexo))
         try:
-            metricas = {**registro.metricas, **complemento.metricas}
-            conteudo = self._tipo.renderizar(self._renderizador, metricas)
-            if complemento.anexos:
-                conteudo = replace(conteudo, anexos=complemento.anexos)
-            self._email.enviar(destinatarios, conteudo)
+            for grupo, extra, anexos in self._grupos(destinatarios, com_anexo, complemento):
+                conteudo = self._tipo.renderizar(self._renderizador, {**registro.metricas, **extra})
+                if anexos:
+                    conteudo = replace(conteudo, anexos=anexos)
+                self._email.enviar(grupo, conteudo)
         except Exception:
             with self._uow() as uow:
                 self._tipo.resumos(uow).marcar_falha_envio(dia)
@@ -178,7 +183,24 @@ class EnviarRelatorio:
         }
         if complemento.anexos:
             resultado["anexos"] = len(complemento.anexos)
+            resultado["com_anexo"] = sum(1 for d in destinatarios if d in com_anexo)
         return resultado
+
+    @staticmethod
+    def _grupos(
+        destinatarios: Sequence[str], com_anexo: set[str], complemento: Complemento
+    ) -> list[tuple[list[str], Mapping[str, Any], tuple[Anexo, ...]]]:
+        """Um e-mail com a planilha para os autorizados e outro, sem ela, para os demais."""
+        if not complemento.anexos:
+            return [(list(destinatarios), complemento.metricas, ())]
+        autorizados = [d for d in destinatarios if d in com_anexo]
+        demais = [d for d in destinatarios if d not in com_anexo]
+        grupos: list[tuple[list[str], Mapping[str, Any], tuple[Anexo, ...]]] = []
+        if autorizados:
+            grupos.append((autorizados, complemento.metricas, complemento.anexos))
+        if demais:
+            grupos.append((demais, complemento.para_quem_nao_recebe_anexo(), ()))
+        return grupos
 
     def executar_agendado(self, dia: date, tentativa: int, total: int = 3) -> dict[str, object]:
         """07:59, 08:01 e 08:03. Na última falha, alerta o técnico."""

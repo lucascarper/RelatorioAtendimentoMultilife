@@ -204,7 +204,11 @@ class RenderizadorFake:
         return ConteudoEmail(
             assunto=str(metricas.get("assunto", "")),
             html=f"<p>{metricas.get('kpis', {}).get('atendimentos')}</p>",
-            texto=f"exames={exames['total']}" if exames else "texto",
+            texto=(
+                f"exames={exames['total']}" + (" restrito" if exames.get("anexo_restrito") else "")
+                if exames
+                else "texto"
+            ),
         )
 
     def relatorio_financeiro(self, metricas: Mapping[str, Any]) -> ConteudoEmail:
