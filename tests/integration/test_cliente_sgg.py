@@ -130,6 +130,12 @@ def test_campos_pessoais_nao_chegam_ao_dominio() -> None:
         assert proibido not in serializado
 
 
+def test_tipo_do_atendimento_vem_do_agendamento() -> None:
+    item = {"id_agendamento": "7", "data_agendamento": "2026-09-23", "situacao": "Agendado"}
+    assert para_agendamento({**item, "tipo": "Periódico"}).tipo == "Periódico"
+    assert para_agendamento(item).tipo == ""
+
+
 @respx.mock
 def test_filtro_por_situacao(cliente: ClienteSgg) -> None:
     rota = respx.get(BASE + "agendamento/").mock(

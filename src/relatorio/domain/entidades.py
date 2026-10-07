@@ -73,6 +73,7 @@ class AgendamentoSgg:
     hora_agendamento: time | None
     situacao: Situacao
     data_hora_edicao: datetime | None
+    tipo: str = ""  # Admissional, Periódico... (campo "tipo" do atendimento no SGG)
 
 
 @dataclass(frozen=True, slots=True)

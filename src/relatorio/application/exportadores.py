@@ -25,6 +25,7 @@ from relatorio.application.ports import (
     FabricaUoW,
     FinanceiroGateway,
     Relogio,
+    SggGateway,
 )
 from relatorio.application.sesmt import ConsolidarSesmt
 from relatorio.domain.entidades import FUSO_BRASILIA
@@ -82,8 +83,9 @@ def _nota_faltando(faltando: list[date], o_que: str) -> str | None:
 
 
 class ExportarAtendimento:
-    def __init__(self, uow: FabricaUoW) -> None:
+    def __init__(self, uow: FabricaUoW, sgg: SggGateway | None = None) -> None:
         self._uow = uow
+        self._sgg = sgg
 
     def gerar(self, inicio: date, fim: date, progresso: Progresso) -> Planilha:
         planilha = Planilha(ATENDIMENTO, "Relatório de Atendimentos", inicio, fim)
@@ -165,9 +167,12 @@ class ExportarAtendimento:
         with self._uow() as uow:
             snapshots = uow.snapshots.listar_por_data(inicio, fim)
             agendas_cadastro = {a.id_agenda: a for a in uow.agendas.listar()}
-        progresso(65, "Lendo as mudanças de status")
+        progresso(55, "Lendo as mudanças de status")
         with self._uow() as uow:
             eventos = uow.eventos.listar_por_agendamentos([s.id_agendamento for s in snapshots])
+        tipos, dias_sem_tipo = self._tipos_no_sgg(
+            {s.data_agendamento for s in snapshots}, progresso
+        )
         fonte_agendamentos = Aba(
             "Fonte - Agendamentos",
             "Agendamentos do período (último estado conhecido no SGG)",
@@ -176,6 +181,7 @@ class ExportarAtendimento:
                 Coluna("Data", "data", 12),
                 Coluna("Hora", largura=8),
                 Coluna("Agenda", largura=30),
+                Coluna("Tipo de exame", largura=22),
                 Coluna("Consultório", largura=18),
                 Coluna("Guichê", largura=8),
                 Coluna("ID agenda", "inteiro", 10),
@@ -211,6 +217,7 @@ class ExportarAtendimento:
                     s.data_agendamento,
                     f"{s.hora_agendamento:%H:%M}" if s.hora_agendamento else "",
                     s.agenda_nome,
+                    tipos.get(s.id_agendamento, ""),
                     (agenda.sala or "") if agenda else "",
                     _sim(bool(agenda and agenda.guiche)),
                     s.id_agenda,
@@ -236,8 +243,33 @@ class ExportarAtendimento:
         nota = _nota_faltando(_faltando(inicio, fim, (r.data for r in resumos)), "resumo")
         if nota:
             planilha.observacoes.append(nota + " Dias sem expediente não têm resumo.")
+        if dias_sem_tipo:
+            dias_txt = ", ".join(f"{d:%d/%m}" for d in dias_sem_tipo)
+            planilha.observacoes.append(
+                f"O SGG não respondeu nos dias {dias_txt}: o tipo de exame ficou em branco."
+            )
         progresso(95, "Organizando as abas")
         return planilha
+
+    def _tipos_no_sgg(
+        self, dias_com_agendamento: set[date], progresso: Progresso
+    ) -> tuple[dict[int, str], list[date]]:
+        """Tipo de exame de cada agendamento, lido do SGG na hora (não é gravado)."""
+        if self._sgg is None:
+            return {}, []
+        tipos: dict[int, str] = {}
+        falhas: list[date] = []
+        dias_lidos = sorted(dias_com_agendamento)
+        for posicao, dia in enumerate(dias_lidos):
+            progresso(
+                60 + 30 * posicao // max(len(dias_lidos), 1),
+                f"Lendo o tipo de exame no SGG ({dia:%d/%m})",
+            )
+            try:
+                tipos.update({a.id_agendamento: a.tipo for a in self._sgg.agendamentos_do_dia(dia)})
+            except ErroIntegracao:
+                falhas.append(dia)
+        return tipos, falhas
 
 
 # --------------------------------------------------------------------------- financeiro
@@ -680,8 +712,9 @@ def montar_exportadores(
     financeiro: FinanceiroGateway | None,
     coleta_sesmt: ConsolidarSesmt | None,
     exames: ExamesGateway | None,
+    sgg: SggGateway | None = None,
 ) -> dict[str, Exportador]:
-    exportadores: dict[str, Exportador] = {ATENDIMENTO: ExportarAtendimento(uow)}
+    exportadores: dict[str, Exportador] = {ATENDIMENTO: ExportarAtendimento(uow, sgg)}
     if financeiro is not None:
         exportadores[FINANCEIRO] = ExportarFinanceiro(uow, financeiro)
     if coleta_sesmt is not None:

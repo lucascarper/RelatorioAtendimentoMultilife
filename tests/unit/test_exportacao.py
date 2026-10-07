@@ -11,7 +11,7 @@ from openpyxl import load_workbook
 from openpyxl.workbook import Workbook
 
 from relatorio.application.modelos import StatusExportacao
-from relatorio.domain.entidades import FUSO_BRASILIA, Situacao
+from relatorio.domain.entidades import FUSO_BRASILIA, AgendamentoSgg, Situacao
 from relatorio.domain.exames import ExameClinico, Medico
 from relatorio.domain.exportacao import Aba, Coluna, Planilha, sesmt_liberado, validar_periodo
 from relatorio.domain.financeiro import ItemFaturado, Titulo
@@ -116,12 +116,38 @@ def test_atendimento_exporta_resumo_e_fonte_do_banco(sistema: Sistema) -> None:
     (dia,) = linhas(livro, "Resumo diário")
     assert dia[0].date() == DIA and dia[3] == 1  # um atendimento
     (agendamento,) = linhas(livro, "Fonte - Agendamentos")
-    assert (agendamento[0], agendamento[3], agendamento[8]) == (1, "Clínico", "Atendido")
+    assert (agendamento[0], agendamento[3], agendamento[9]) == (1, "Clínico", "Atendido")
     assert [r[4] for r in linhas(livro, "Fonte - Mudanças de status")] == [
         "Aguardando",
         "Em Atendimento",
         "Atendido",
     ]
+
+
+def test_atendimento_traz_o_tipo_de_exame_lido_do_sgg(sistema: Sistema) -> None:
+    preparar_envio(sistema)
+    sistema.sgg.do_dia = [
+        AgendamentoSgg(
+            1, "Clínico", 1, "Unidade 1", DIA, time(8, 0), Situacao.ATENDIDO, None, tipo="Periódico"
+        )
+    ]
+    livro = exportar(sistema, "atendimento")
+    cabecalho = [c.value for c in livro["Fonte - Agendamentos"][3]]
+    assert cabecalho[4] == "Tipo de exame"
+    (agendamento,) = linhas(livro, "Fonte - Agendamentos")
+    assert agendamento[4] == "Periódico"
+
+
+def test_atendimento_sem_resposta_do_sgg_deixa_o_tipo_em_branco_e_avisa(
+    sistema: Sistema,
+) -> None:
+    preparar_envio(sistema)
+    sistema.sgg.falhar = True
+    livro = exportar(sistema, "atendimento")
+    (agendamento,) = linhas(livro, "Fonte - Agendamentos")
+    assert agendamento[4] in (None, "")
+    capa = [r[1] for r in livro["Sobre"].iter_rows(values_only=True)]
+    assert any("tipo de exame ficou em branco" in str(v) for v in capa)
 
 
 def test_atendimento_ordena_agendamentos_com_e_sem_horario(sistema: Sistema) -> None:
