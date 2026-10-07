@@ -1,10 +1,11 @@
 {% extends "admin/base.html" %}
 {% block titulo %}Usuários{% endblock %}
 {% block conteudo %}
+{%- from "admin/_paginacao.html" import rodape %}
 <h1>Configurações</h1>
 {% include "admin/_abas_configuracoes.html" %}
 
-<section class="card">
+<section id="usuarios" class="card">
   <div class="card-titulo">
     <div>
       <h2>Usuários</h2>
@@ -22,7 +23,7 @@
         <td><span class="badge badge-ok">Todos os módulos</span></td>
         <td></td>
       </tr>
-      {% for u in usuarios %}
+      {% for u in pg_usuarios.itens %}
       <tr>
         <td><div class="pessoa"><span class="avatar" aria-hidden="true">{{ u.nome[:1] | upper }}</span><span><strong>{{ u.nome }}</strong>{% if u.usuario == eu %} <span class="badge badge-neutro">você</span>{% endif %}<span class="nota usuario-celular">{{ u.usuario }}</span></span></div></td>
         <td class="oculta-celular">{{ u.usuario }}</td>
@@ -45,5 +46,6 @@
     </tbody>
   </table>
   </div>
+  {{ rodape(pg_usuarios) }}
 </section>
 {% endblock %}

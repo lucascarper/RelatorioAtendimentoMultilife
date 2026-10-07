@@ -1,6 +1,7 @@
 {% extends "admin/base.html" %}
 {% block titulo %}Atendimento{% endblock %}
 {% block conteudo %}
+{%- from "admin/_paginacao.html" import rodape %}
 {%- from "admin/_icones.html" import icone %}
 <div class="pagina-cabecalho">
   <h1>Atendimento</h1>
@@ -124,11 +125,12 @@
   <table class="tabela">
     <thead><tr><th>E-mail</th><th>Nome</th><th class="oculta-celular">Cadastrado em</th><th>Situação</th>{% if com_planilha %}<th>Planilha (LGPD)</th>{% endif %}</tr></thead>
     <tbody>
-      {% for d in destinatarios %}{% include "admin/_linha_destinatario.html" %}{% else %}
+      {% for d in pg_destinatarios.itens %}{% include "admin/_linha_destinatario.html" %}{% else %}
       <tr><td colspan="5" class="nota">Nenhum destinatário cadastrado.</td></tr>
       {% endfor %}
     </tbody>
   </table>
   </div>
+  {{ rodape(pg_destinatarios) }}
 </section>
 {% endblock %}

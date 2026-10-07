@@ -131,6 +131,10 @@ Em **Configurações → Usuários** ficam a lista de usuários, com **Adicionar
 - Ninguém exclui o próprio usuário nem tira o próprio acesso a Configurações.
 - Regras e decisões no [ADR 0014](docs/adr/0014-usuarios-e-modulos.md).
 
+### Listas paginadas
+
+Toda lista do admin que passa de 10 registros ganha um rodapé com "Mostrar 10, 25, 50 ou 100 por página" (padrão 25) e a navegação entre páginas. Cada lista usa os parâmetros `<lista>_n` e `<lista>_p` na URL, então várias listas da mesma tela não se misturam e o link pode ser compartilhado. Para paginar uma lista nova: `paginar(request, itens, "chave")` em `interfaces/web/paginacao.py` e `{{ rodape(pg) }}` (macro de `admin/_paginacao.html`) logo após a tabela.
+
 ### Monitor ao vivo (tela do gerente)
 
 `/admin/monitor` (em *Atendimento*, botão **Acompanhar AO VIVO**), dentro do login do admin. São os mesmos indicadores do e-mail, calculados para **hoje até agora** e atualizados sozinhos a cada 5 s:

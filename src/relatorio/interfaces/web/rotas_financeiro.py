@@ -24,6 +24,7 @@ from relatorio.interfaces.web.dependencias import (
     mensagem,
     redirecionar,
 )
+from relatorio.interfaces.web.paginacao import paginar, voltar_para
 from relatorio.interfaces.web.rotas_admin import EMAIL_VALIDO
 
 log = structlog.get_logger(__name__)
@@ -55,6 +56,7 @@ def financeiro(request: Request, ctx: Ctx, _usuario: UsuarioFinanceiro) -> HTMLR
             "pagina": "financeiro",
             "resumos": resumos,
             "destinatarios": destinatarios,
+            "pg_destinatarios": paginar(request, destinatarios, "destinatarios"),
             "ativos": sum(1 for d in destinatarios if d.ativo),
             "habilitado": ctx.settings.financeiro_habilitado,
             "ontem": ctx.hoje() - timedelta(days=1),
@@ -135,7 +137,7 @@ def adicionar_destinatario_financeiro(
             uow.destinatarios_financeiro.adicionar(email, nome.strip()[:120] or None)
             uow.commit()
         mensagem(request, f"{email} cadastrado na lista do relatório financeiro.")
-    return redirecionar(URL)
+    return redirecionar(voltar_para(request, f"{URL}#destinatarios"))
 
 
 @router.post("/destinatarios/{id_destinatario}/ativo", response_class=HTMLResponse)

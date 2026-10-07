@@ -1,0 +1,30 @@
+{# Rodapé de uma lista paginada. Uso: {{ rodape(pg) }}; só aparece se a lista passa de 10. #}
+{% macro rodape(pg) %}
+{% if pg.visivel %}
+<nav class="paginacao" aria-label="Paginação da lista">
+  <p class="paginacao-resumo">{{ pg.primeiro }}–{{ pg.ultimo }} de {{ pg.total }}</p>
+  <form class="paginacao-tamanho" method="get" action="{{ pg.caminho }}#{{ pg.chave }}"
+        hx-get="{{ pg.caminho }}" hx-trigger="change" hx-target="#{{ pg.chave }}" hx-select="#{{ pg.chave }}"
+        hx-swap="outerHTML" hx-push-url="true">
+    {% for nome, valor in pg.outros %}<input type="hidden" name="{{ nome }}" value="{{ valor }}">{% endfor %}
+    <label>Mostrar
+      <select name="{{ pg.parametro_tamanho }}">
+        {% for t in pg.tamanhos %}<option value="{{ t }}"{% if t == pg.tamanho %} selected{% endif %}>{{ t }}</option>{% endfor %}
+      </select>
+      por página</label>
+    <noscript><button class="btn btn-secundario" type="submit">Aplicar</button></noscript>
+  </form>
+  {% if pg.paginas > 1 %}
+  <ul class="paginacao-paginas">
+    {% if pg.pagina > 1 %}<li><a href="{{ pg.url(pg.pagina - 1) }}" rel="prev" aria-label="Página anterior">‹</a></li>{% endif %}
+    {% for n in pg.numeros() %}
+      {% if n is none %}<li class="paginacao-reticencias" aria-hidden="true">…</li>
+      {% elif n == pg.pagina %}<li><span aria-current="page">{{ n }}</span></li>
+      {% else %}<li><a href="{{ pg.url(n) }}">{{ n }}</a></li>{% endif %}
+    {% endfor %}
+    {% if pg.pagina < pg.paginas %}<li><a href="{{ pg.url(pg.pagina + 1) }}" rel="next" aria-label="Próxima página">›</a></li>{% endif %}
+  </ul>
+  {% endif %}
+</nav>
+{% endif %}
+{% endmacro %}

@@ -25,6 +25,7 @@ from relatorio.interfaces.web.dependencias import (
     mensagem,
     redirecionar,
 )
+from relatorio.interfaces.web.paginacao import paginar, voltar_para
 
 log = structlog.get_logger(__name__)
 router = APIRouter(prefix="/admin/configuracoes/medicos")
@@ -43,6 +44,8 @@ def medicos(request: Request, ctx: Ctx, _usuario: UsuarioConfiguracoes) -> HTMLR
         {
             "pagina": "medicos",
             "medicos": lista,
+            "pg_medicos": paginar(request, lista, "medicos"),
+            "pg_coletas": paginar(request, coletas, "coletas"),
             "escolhidos": sum(1 for m in lista if m.selecionado),
             "coletas": coletas,
             "hoje": ctx.hoje(),
@@ -95,7 +98,7 @@ def adicionar_medico(
         uow.commit()
     log.info("medico_adicionado", crm=crm_ok)
     mensagem(request, f"{medico.nome} (CRM {medico.crm}) entra nos atendimentos por médico.")
-    return redirecionar(URL)
+    return redirecionar(voltar_para(request, f"{URL}#medicos"))
 
 
 @router.post("/processar")

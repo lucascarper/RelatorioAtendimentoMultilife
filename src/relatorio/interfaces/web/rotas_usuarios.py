@@ -30,6 +30,7 @@ from relatorio.interfaces.web.dependencias import (
     mensagem,
     redirecionar,
 )
+from relatorio.interfaces.web.paginacao import paginar, voltar_para
 from relatorio.interfaces.web.seguranca import (
     CHAVE_MARCA,
     CHAVE_USUARIO,
@@ -53,6 +54,7 @@ def lista(request: Request, ctx: Ctx, acesso: UsuarioConfiguracoes) -> HTMLRespo
         {
             "pagina": "usuarios",
             "usuarios": usuarios,
+            "pg_usuarios": paginar(request, usuarios, "usuarios"),
             "rotulos": ROTULO_MODULO,
             "administrador": ctx.settings.admin_user,
             "eu": None if acesso.administrador else acesso.login,
@@ -225,5 +227,5 @@ def excluir(
             log.info("usuario_excluido", usuario=atual.usuario, por=acesso.login)
             mensagem(request, f"Usuário {atual.usuario} excluído.")
     if request.headers.get("HX-Request"):  # a lista inteira recarrega, com a mensagem
-        return Response(status_code=200, headers={"HX-Redirect": URL})
-    return redirecionar(URL)
+        return Response(status_code=200, headers={"HX-Redirect": voltar_para(request, URL)})
+    return redirecionar(voltar_para(request, URL))

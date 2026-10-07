@@ -1,6 +1,7 @@
 {% extends "admin/base.html" %}
 {% block titulo %}Relatório do SESMT{% endblock %}
 {% block conteudo %}
+{%- from "admin/_paginacao.html" import rodape %}
 {%- from "admin/_icones.html" import icone %}
 <div class="pagina-cabecalho"><h1>Relatório do SESMT</h1></div>
 <p class="subtitulo-pagina">Relatório de gestão diário: documentos e contratos a vencer, vencidos e eventos do eSocial.</p>
@@ -80,7 +81,7 @@
   {% endif %}
 </section>
 
-<section class="card">
+<section id="destinatarios" class="card">
   <h2>Destinatários do relatório do SESMT</h2>
   <p class="nota">Recebem o relatório por e-mail. Os inativos continuam cadastrados, mas não recebem.</p>
   <h3 class="subtitulo">Cadastrar novo destinatário</h3>
@@ -94,12 +95,13 @@
   <table class="tabela">
     <thead><tr><th>E-mail</th><th>Nome</th><th class="oculta-celular">Cadastrado em</th><th>Situação</th></tr></thead>
     <tbody>
-      {% for d in destinatarios %}{% with url_base = "/admin/sesmt" %}{% include "admin/_linha_destinatario.html" %}{% endwith %}{% else %}
+      {% for d in pg_destinatarios.itens %}{% with url_base = "/admin/sesmt" %}{% include "admin/_linha_destinatario.html" %}{% endwith %}{% else %}
       <tr><td colspan="4" class="nota">Nenhum destinatário cadastrado.</td></tr>
       {% endfor %}
     </tbody>
   </table>
   </div>
+  {{ rodape(pg_destinatarios) }}
 </section>
 
 <section class="card">
