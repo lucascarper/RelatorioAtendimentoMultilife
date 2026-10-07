@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Iterable, Mapping
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -201,7 +201,9 @@ class ExportarAtendimento:
             ),
             fonte=True,
         )
-        for s in sorted(snapshots, key=lambda x: (x.data_agendamento, x.hora_agendamento or 0)):
+        for s in sorted(
+            snapshots, key=lambda x: (x.data_agendamento, x.hora_agendamento or time.min)
+        ):
             agenda = agendas_cadastro.get(s.id_agenda) if s.id_agenda is not None else None
             fonte_agendamentos.linhas.append(
                 (

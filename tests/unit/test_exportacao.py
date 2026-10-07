@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from io import BytesIO
 
@@ -11,14 +11,14 @@ from openpyxl import load_workbook
 from openpyxl.workbook import Workbook
 
 from relatorio.application.modelos import StatusExportacao
-from relatorio.domain.entidades import FUSO_BRASILIA
+from relatorio.domain.entidades import FUSO_BRASILIA, Situacao
 from relatorio.domain.exames import ExameClinico, Medico
 from relatorio.domain.exportacao import Aba, Coluna, Planilha, sesmt_liberado, validar_periodo
 from relatorio.domain.financeiro import ItemFaturado, Titulo
 from relatorio.domain.sesmt import ContratoSesmt, DocumentoSst, EmpresaSesmt, EventoEsocial
 from relatorio.infrastructure.memoria import _Exportacoes
 from relatorio.infrastructure.planilha_exportacao import escrever_planilha
-from tests.fabricas import DIA, hora
+from tests.fabricas import DIA, hora, snapshot
 from tests.unit.conftest import Sistema
 from tests.unit.test_casos_de_uso import preparar_envio
 
@@ -122,6 +122,16 @@ def test_atendimento_exporta_resumo_e_fonte_do_banco(sistema: Sistema) -> None:
         "Em Atendimento",
         "Atendido",
     ]
+
+
+def test_atendimento_ordena_agendamentos_com_e_sem_horario(sistema: Sistema) -> None:
+    preparar_envio(sistema)
+    uow = sistema.uow()
+    uow.snapshots.salvar(snapshot(2, Situacao.AGENDADO, hora_agendamento=None))
+    uow.snapshots.salvar(snapshot(3, Situacao.AGENDADO, hora_agendamento=time(7, 0)))
+    livro = exportar(sistema, "atendimento")
+    ids = [r[0] for r in linhas(livro, "Fonte - Agendamentos")]
+    assert ids[0] == 2 and set(ids) == {1, 2, 3}  # sem horário vem primeiro
 
 
 def test_progresso_e_gravado_e_o_dia_sem_resumo_e_avisado(
