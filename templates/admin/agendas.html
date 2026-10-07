@@ -1,6 +1,7 @@
 {% extends "admin/base.html" %}
 {% block titulo %}Configurar agendas{% endblock %}
 {% block conteudo %}
+{%- from "admin/_paginacao.html" import rodape %}
 <p class="voltar"><a href="/admin/atendimento">&larr; Atendimento</a></p>
 <h1>Configurar agendas</h1>
 
@@ -25,7 +26,7 @@
   {% endif %}
 </section>
 
-<section class="card">
+<section id="agendas" class="card">
   <div class="card-titulo">
     <h2>Agendas (consultórios e guichês)</h2>
     <form method="post" action="/admin/agendas/sincronizar">
@@ -38,11 +39,12 @@
   <table class="tabela">
     <thead><tr><th>Consultório</th><th>Agenda</th><th>Unidade</th><th>No SGG</th><th>No relatório</th><th>Tipo</th></tr></thead>
     <tbody>
-      {% for a in agendas %}{% include "admin/_linha_agenda.html" %}{% else %}
+      {% for a in pg_agendas.itens %}{% include "admin/_linha_agenda.html" %}{% else %}
       <tr><td colspan="6" class="nota">Nenhuma agenda.</td></tr>
       {% endfor %}
     </tbody>
   </table>
   </div>
+  {{ rodape(pg_agendas) }}
 </section>
 {% endblock %}

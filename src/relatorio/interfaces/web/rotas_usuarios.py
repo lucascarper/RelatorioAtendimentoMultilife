@@ -30,6 +30,7 @@ from relatorio.interfaces.web.dependencias import (
     mensagem,
     redirecionar,
 )
+from relatorio.interfaces.web.paginacao import paginar
 from relatorio.interfaces.web.seguranca import (
     CHAVE_MARCA,
     CHAVE_USUARIO,
@@ -53,6 +54,7 @@ def lista(request: Request, ctx: Ctx, acesso: UsuarioConfiguracoes) -> HTMLRespo
         {
             "pagina": "usuarios",
             "usuarios": usuarios,
+            "pg_usuarios": paginar(request, usuarios, "usuarios"),
             "rotulos": ROTULO_MODULO,
             "administrador": ctx.settings.admin_user,
             "eu": None if acesso.administrador else acesso.login,

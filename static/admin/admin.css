@@ -574,3 +574,16 @@ html:fullscreen .conteudo-monitor { max-width: 1680px; padding: 20px 32px; }
 .exportacao-pronta .agua-frente { animation-play-state: paused; }
 .exportacao-falha .agua-corpo, .exportacao-falha .agua-frente { background: var(--texto-3); }
 @keyframes liquido-frente { from { -webkit-mask-position: 0 0; mask-position: 0 0; } to { -webkit-mask-position: 0 17px; mask-position: 0 17px; } }
+
+/* paginação das listas */
+.paginacao { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--borda); }
+.paginacao-resumo { margin: 0; font-size: .875rem; color: var(--texto-suave, inherit); font-variant-numeric: tabular-nums; }
+.paginacao-tamanho { margin-left: auto; }
+.paginacao-tamanho label { display: inline-flex; align-items: center; gap: 8px; font-size: .875rem; }
+.paginacao-tamanho select { width: auto; min-width: 4.5rem; }
+.paginacao-paginas { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.paginacao-paginas a, .paginacao-paginas span[aria-current] { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; padding: 0 8px; border: 1px solid var(--borda-forte); border-radius: 8px; text-decoration: none; font-variant-numeric: tabular-nums; }
+.paginacao-paginas a:hover { border-color: var(--marca-azul); }
+.paginacao-paginas span[aria-current] { background: var(--marca-azul); border-color: var(--marca-azul); color: #fff; font-weight: 600; }
+.paginacao-reticencias { display: inline-flex; align-items: center; padding: 0 4px; }
+@media (max-width: 640px) { .paginacao-tamanho { margin-left: 0; width: 100%; } }

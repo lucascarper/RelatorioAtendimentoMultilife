@@ -1,6 +1,7 @@
 {% extends "admin/base.html" %}
 {% block titulo %}Relatório financeiro{% endblock %}
 {% block conteudo %}
+{%- from "admin/_paginacao.html" import rodape %}
 {%- from "admin/_icones.html" import icone %}
 <h1>Relatório financeiro</h1>
 
@@ -78,7 +79,7 @@
   {% endif %}
 </section>
 
-<section class="card">
+<section id="destinatarios" class="card">
   <h2>Destinatários do relatório financeiro</h2>
   <form method="post" action="/admin/financeiro/destinatarios" class="form form-linha">
     <input type="hidden" name="csrf" value="{{ csrf }}">
@@ -90,12 +91,13 @@
   <table class="tabela">
     <thead><tr><th>E-mail</th><th>Nome</th><th class="oculta-celular">Cadastrado em</th><th>Situação</th></tr></thead>
     <tbody>
-      {% for d in destinatarios %}{% with url_base = "/admin/financeiro" %}{% include "admin/_linha_destinatario.html" %}{% endwith %}{% else %}
+      {% for d in pg_destinatarios.itens %}{% with url_base = "/admin/financeiro" %}{% include "admin/_linha_destinatario.html" %}{% endwith %}{% else %}
       <tr><td colspan="4" class="nota">Nenhum destinatário cadastrado.</td></tr>
       {% endfor %}
     </tbody>
   </table>
   </div>
+  {{ rodape(pg_destinatarios) }}
 </section>
 
 <section class="card">

@@ -1,10 +1,11 @@
 {% extends "admin/base.html" %}
 {% block titulo %}Médicos{% endblock %}
 {% block conteudo %}
+{%- from "admin/_paginacao.html" import rodape %}
 <h1>Configurações</h1>
 {% include "admin/_abas_configuracoes.html" %}
 
-<section class="card">
+<section id="medicos" class="card">
   <div class="card-titulo">
     <div>
       <h2>Atendimentos por médico</h2>
@@ -25,16 +26,17 @@
   <table class="tabela tabela-compacta tabela-usuarios">
     <thead><tr><th>Médico</th><th class="oculta-celular">CRM</th><th class="oculta-celular">Último exame clínico</th><th>Relatório</th></tr></thead>
     <tbody>
-      {% for m in medicos %}{% include "admin/_linha_medico.html" %}{% endfor %}
+      {% for m in pg_medicos.itens %}{% include "admin/_linha_medico.html" %}{% endfor %}
     </tbody>
   </table>
   </div>
+  {{ rodape(pg_medicos) }}
   {% else %}
   <p class="nota">A lista aparece depois do primeiro processamento: use "Processar uma data" abaixo (ou aguarde o processamento das 23:20) e marque os médicos desejados.</p>
   {% endif %}
 </section>
 
-<section class="card">
+<section id="coletas" class="card">
   <h2>Processar uma data</h2>
   <p class="nota">Lê os exames clínicos do dia no SGG (uma consulta, mais uma por empresa ainda sem nome). Roda sozinho às 23:20; o envio das 07:59 processa de novo se a escolha de médicos mudou.</p>
   <form method="post" action="/admin/configuracoes/medicos/processar" class="form form-linha">
@@ -50,7 +52,7 @@
   <table class="tabela tabela-compacta">
     <thead><tr><th>Data</th><th class="num">Clínicos no SGG</th><th class="num">Dos escolhidos</th><th class="oculta-celular">Processado em</th></tr></thead>
     <tbody>
-      {% for c in coletas %}
+      {% for c in pg_coletas.itens %}
       <tr>
         <td><strong>{{ c.data | data_br }}</strong> <span class="nota">{{ (c.data | dia_semana)[:3] }}</span></td>
         <td class="num">{{ c.clinicos }}</td>
@@ -61,6 +63,7 @@
     </tbody>
   </table>
   </div>
+  {{ rodape(pg_coletas) }}
   {% endif %}
 </section>
 
