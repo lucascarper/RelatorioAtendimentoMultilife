@@ -15,7 +15,7 @@
       </tr>
     </table>
     {%- if subtitulo %}
-    <div class="fonte" style="padding-top:5px; font-size:12px; line-height:16px; color:#6B7280;">{{ subtitulo }}</div>
+    <div class="fonte" style="padding-top:5px; font-size:12px; line-height:16px; color:#626883;">{{ subtitulo }}</div>
     {%- endif %}
   </td>
 </tr>
@@ -23,9 +23,9 @@
 
 {% macro delta_html(d) -%}
 {%- if d -%}
-<span style="color:{{ d.cor }}; font-weight:700;">{{ d.seta }}&nbsp;{{ d.texto }}</span> <span style="color:#6B7280;">{{ d.rotulo }}</span>
+<span style="color:{{ d.cor }}; font-weight:700;">{{ d.seta }}&nbsp;{{ d.texto }}</span> <span style="color:#626883;">{{ d.rotulo }}</span>
 {%- else -%}
-<span style="color:#6B7280;">sem base de comparação</span>
+<span style="color:#626883;">sem base de comparação</span>
 {%- endif -%}
 {%- endmacro %}
 
@@ -44,9 +44,9 @@
 {% endblock %}
 
 {% block cabecalho_direita %}
-<div style="font-size:12px; line-height:16px; letter-spacing:1.2px; text-transform:uppercase; color:#6B7280; font-weight:600;">Resumo diário de atendimentos</div>
-<div style="font-size:18px; line-height:24px; color:#1B2533; font-weight:700; padding-top:2px;">{{ a.titulo_data }}</div>
-<div style="font-size:12px; line-height:16px; color:#4A5568; padding-top:2px;">{{ a.unidades }}</div>
+<div style="font-size:12px; line-height:16px; letter-spacing:1.2px; text-transform:uppercase; color:#626883; font-weight:600;">Resumo diário de atendimentos</div>
+<div style="font-size:18px; line-height:24px; color:#20295A; font-weight:700; padding-top:2px;">{{ a.titulo_data }}</div>
+<div style="font-size:12px; line-height:16px; color:#444B68; padding-top:2px;">{{ a.unidades }}</div>
 {% endblock %}
 
 {% block conteudo %}
@@ -55,7 +55,7 @@
   <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:0 32px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
       <tr>
-        <td class="fonte" bgcolor="#EAF1FA" style="background:#EAF1FA; border-radius:10px; padding:14px 18px; font-size:15px; line-height:22px; color:#1B2533;">
+        <td class="fonte" bgcolor="#EAF1FA" style="background:#EAF1FA; border-radius:8px; padding:14px 18px; font-size:15px; line-height:22px; color:#20295A;">
           {{ a.manchete }}
           {%- if a.quantidade_alertas %}
           <div style="padding-top:8px;">
@@ -70,7 +70,7 @@
 
 {% if a.sem_movimento %}
 <tr>
-  <td bgcolor="#FFFFFF" class="px fonte" style="background:#FFFFFF; padding:24px 32px 8px; font-size:14px; line-height:21px; color:#4A5568;">
+  <td bgcolor="#FFFFFF" class="px fonte" style="background:#FFFFFF; padding:24px 32px 8px; font-size:14px; line-height:21px; color:#444B68;">
     Não houve agendamentos nas unidades e agendas incluídas no relatório — dia sem expediente ou sem movimento.
     Se isso não era esperado, confira a coleta e o cadastro de agendas no painel administrativo.
   </td>
@@ -81,7 +81,7 @@
 {%- for grupo in a.grupos_kpis %}
 {%- if grupo.titulo %}
 <tr>
-  <td bgcolor="#FFFFFF" class="px fonte" style="background:#FFFFFF; padding:16px 32px 0; font-size:12px; line-height:16px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:#4A5568;">{{ grupo.titulo }}</td>
+  <td bgcolor="#FFFFFF" class="px fonte" style="background:#FFFFFF; padding:16px 32px 0; font-size:12px; line-height:16px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:#444B68;">{{ grupo.titulo }}</td>
 </tr>
 {%- endif %}
 <tr>
@@ -93,12 +93,12 @@
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
           <td style="padding:6px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F7F9FC" style="background:#F7F9FC; border:1px solid #E3E8EF; border-top:3px solid #164F95; border-radius:10px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F7F9FC" style="background:#F7F9FC; border:1px solid #E3E8EF; border-top:3px solid #164F95; border-radius:8px;">
               <tr>
                 <td class="fonte" style="padding:12px 12px 12px; text-align:left;">
-                  <div style="font-size:12px; line-height:16px; color:#4A5568; font-weight:600; min-height:32px;">{{ k.rotulo }}</div>
-                  <div class="kpi-valor" style="font-size:28px; line-height:34px; color:#1B2533; font-weight:700; padding-top:4px; white-space:nowrap;">{{ k.valor }}</div>
-                  <div style="font-size:11px; line-height:15px; color:#6B7280; padding-top:2px; min-height:30px;">{{ k.contexto }}</div>
+                  <div style="font-size:12px; line-height:16px; color:#444B68; font-weight:600; min-height:32px;">{{ k.rotulo }}</div>
+                  <div class="kpi-valor" style="font-size:28px; line-height:34px; color:#20295A; font-weight:700; padding-top:4px; white-space:nowrap;">{{ k.valor }}</div>
+                  <div style="font-size:11px; line-height:15px; color:#626883; padding-top:2px; min-height:30px;">{{ k.contexto }}</div>
                   <div style="font-size:11px; line-height:15px; padding-top:6px; border-top:1px solid #E3E8EF; margin-top:6px;">{{ delta_html(k.delta) }}</div>
                 </td>
               </tr>
@@ -120,18 +120,18 @@
 <tr>
   <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:0 32px{% if not loop.last %} 14px{% endif %};">
     {%- if g.titulo %}
-    <div class="fonte" style="font-size:13px; line-height:18px; font-weight:700; color:#1B2533; padding:4px 0 6px;">{{ g.titulo }}</div>
+    <div class="fonte" style="font-size:13px; line-height:18px; font-weight:700; color:#20295A; padding:4px 0 6px;">{{ g.titulo }}</div>
     {%- endif %}
-    <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px; line-height:18px; color:#1B2533;">
+    <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px; line-height:18px; color:#20295A;">
       <tr>
         <th align="left" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:left; border-radius:6px 0 0 0;">Indicador</th>
         {%- for t in g.turnos %}
-        <th align="right" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:right;{% if loop.last %} border-radius:0 6px 0 0;{% endif %}">{{ t.rotulo }}<br><span style="font-weight:400; color:#4A5568; font-size:11px;">{{ t.faixa }}</span></th>
+        <th align="right" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:right;{% if loop.last %} border-radius:0 6px 0 0;{% endif %}">{{ t.rotulo }}<br><span style="font-weight:400; color:#444B68; font-size:11px;">{{ t.faixa }}</span></th>
         {%- endfor %}
       </tr>
       {%- for linha in g.linhas %}
       <tr>
-        <td style="padding:8px 10px; color:#4A5568;{% if linha.destaque %} font-weight:700; color:#1B2533;{% endif %}">{{ linha.rotulo }}</td>
+        <td style="padding:8px 10px; color:#444B68;{% if linha.destaque %} font-weight:700; color:#20295A;{% endif %}">{{ linha.rotulo }}</td>
         {%- for v in linha.valores %}
         <td class="num" align="right" style="padding:8px 10px; text-align:right;{% if linha.destaque %} font-weight:700;{% endif %}">{{ v }}</td>
         {%- endfor %}
@@ -147,9 +147,9 @@
 {%- for b in a.consultorios_turnos %}
 <tr>
   <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:0 32px{% if not loop.last %} 14px{% endif %};">
-    <div class="fonte" style="font-size:13px; line-height:18px; font-weight:700; color:#1B2533; padding:4px 0 6px;">{{ b.rotulo }}{% if b.faixa %} <span style="font-weight:400; color:#6B7280; font-size:12px;">{{ b.faixa }}</span>{% endif %}</div>
+    <div class="fonte" style="font-size:13px; line-height:18px; font-weight:700; color:#20295A; padding:4px 0 6px;">{{ b.rotulo }}{% if b.faixa %} <span style="font-weight:400; color:#626883; font-size:12px;">{{ b.faixa }}</span>{% endif %}</div>
     {%- if b.linhas %}
-    <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px; line-height:18px; color:#1B2533;">
+    <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px; line-height:18px; color:#20295A;">
       <tr>
         <th align="left" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:left; border-radius:6px 0 0 0;">Consultório</th>
         <th align="right" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:right;">Atend.</th>
@@ -158,8 +158,8 @@
       {%- for c in b.linhas %}
       <tr>
         <td style="padding:9px 10px;">
-          <div style="font-weight:700;">{{ c.consultorio }}{% if c.guiche %} <span style="font-weight:400; font-size:11px; color:#6B7280;">(guichê)</span>{% endif %}</div>
-          {%- if c.agenda %}<div style="font-size:11px; line-height:15px; color:#6B7280;">{{ c.agenda }}</div>{% endif %}
+          <div style="font-weight:700;">{{ c.consultorio }}{% if c.guiche %} <span style="font-weight:400; font-size:11px; color:#626883;">(guichê)</span>{% endif %}</div>
+          {%- if c.agenda %}<div style="font-size:11px; line-height:15px; color:#626883;">{{ c.agenda }}</div>{% endif %}
         </td>
         <td class="num" align="right" style="padding:9px 10px; text-align:right;">{{ c.atendimentos }}</td>
         <td style="padding:9px 10px;">
@@ -179,7 +179,7 @@
       {%- endfor %}
     </table>
     {%- else %}
-    <div class="fonte" style="font-size:13px; color:#6B7280;">Nenhum agendamento neste turno.</div>
+    <div class="fonte" style="font-size:13px; color:#626883;">Nenhum agendamento neste turno.</div>
     {%- endif %}
   </td>
 </tr>
@@ -190,9 +190,9 @@
 {%- for b in a.agendas_turnos %}
 <tr>
   <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:0 32px{% if not loop.last %} 14px{% endif %};">
-    <div class="fonte" style="font-size:13px; line-height:18px; font-weight:700; color:#1B2533; padding:4px 0 6px;">{{ b.rotulo }}{% if b.faixa %} <span style="font-weight:400; color:#6B7280; font-size:12px;">{{ b.faixa }}</span>{% endif %}</div>
+    <div class="fonte" style="font-size:13px; line-height:18px; font-weight:700; color:#20295A; padding:4px 0 6px;">{{ b.rotulo }}{% if b.faixa %} <span style="font-weight:400; color:#626883; font-size:12px;">{{ b.faixa }}</span>{% endif %}</div>
     {%- if b.linhas %}
-    <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px; line-height:18px; color:#1B2533;">
+    <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px; line-height:18px; color:#20295A;">
       <tr>
         <th align="left" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:left; border-radius:6px 0 0 0;">Agenda</th>
         <th align="right" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:right;">Qtd.</th>
@@ -203,8 +203,8 @@
       {%- for ag in b.linhas %}
       <tr>
         <td style="padding:8px 10px;">
-          <div style="font-weight:600;">{{ ag.agenda }}{% if ag.guiche %} <span style="font-weight:400; font-size:11px; color:#6B7280;">(guichê)</span>{% endif %}</div>
-          {%- if ag.consultorio %}<div style="font-size:11px; line-height:15px; color:#6B7280;">{{ ag.consultorio }}</div>{% endif %}
+          <div style="font-weight:600;">{{ ag.agenda }}{% if ag.guiche %} <span style="font-weight:400; font-size:11px; color:#626883;">(guichê)</span>{% endif %}</div>
+          {%- if ag.consultorio %}<div style="font-size:11px; line-height:15px; color:#626883;">{{ ag.consultorio }}</div>{% endif %}
         </td>
         <td class="num" align="right" style="padding:8px 10px; text-align:right; font-weight:700;">{{ ag.atendimentos }}</td>
         <td class="num" align="right" style="padding:8px 10px; text-align:right;">{{ ag.media }}</td>
@@ -214,7 +214,7 @@
       {%- endfor %}
     </table>
     {%- else %}
-    <div class="fonte" style="font-size:13px; color:#6B7280;">Nenhum agendamento neste turno.</div>
+    <div class="fonte" style="font-size:13px; color:#626883;">Nenhum agendamento neste turno.</div>
     {%- endif %}
   </td>
 </tr>
@@ -225,7 +225,7 @@
 <tr>
   <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:0 32px;">
     {%- if a.comparativo_disponivel %}
-    <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px; line-height:18px; color:#1B2533;">
+    <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px; line-height:18px; color:#20295A;">
       <tr>
         <th align="left" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:left; border-radius:6px 0 0 0;">Indicador</th>
         <th align="right" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:right;">{{ a.coluna_atual }}</th>
@@ -234,24 +234,24 @@
       </tr>
       {%- for linha in a.comparativo %}
       <tr>
-        <td style="padding:8px 10px; color:#4A5568;">{{ linha.rotulo }}</td>
+        <td style="padding:8px 10px; color:#444B68;">{{ linha.rotulo }}</td>
         <td class="num" align="right" style="padding:8px 10px; text-align:right; font-weight:700;">{{ linha.atual }}</td>
-        <td class="num" align="right" style="padding:8px 10px; text-align:right; color:#4A5568;">{{ linha.anterior }}</td>
+        <td class="num" align="right" style="padding:8px 10px; text-align:right; color:#444B68;">{{ linha.anterior }}</td>
         <td class="num" align="right" style="padding:8px 10px; text-align:right;">
           {%- if linha.delta -%}
           <span style="color:{{ linha.delta.cor }}; font-weight:700;">{{ linha.delta.seta }}&nbsp;{{ linha.delta.texto }}</span>
-          {%- else -%}<span style="color:#6B7280;">—</span>{%- endif -%}
+          {%- else -%}<span style="color:#626883;">—</span>{%- endif -%}
         </td>
       </tr>
       {%- endfor %}
     </table>
-    <div class="fonte" style="padding-top:6px; font-size:11px; line-height:15px; color:#6B7280;">
+    <div class="fonte" style="padding-top:6px; font-size:11px; line-height:15px; color:#626883;">
       <span style="color:#1E7A3A; font-weight:700;">▲▼ verde</span> = melhorou ·
       <span style="color:#D0080F; font-weight:700;">▲▼ vermelho</span> = piorou ·
       cinza = neutro (TMA maior não é necessariamente pior). Taxas variam em pontos percentuais (p.p.).
     </div>
     {%- else %}
-    <div class="fonte" style="font-size:13px; line-height:19px; color:#6B7280;">Sem base de comparação: não há resumo do mesmo dia da semana anterior (ou foi um dia sem movimento).</div>
+    <div class="fonte" style="font-size:13px; line-height:19px; color:#626883;">Sem base de comparação: não há resumo do mesmo dia da semana anterior (ou foi um dia sem movimento).</div>
     {%- endif %}
   </td>
 </tr>
@@ -262,7 +262,7 @@
 {{ titulo_secao("Atendimentos por médico", a.exames_medicos.subtitulo) }}
 <tr>
   <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:0 32px;">
-    <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px; line-height:18px; color:#1B2533;">
+    <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px; line-height:18px; color:#20295A;">
       <tr>
         <th align="left" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:left; border-radius:6px 0 0 0;">Médico</th>
         <th align="right" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:right; border-radius:0 6px 0 0;">Exames</th>
@@ -270,14 +270,14 @@
       {%- for med in a.exames_medicos.medicos %}
       <tr>
         <td style="padding:8px 10px; border-bottom:1px solid #E3E8EF;">
-          <div style="font-weight:600;">{{ med.nome }} <span style="font-weight:400; font-size:11px; color:#6B7280;">CRM {{ med.crm }}</span></div>
-          <div style="font-size:12px; line-height:16px; color:#4A5568; padding-top:2px;">{{ med.tipos }}</div>
+          <div style="font-weight:600;">{{ med.nome }} <span style="font-weight:400; font-size:11px; color:#626883;">CRM {{ med.crm }}</span></div>
+          <div style="font-size:12px; line-height:16px; color:#444B68; padding-top:2px;">{{ med.tipos }}</div>
         </td>
         <td class="num" align="right" style="padding:8px 10px; text-align:right; font-weight:700; border-bottom:1px solid #E3E8EF;">{{ med.total }}</td>
       </tr>
       {%- endfor %}
     </table>
-    <div class="fonte" style="padding-top:6px; font-size:11px; line-height:15px; color:#6B7280;">{{ a.exames_medicos.nota }}</div>
+    <div class="fonte" style="padding-top:6px; font-size:11px; line-height:15px; color:#626883;">{{ a.exames_medicos.nota }}</div>
   </td>
 </tr>
 {%- endif %}
@@ -291,17 +291,17 @@
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:10px;">
       <tr>
         <td width="4" bgcolor="{{ al.borda }}" style="background:{{ al.borda }}; width:4px; border-radius:6px 0 0 6px; font-size:0; line-height:0;">&nbsp;</td>
-        <td class="fonte" bgcolor="{{ al.fundo }}" style="background:{{ al.fundo }}; border-radius:0 6px 6px 0; padding:10px 14px; font-size:13px; line-height:19px; color:#1B2533;">
+        <td class="fonte" bgcolor="{{ al.fundo }}" style="background:{{ al.fundo }}; border-radius:0 6px 6px 0; padding:10px 14px; font-size:13px; line-height:19px; color:#20295A;">
           <div><span style="color:{{ al.cor }}; font-weight:700;">{{ al.icone }} {{ al.rotulo }}</span> · <strong>{{ al.titulo }}</strong></div>
-          <div style="color:#4A5568; padding-top:2px;">{{ al.descricao }}</div>
+          <div style="color:#444B68; padding-top:2px;">{{ al.descricao }}</div>
           {%- for item in al.itens %}
-          <div class="num" style="color:#4A5568; padding-top:4px; white-space:normal; font-size:12px;">{{ item }}{% if al.restantes %} e mais {{ al.restantes }}{% endif %}</div>
+          <div class="num" style="color:#444B68; padding-top:4px; white-space:normal; font-size:12px;">{{ item }}{% if al.restantes %} e mais {{ al.restantes }}{% endif %}</div>
           {%- endfor %}
           {%- if al.tabela %}
-          <table role="presentation" class="fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:6px; font-size:12px; line-height:16px; color:#1B2533;">
+          <table role="presentation" class="fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:6px; font-size:12px; line-height:16px; color:#20295A;">
             <tr>
               {%- for h in al.cabecalho %}
-              <td style="padding:3px 8px 3px 0; color:#6B7280; font-weight:600; border-bottom:1px solid #E3E8EF;">{{ h }}</td>
+              <td style="padding:3px 8px 3px 0; color:#626883; font-weight:600; border-bottom:1px solid #E3E8EF;">{{ h }}</td>
               {%- endfor %}
             </tr>
             {%- for linha in al.tabela %}
@@ -312,7 +312,7 @@
             </tr>
             {%- endfor %}
           </table>
-          {%- if al.restantes %}<div style="font-size:12px; color:#6B7280; padding-top:4px;">e mais {{ al.restantes }} no painel administrativo.</div>{% endif %}
+          {%- if al.restantes %}<div style="font-size:12px; color:#626883; padding-top:4px;">e mais {{ al.restantes }} no painel administrativo.</div>{% endif %}
           {%- endif %}
         </td>
       </tr>
@@ -322,14 +322,14 @@
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
       <tr>
         <td width="4" bgcolor="#1E7A3A" style="background:#1E7A3A; width:4px; border-radius:6px 0 0 6px; font-size:0; line-height:0;">&nbsp;</td>
-        <td class="fonte" bgcolor="#E8F5EC" style="background:#E8F5EC; border-radius:0 6px 6px 0; padding:10px 14px; font-size:13px; line-height:19px; color:#1B2533;">
+        <td class="fonte" bgcolor="#E8F5EC" style="background:#E8F5EC; border-radius:0 6px 6px 0; padding:10px 14px; font-size:13px; line-height:19px; color:#20295A;">
           <span style="color:#1E7A3A; font-weight:700;">✓ Tudo certo</span> · Coleta completa, nenhum atendimento atípico e todos os agendamentos com baixa.
         </td>
       </tr>
     </table>
     {%- endif %}
     {%- for nota in a.notas %}
-    <div class="fonte" style="padding-top:6px; font-size:11px; line-height:15px; color:#6B7280;">{{ nota }}</div>
+    <div class="fonte" style="padding-top:6px; font-size:11px; line-height:15px; color:#626883;">{{ nota }}</div>
     {%- endfor %}
   </td>
 </tr>

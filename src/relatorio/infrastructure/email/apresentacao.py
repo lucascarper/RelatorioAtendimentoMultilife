@@ -15,9 +15,9 @@ from typing import Any
 # Tokens de cor (contraste WCAG AA conferido: texto ≥ 4,5:1 na superfície branca).
 AZUL = "#164F95"  # azul MultiLife — marca e barras (8,1:1)
 VERMELHO = "#D0080F"  # vermelho MultiLife — destaque e alertas críticos (5,6:1)
-TINTA = "#1B2533"
-TINTA_SECUNDARIA = "#4A5568"
-TINTA_MUDA = "#6B7280"
+TINTA = "#20295A"
+TINTA_SECUNDARIA = "#444B68"
+TINTA_MUDA = "#626883"
 VERDE = "#1E7A3A"
 TRILHO = "#DCE6F3"
 

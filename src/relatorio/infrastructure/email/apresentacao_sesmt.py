@@ -17,8 +17,8 @@ from relatorio.domain.sesmt import DIAS_VENCENDO
 AZUL = "#164F95"
 VERMELHO = "#D0080F"
 VERDE = "#1E7A3A"
-NEUTRO = "#1B2533"
-MUDO = "#6B7280"
+NEUTRO = "#20295A"
+MUDO = "#626883"
 NEGATIVO = "#A3060B"
 ALERTA = "#B45309"  # laranja escuro: contraste 5,0:1 no branco
 ATENCAO = "#7A4D00"

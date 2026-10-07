@@ -15,7 +15,7 @@ from relatorio.domain.resumo import dia_semana
 
 NEGATIVO = "#A3060B"
 POSITIVO = "#1E7A3A"
-NEUTRO = "#1B2533"
+NEUTRO = "#20295A"
 SEM_ALTERACAO = "sem alteração desde ontem"
 
 

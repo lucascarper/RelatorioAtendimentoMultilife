@@ -1,0 +1,3 @@
+Inter Variable (subconjunto latino), via @fontsource-variable/inter 5.1.0.
+Copyright (c) The Inter Project Authors (https://github.com/rsms/inter).
+Licença: SIL Open Font License 1.1 (https://openfontlicense.org).

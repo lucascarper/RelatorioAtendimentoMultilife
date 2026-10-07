@@ -4,7 +4,7 @@
   Sem lógica de cálculo aqui. Topo: manchete + 3 cartões; abaixo, uma seção por grupo.
 #}
 {% macro etiqueta(texto) -%}
-{%- if texto %} <span style="display:inline-block; background:#EEF2F7; color:#4A5568; border-radius:999px; padding:1px 8px; font-size:11px; line-height:16px; font-weight:600; vertical-align:1px;">{{ texto }}</span>{% endif -%}
+{%- if texto %} <span style="display:inline-block; background:#F2F4F8; color:#444B68; border-radius:999px; padding:1px 8px; font-size:11px; line-height:16px; font-weight:600; vertical-align:1px;">{{ texto }}</span>{% endif -%}
 {%- endmacro %}
 
 {% macro titulo_secao(texto, subtitulo="", tag="") -%}
@@ -17,7 +17,7 @@
       </tr>
     </table>
     {%- if subtitulo %}
-    <div class="fonte" style="padding-top:5px; font-size:12px; line-height:16px; color:#6B7280;">{{ subtitulo }}</div>
+    <div class="fonte" style="padding-top:5px; font-size:12px; line-height:16px; color:#626883;">{{ subtitulo }}</div>
     {%- endif %}
   </td>
 </tr>
@@ -38,8 +38,8 @@
 {% endblock %}
 
 {% block cabecalho_direita %}
-<div style="font-size:12px; line-height:16px; letter-spacing:1.2px; text-transform:uppercase; color:#6B7280; font-weight:600;">Relatório financeiro diário</div>
-<div style="font-size:18px; line-height:24px; color:#1B2533; font-weight:700; padding-top:2px;">{{ a.titulo_data }}</div>
+<div style="font-size:12px; line-height:16px; letter-spacing:1.2px; text-transform:uppercase; color:#626883; font-weight:600;">Relatório financeiro diário</div>
+<div style="font-size:18px; line-height:24px; color:#20295A; font-weight:700; padding-top:2px;">{{ a.titulo_data }}</div>
 {% endblock %}
 
 {% block conteudo %}
@@ -48,7 +48,7 @@
   <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:0 32px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
       <tr>
-        <td class="fonte" bgcolor="#EAF1FA" style="background:#EAF1FA; border-radius:10px; padding:14px 18px; font-size:15px; line-height:22px; color:#1B2533;">{{ a.manchete }}</td>
+        <td class="fonte" bgcolor="#EAF1FA" style="background:#EAF1FA; border-radius:8px; padding:14px 18px; font-size:15px; line-height:22px; color:#20295A;">{{ a.manchete }}</td>
       </tr>
     </table>
   </td>
@@ -64,19 +64,19 @@
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
           <td style="padding:6px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F7F9FC" style="background:#F7F9FC; border:1px solid #E3E8EF; border-top:3px solid #164F95; border-radius:10px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F7F9FC" style="background:#F7F9FC; border:1px solid #E3E8EF; border-top:3px solid #164F95; border-radius:8px;">
               <tr>
                 <td class="fonte" style="padding:12px; text-align:left;">
-                  <div style="font-size:12px; line-height:16px; color:#4A5568; font-weight:600;">{{ c.rotulo }}</div>
+                  <div style="font-size:12px; line-height:16px; color:#444B68; font-weight:600;">{{ c.rotulo }}</div>
                   {%- if c.valor_2 %}
                   <div class="kpi-valor" style="font-size:20px; line-height:26px; color:{{ c.cor }}; font-weight:700; padding-top:6px; white-space:nowrap;">{{ c.valor }}</div>
-                  <div style="font-size:11px; line-height:14px; color:#6B7280;">{{ c.rotulo_valor }}</div>
+                  <div style="font-size:11px; line-height:14px; color:#626883;">{{ c.rotulo_valor }}</div>
                   <div class="kpi-valor" style="font-size:20px; line-height:26px; color:{{ c.cor }}; font-weight:700; padding-top:6px; white-space:nowrap;">{{ c.valor_2 }}</div>
-                  <div style="font-size:11px; line-height:14px; color:#6B7280;">{{ c.rotulo_valor_2 }}</div>
+                  <div style="font-size:11px; line-height:14px; color:#626883;">{{ c.rotulo_valor_2 }}</div>
                   {%- else %}
                   <div class="kpi-valor" style="font-size:24px; line-height:30px; color:{{ c.cor }}; font-weight:700; padding-top:6px; white-space:nowrap;">{{ c.valor }}</div>
                   {%- endif %}
-                  <div style="font-size:11px; line-height:15px; color:#6B7280; padding-top:6px; border-top:1px solid #E3E8EF; margin-top:8px;">{{ c.contexto }}{% if c.etiqueta %}<br><span style="font-weight:600; color:#4A5568;">{{ c.etiqueta }}</span>{% endif %}</div>
+                  <div style="font-size:11px; line-height:15px; color:#626883; padding-top:6px; border-top:1px solid #E3E8EF; margin-top:8px;">{{ c.contexto }}{% if c.etiqueta %}<br><span style="font-weight:600; color:#444B68;">{{ c.etiqueta }}</span>{% endif %}</div>
                 </td>
               </tr>
             </table>
@@ -96,10 +96,10 @@
 <tr>
   <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:0 32px{% if not loop.last %} 16px{% endif %};">
     {%- if t.titulo %}
-    <div class="fonte" style="font-size:13px; line-height:18px; font-weight:700; color:#1B2533; padding:4px 0 6px;">{{ t.titulo }}{{ etiqueta(t.etiqueta) }}</div>
+    <div class="fonte" style="font-size:13px; line-height:18px; font-weight:700; color:#20295A; padding:4px 0 6px;">{{ t.titulo }}{{ etiqueta(t.etiqueta) }}</div>
     {%- endif %}
     {%- if t.linhas %}
-    <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px; line-height:18px; color:#1B2533;">
+    <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px; line-height:18px; color:#20295A;">
       <tr>
         {%- for h in t.cabecalho %}
         <th{% if loop.index0 in t.ocultar_no_celular %} class="oculta-mobile"{% endif %} align="{{ 'left' if loop.first else 'right' }}" bgcolor="#EAF1FA" style="background:#EAF1FA; padding:8px 10px; font-size:12px; color:#164F95; font-weight:700; text-align:{{ 'left' if loop.first else 'right' }};{% if loop.first %} border-radius:6px 0 0 0;{% elif loop.last %} border-radius:0 6px 0 0;{% endif %}">{{ h }}</th>
@@ -107,15 +107,15 @@
       </tr>
       {%- for linha in t.linhas %}
       <tr>
-        <td style="padding:8px 10px; color:#4A5568;{% if linha.destaque %} font-weight:700; color:#1B2533;{% endif %}">{{ linha.rotulo }}{% if linha.nota %}<br><span style="font-size:11px; color:#6B7280; font-weight:400;">{{ linha.nota }}</span>{% endif %}</td>
+        <td style="padding:8px 10px; color:#444B68;{% if linha.destaque %} font-weight:700; color:#20295A;{% endif %}">{{ linha.rotulo }}{% if linha.nota %}<br><span style="font-size:11px; color:#626883; font-weight:400;">{{ linha.nota }}</span>{% endif %}</td>
         {%- for v in linha.valores %}
-        <td class="num{% if loop.index in t.ocultar_no_celular %} oculta-mobile{% endif %}" align="right" style="padding:8px 10px; text-align:right; color:{{ linha.cores[loop.index0] if linha.cores else '#1B2533' }};{% if linha.destaque %} font-weight:700;{% endif %}">{{ v }}</td>
+        <td class="num{% if loop.index in t.ocultar_no_celular %} oculta-mobile{% endif %}" align="right" style="padding:8px 10px; text-align:right; color:{{ linha.cores[loop.index0] if linha.cores else '#20295A' }};{% if linha.destaque %} font-weight:700;{% endif %}">{{ v }}</td>
         {%- endfor %}
       </tr>
       {%- endfor %}
     </table>
     {%- else %}
-    <div class="fonte" style="font-size:13px; line-height:18px; color:#6B7280; padding:2px 0 4px;">{{ t.vazio }}</div>
+    <div class="fonte" style="font-size:13px; line-height:18px; color:#626883; padding:2px 0 4px;">{{ t.vazio }}</div>
     {%- endif %}
   </td>
 </tr>
@@ -125,12 +125,12 @@
 <!-- Definições -->
 {{ titulo_secao("Como os números são calculados") }}
 <tr>
-  <td bgcolor="#FFFFFF" class="px fonte" style="background:#FFFFFF; padding:0 32px 8px; font-size:12px; line-height:18px; color:#4A5568;">
+  <td bgcolor="#FFFFFF" class="px fonte" style="background:#FFFFFF; padding:0 32px 8px; font-size:12px; line-height:18px; color:#444B68;">
     {%- for termo, definicao in a.definicoes %}
-    <div style="padding:2px 0;"><strong style="color:#1B2533;">{{ termo }}:</strong> {{ definicao }}</div>
+    <div style="padding:2px 0;"><strong style="color:#20295A;">{{ termo }}:</strong> {{ definicao }}</div>
     {%- endfor %}
     {%- for nota in a.notas %}
-    <div style="padding-top:6px; color:#6B7280;">{{ nota }}</div>
+    <div style="padding-top:6px; color:#626883;">{{ nota }}</div>
     {%- endfor %}
   </td>
 </tr>
