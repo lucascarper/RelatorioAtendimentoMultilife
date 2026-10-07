@@ -28,6 +28,7 @@ from relatorio.infrastructure.email.apresentacao_financeira import moeda
 from relatorio.infrastructure.logs import configurar_logs
 from relatorio.interfaces.web import (
     rotas_admin,
+    rotas_exportacao,
     rotas_financeiro,
     rotas_medicos,
     rotas_publicas,
@@ -148,6 +149,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     app.include_router(rotas_sesmt.router)
     app.include_router(rotas_usuarios.router)
     app.include_router(rotas_medicos.router)
+    app.include_router(rotas_exportacao.router)
     return app
 
 

@@ -1,0 +1,24 @@
+{#- Cartão "Exportar período". Recebe: tipo, descricao e (opcional) aviso. -#}
+<section class="card exportar" aria-labelledby="exportar-{{ tipo }}-titulo">
+  <div class="card-titulo">
+    <div>
+      <h2 id="exportar-{{ tipo }}-titulo">Exportar período</h2>
+      <p class="nota">{{ descricao }}</p>
+    </div>
+  </div>
+  {%- if aviso %}
+  <p class="exportar-aviso">{{ aviso }}</p>
+  {%- endif %}
+  <form class="form form-linha" hx-post="/admin/exportacoes" hx-target="#exportacao-{{ tipo }}" hx-swap="outerHTML">
+    <input type="hidden" name="tipo" value="{{ tipo }}">
+    <label>Data inicial
+      <input type="date" name="inicio" value="{{ (data_hoje.replace(day=1)).isoformat() }}" max="{{ data_hoje.isoformat() }}" required>
+    </label>
+    <label>Data final
+      <input type="date" name="fim" value="{{ data_hoje.isoformat() }}" max="{{ data_hoje.isoformat() }}" required>
+    </label>
+    <button type="submit" class="btn btn-secundario">Exportar planilha</button>
+  </form>
+  <p class="nota exportar-rodape">Até 31 dias por vez. A planilha traz o relatório de cada dia e os dados fonte usados no cálculo, e fica disponível por 24 horas.</p>
+  {%- with e = (exportacoes or {}).get(tipo) %}{% include "admin/_exportacao.html" %}{% endwith %}
+</section>

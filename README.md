@@ -103,6 +103,14 @@ Em **Configurações → Médicos** ficam os médicos que apareceram nos exames 
 - Sem médico marcado, o e-mail sai como antes. Se a seção falhar, o relatório principal sai mesmo assim e o técnico é alertado.
 - Regras e decisões no [ADR 0015](docs/adr/0015-atendimentos-por-medico.md).
 
+### Exportar período (planilha)
+
+Cada relatório tem o cartão **Exportar período** (Atendimento, Financeiro e SESMT na página do módulo; atendimentos por médico em **Configurações → Médicos**). Escolha a data inicial e a final (até 31 dias) e a planilha é gerada em segundo plano, com uma barra que enche como água até ficar pronta para baixar (fica disponível por 24 horas).
+
+- A planilha traz a aba **Sobre**, as abas do relatório (o que o e-mail mostrou em cada dia) e as abas **Fonte** (os dados usados no cálculo).
+- Fonte do Atendimento: agendamentos e mudanças de status do banco. Financeiro: títulos e itens faturados relidos do SGG. SESMT: empresas, contratos, documentos e eventos do eSocial relidos do SGG, **só das 20h às 5h** (mais de mil consultas). Médicos: exames com o nome do trabalhador lido do SGG na hora, nunca gravado.
+- Regras e decisões no [ADR 0016](docs/adr/0016-exportacao-por-periodo.md).
+
 ### Painel administrativo: módulos e usuários
 
 O painel é o **Sistema de Relatórios**, organizado em cinco módulos no menu:
@@ -306,3 +314,4 @@ O ambiente em que o código foi desenvolvido não tinha acesso à rede do `app.s
 - [0013 — Relatório de gestão do SESMT](docs/adr/0013-relatorio-sesmt.md)
 - [0014 — Usuários, permissões e módulos do painel](docs/adr/0014-usuarios-e-modulos.md)
 - [0015 — Atendimentos por médico](docs/adr/0015-atendimentos-por-medico.md)
+- [0016 — Exportação de relatórios por período](docs/adr/0016-exportacao-por-periodo.md)

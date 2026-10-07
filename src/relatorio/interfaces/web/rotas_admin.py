@@ -67,6 +67,10 @@ JOBS = {
     "verificar_sesmt": "Relatório do SESMT: verificação (08:12)",
     "reprocessar_sesmt": "Relatório do SESMT: reprocessamento pelo admin",
     "processar_exames": "Atendimentos por médico: exames clínicos (23:20)",
+    "exportar_atendimento": "Exportação por período: atendimento",
+    "exportar_financeiro": "Exportação por período: financeiro",
+    "exportar_sesmt": "Exportação por período: SESMT",
+    "exportar_medicos": "Exportação por período: atendimentos por médico",
 }
 ROTULOS_DETALHE = {
     "requisicoes": "requisições",
@@ -103,6 +107,12 @@ ROTULOS_DETALHE = {
     "empresas_consultadas": "empresas consultadas",
     "empresas_sem_nome": "empresas sem nome",
     "anexos": "anexos",
+    "exportacao": "exportação",
+    "tipo": "relatório",
+    "periodo": "período",
+    "abas": "abas",
+    "linhas": "linhas",
+    "bytes": "tamanho (bytes)",
 }
 CSP_PREVIA = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; frame-ancestors 'self'"
 

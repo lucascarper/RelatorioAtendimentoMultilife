@@ -107,4 +107,6 @@
     <button type="submit" class="btn btn-secundario">Salvar nomes</button>
   </form>
 </section>
+
+{% with tipo="financeiro", descricao="Relatório: caixa e faturamento de cada dia. Fonte: títulos recebidos, pagos e faturados no período, relidos do SGG na hora (alguns minutos)." %}{% include "admin/_exportar.html" %}{% endwith %}
 {% endblock %}

@@ -86,7 +86,11 @@ class ConsolidarSesmt:
         self._alertar = alertar
 
     def _por_empresa(
-        self, nome: str, ids: Sequence[int], consulta: Callable[[int], Iterable[T]]
+        self,
+        nome: str,
+        ids: Sequence[int],
+        consulta: Callable[[int], Iterable[T]],
+        andamento: Callable[[str, int, int], None] | None = None,
     ) -> tuple[list[T], set[int]]:
         """Consulta empresa a empresa, tolerando falhas isoladas."""
         itens: list[T] = []
@@ -109,13 +113,25 @@ class ConsolidarSesmt:
                     raise
             if posicao % REGISTRAR_A_CADA == 0:
                 log.info("sesmt_coleta_andamento", consulta=nome, feitas=posicao, total=len(ids))
+            if andamento is not None:
+                andamento(nome, posicao, len(ids))
         if ids and len(falharam) / len(ids) > FRACAO_MAXIMA_DE_FALHAS:
             raise ColetaSesmtInviavel(f"{len(falharam)} de {len(ids)} consultas de {nome} falharam")
         return itens, falharam
 
-    def carregar(self, referencia: date, hoje: date) -> DadosSesmt:
+    def carregar(
+        self,
+        referencia: date,
+        hoje: date,
+        andamento: Callable[[str, int, int], None] | None = None,
+    ) -> DadosSesmt:
+        """``andamento(etapa, feitas, total)`` acompanha a coleta (exportação por período)."""
         empresas = {e.id: e for e in self._sgg.empresas_sesmt()}
+        if andamento is not None:
+            andamento("empresas", 1, 1)
         contratos = self._sgg.contratos_sesmt()
+        if andamento is not None:
+            andamento("contratos", 1, 1)
         com_contrato = sorted(
             {
                 c.id_cliente
@@ -125,9 +141,11 @@ class ConsolidarSesmt:
         )
         com_esocial = sorted(e.id for e in empresas.values() if e.esocial_habilitado)
         documentos, sem_documentos = self._por_empresa(
-            "documentos", com_contrato, self._sgg.documentos_sst
+            "documentos", com_contrato, self._sgg.documentos_sst, andamento
         )
-        eventos, sem_eventos = self._por_empresa("esocial", com_esocial, self._sgg.eventos_esocial)
+        eventos, sem_eventos = self._por_empresa(
+            "esocial", com_esocial, self._sgg.eventos_esocial, andamento
+        )
         with self._uow() as uow:
             texto = uow.configuracoes.obter_todas().get(CHAVE_NOMES_GRUPOS)
         return DadosSesmt(

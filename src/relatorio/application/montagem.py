@@ -11,6 +11,8 @@ from relatorio.application.configuracao import ConfiguracaoRelatorio, JanelaCole
 from relatorio.application.consolidacao import ConsolidarDia
 from relatorio.application.envio import FINANCEIRO, SESMT, EnviarRelatorio, VerificarEnvio
 from relatorio.application.exames import ComplementoExames, GeradorPlanilha, ProcessarExames
+from relatorio.application.exportacao import EscritorPlanilha, ExportarRelatorio
+from relatorio.application.exportadores import montar_exportadores
 from relatorio.application.financeiro import ConsolidarFinanceiro
 from relatorio.application.manutencao import (
     AlertaFalhasColeta,
@@ -56,6 +58,7 @@ class CasosDeUso:
     verificar_sesmt: VerificarEnvio | None = None
     processar_exames: ProcessarExames | None = None
     complemento_exames: ComplementoExames | None = None
+    exportar: ExportarRelatorio | None = None
 
 
 def montar_casos_de_uso(
@@ -73,6 +76,7 @@ def montar_casos_de_uso(
     sesmt: SesmtGateway | None = None,
     exames: ExamesGateway | None = None,
     planilha: GeradorPlanilha | None = None,
+    escritor: EscritorPlanilha | None = None,
 ) -> CasosDeUso:
     alertar = AlertarTecnico(uow, email, renderizador, configuracao_padrao)
     reconciliar = ReconciliarDia(sgg, uow, relogio)
@@ -148,4 +152,14 @@ def montar_casos_de_uso(
         verificar_sesmt=VerificarEnvio(uow, alertar, SESMT),
         processar_exames=processar_exames,
         complemento_exames=complemento_exames,
+        exportar=(
+            ExportarRelatorio(
+                uow,
+                relogio,
+                montar_exportadores(uow, relogio, financeiro, consolidar_sesmt, exames),
+                escritor,
+            )
+            if escritor is not None
+            else None
+        ),
     )

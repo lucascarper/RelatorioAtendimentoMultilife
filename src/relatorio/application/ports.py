@@ -16,6 +16,7 @@ from relatorio.application.modelos import (
     ConteudoEmail,
     Destinatario,
     ExecucaoJob,
+    Exportacao,
     ResumoRegistro,
     StatusJob,
     UsuarioSistema,
@@ -182,6 +183,10 @@ class ResumoRepository(Protocol):
 
     def listar_recentes(self, limite: int = 30) -> list[ResumoRegistro]: ...
 
+    def listar_periodo(self, inicio: date, fim: date) -> list[ResumoRegistro]:
+        """Resumos de ``inicio`` a ``fim`` (inclusive), do mais antigo ao mais recente."""
+        ...
+
     def apagar_anteriores_a(self, limite: date) -> int: ...
 
 
@@ -269,6 +274,28 @@ class ExameRepository(Protocol):
     def apagar_anteriores_a(self, limite: date) -> int: ...
 
 
+class ExportacaoRepository(Protocol):
+    def criar(self, exportacao: Exportacao) -> None: ...
+
+    def obter(self, id_exportacao: str) -> Exportacao | None: ...
+
+    def progresso(self, id_exportacao: str, progresso: int, etapa: str) -> None:
+        """Marca como "gerando" e atualiza o andamento."""
+        ...
+
+    def concluir(self, id_exportacao: str, nome_arquivo: str, conteudo: bytes) -> None: ...
+
+    def falhar(self, id_exportacao: str, erro: str) -> None: ...
+
+    def arquivo(self, id_exportacao: str) -> tuple[str, bytes] | None: ...
+
+    def ultimas(self, solicitante: str, desde: datetime) -> dict[str, Exportacao]:
+        """A exportação mais recente de cada tipo pedida por ``solicitante`` desde ``desde``."""
+        ...
+
+    def apagar_anteriores_a(self, limite: datetime) -> int: ...
+
+
 class ConfiguracaoRepository(Protocol):
     def obter_todas(self) -> dict[str, str]: ...
 
@@ -347,6 +374,9 @@ class UnidadeDeTrabalho(Protocol):
 
     @property
     def exames(self) -> ExameRepository: ...
+
+    @property
+    def exportacoes(self) -> ExportacaoRepository: ...
 
     @property
     def configuracoes(self) -> ConfiguracaoRepository: ...

@@ -533,3 +533,79 @@ html:fullscreen .conteudo-monitor { max-width: 1680px; padding: 20px 32px; }
 .subtitulo-pagina { color: var(--texto-2); font-size: 14px; margin: -8px 0 18px; max-width: 80ch; }
 .form-grupos label { flex: 1 1 360px; }
 @media (max-width: 640px) { .login { margin: 24px 16px; padding: 24px; } }
+
+/* ---------------------------------------------------------------- exportar período
+   Barra de andamento que enche como água: o nível cresce com o progresso (transição na
+   largura, que o HTMX preserva entre as atualizações) e a superfície tem duas ondas em
+   movimento. Sem animação para quem pede movimento reduzido (regra global abaixo). */
+:root {
+  --agua-claro: #5B9BE0;
+  --agua-escuro: #164F95;
+  --agua-espuma: rgba(255, 255, 255, .55);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --agua-claro: #6FA8EC;
+    --agua-escuro: #2A5FA6;
+    --agua-espuma: rgba(230, 240, 255, .35);
+  }
+}
+.exportar-aviso {
+  margin: 0 0 12px; padding: 10px 14px; border-radius: var(--raio-controle);
+  background: var(--aviso-suave); color: var(--aviso); font-size: 13px; border: 1px solid var(--aviso-borda);
+}
+.exportar-rodape { margin: 10px 0 0; }
+.exportacao { margin-top: 16px; }
+.exportacao:empty { display: none; }
+.exportacao .mensagem { margin: 0; }
+.agua-linha { display: flex; align-items: center; gap: 12px; }
+.agua {
+  position: relative; flex: 1; height: 34px; overflow: hidden;
+  border-radius: var(--raio-controle); border: 1px solid var(--borda-forte);
+  background:
+    linear-gradient(180deg, transparent 0 55%, rgba(22, 79, 149, .05) 100%),
+    var(--superficie-2);
+}
+.agua-nivel {
+  position: absolute; inset: 0 auto 0 0; min-width: 3%;
+  transition: width 900ms cubic-bezier(.2, .8, .2, 1);
+}
+/* Corpo da água: começa abaixo da crista das ondas. */
+.agua-nivel::before {
+  content: ""; position: absolute; inset: 7px 0 0 0;
+  background: linear-gradient(180deg, var(--agua-claro), var(--agua-escuro));
+}
+/* Bolhas subindo devagar dentro do nível. */
+.agua-nivel::after {
+  content: ""; position: absolute; inset: 7px 0 0 0; opacity: .5;
+  background-image:
+    radial-gradient(circle at 12% 80%, var(--agua-espuma) 0 2px, transparent 2.5px),
+    radial-gradient(circle at 46% 65%, var(--agua-espuma) 0 1.5px, transparent 2px),
+    radial-gradient(circle at 78% 90%, var(--agua-espuma) 0 2px, transparent 2.5px);
+  background-size: 60px 30px;
+  animation: agua-bolhas 3.2s linear infinite;
+}
+.agua-onda {
+  position: absolute; left: 0; right: 0; top: 0; height: 8px; z-index: 1;
+  background: radial-gradient(10px 7px at 10px 0, transparent 96%, var(--agua-claro) 100%) 0 0 / 20px 8px repeat-x;
+  animation: agua-onda 1.4s linear infinite;
+}
+.agua-onda-fundo {
+  top: 1px; opacity: .45; z-index: 0;
+  background-size: 28px 8px;
+  animation-duration: 2.6s; animation-direction: reverse;
+}
+/* Borda da frente com um brilho, como a água encostando no vidro. */
+.agua-nivel > .agua-onda:first-child::after {
+  content: ""; position: absolute; right: 0; top: 4px; width: 3px; height: 24px;
+  background: linear-gradient(180deg, var(--agua-espuma), transparent);
+  border-radius: 2px;
+}
+.agua-percentual { min-width: 4ch; text-align: right; font-weight: 700; color: var(--acento-texto); }
+.agua-etapa { margin: 8px 0 12px; font-size: 13px; color: var(--texto-2); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.exportacao-pronta .agua { border-color: var(--ok); }
+.exportacao-pronta .agua-onda, .exportacao-pronta .agua-nivel::after { animation-play-state: paused; }
+.exportacao-falha .agua-nivel::before { background: linear-gradient(180deg, var(--borda-forte), var(--texto-3)); }
+.exportacao-falha .agua-onda { background-image: radial-gradient(10px 7px at 10px 0, transparent 96%, var(--borda-forte) 100%); }
+@keyframes agua-onda { from { background-position-x: 0; } to { background-position-x: 40px; } }
+@keyframes agua-bolhas { from { background-position: 0 0; } to { background-position: 12px -30px; } }

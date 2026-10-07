@@ -60,6 +60,9 @@ PAGINA_MODULO = {
 }
 
 
+PAGINAS_EXPORTACAO = frozenset({"atendimento", "financeiro", "sesmt", "medicos"})
+
+
 @dataclass
 class ContextoWeb:
     settings: Settings
@@ -82,10 +85,19 @@ class ContextoWeb:
             "csrf": token_csrf(request),
             "mensagens": request.session.pop("mensagens", []),
             "ambiente": self.settings.app_env,
+            "data_hoje": self.hoje(),
+            "exportacoes": self._exportacoes(acesso, contexto),
         }
         return self.templates.TemplateResponse(
             request, nome, {**base, **contexto}, status_code=status_code
         )
+
+    def _exportacoes(self, acesso: Acesso | None, contexto: dict[str, Any]) -> dict[str, Any]:
+        """Última exportação de cada tipo do usuário, só nas páginas com "Exportar período"."""
+        exportar = self.container.casos.exportar
+        if acesso is None or exportar is None or contexto.get("pagina") not in PAGINAS_EXPORTACAO:
+            return {}
+        return dict(exportar.ultimas(acesso.login))
 
     def acesso(self, request: Request) -> Acesso | None:
         """Quem está logado, com as permissões de agora (lidas do banco a cada requisição,
