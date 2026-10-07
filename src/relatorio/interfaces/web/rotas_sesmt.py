@@ -18,7 +18,7 @@ from relatorio.application.sesmt import (
 from relatorio.infrastructure.container import Container
 from relatorio.interfaces.demo import html_para_navegador
 from relatorio.interfaces.web.dependencias import Csrf, Ctx, UsuarioSesmt, mensagem, redirecionar
-from relatorio.interfaces.web.paginacao import paginar
+from relatorio.interfaces.web.paginacao import paginar, voltar_para
 from relatorio.interfaces.web.rotas_admin import EMAIL_VALIDO
 
 log = structlog.get_logger(__name__)
@@ -127,7 +127,7 @@ def adicionar_destinatario_sesmt(
             uow.destinatarios_sesmt.adicionar(email, nome.strip()[:120] or None)
             uow.commit()
         mensagem(request, f"{email} cadastrado na lista do relatório do SESMT.")
-    return redirecionar(URL)
+    return redirecionar(voltar_para(request, f"{URL}#destinatarios"))
 
 
 @router.post("/destinatarios/{id_destinatario}/ativo", response_class=HTMLResponse)

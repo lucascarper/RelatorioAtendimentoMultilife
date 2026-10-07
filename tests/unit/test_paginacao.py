@@ -1,6 +1,6 @@
 from starlette.requests import Request
 
-from relatorio.interfaces.web.paginacao import PADRAO, paginar
+from relatorio.interfaces.web.paginacao import PADRAO, paginar, voltar_para
 
 
 def _req(consulta: str = "") -> Request:
@@ -47,3 +47,23 @@ def test_links_preservam_outras_listas() -> None:
 def test_numeros_com_reticencias() -> None:
     pg = paginar(_req("lista_n=10&lista_p=6"), list(range(200)), "lista")
     assert pg.numeros() == [1, None, 5, 6, 7, None, 20]
+
+
+def test_voltar_para_so_com_referer_da_mesma_pagina() -> None:
+    def com(referer: str) -> Request:
+        return Request(
+            {
+                "type": "http",
+                "path": "/",
+                "query_string": b"",
+                "method": "GET",
+                "headers": [(b"referer", referer.encode())],
+            }
+        )
+
+    base = "/admin/x#lista"
+    assert voltar_para(com("http://h/admin/x?lista_n=50&lista_p=2&q=1"), base) == (
+        "/admin/x?lista_n=50&lista_p=2#lista"
+    )
+    assert voltar_para(com("http://h/admin/outra?lista_n=50"), base) == base
+    assert voltar_para(com(""), base) == base

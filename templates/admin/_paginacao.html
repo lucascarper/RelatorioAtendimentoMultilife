@@ -4,8 +4,8 @@
 <nav class="paginacao" aria-label="Paginação da lista">
   <p class="paginacao-resumo">{{ pg.primeiro }}–{{ pg.ultimo }} de {{ pg.total }}</p>
   <form class="paginacao-tamanho" method="get" action="{{ pg.caminho }}#{{ pg.chave }}"
-        hx-get="{{ pg.caminho }}" hx-trigger="change" hx-target="body" hx-swap="outerHTML"
-        hx-push-url="true" hx-include="this">
+        hx-get="{{ pg.caminho }}" hx-trigger="change" hx-target="#{{ pg.chave }}" hx-select="#{{ pg.chave }}"
+        hx-swap="outerHTML" hx-push-url="true">
     {% for nome, valor in pg.outros %}<input type="hidden" name="{{ nome }}" value="{{ valor }}">{% endfor %}
     <label>Mostrar
       <select name="{{ pg.parametro_tamanho }}">

@@ -7,9 +7,10 @@ Cada lista tem uma ``chave`` e usa os parâmetros ``<chave>_p`` (página) e ``<c
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 from fastapi import Request
 
@@ -75,11 +76,31 @@ class Pagina:
         return saida
 
 
+_PARAMETRO = re.compile(r"^[a-z_]+_[np]$")
+
+
 def _inteiro(texto: str | None, padrao: int) -> int:
-    try:
-        return int(texto) if texto is not None else padrao
-    except ValueError:
+    # Só dígitos ASCII: nada de sinal, espaço, notação científica ou dígitos de outros alfabetos.
+    if texto is None or not (texto.isascii() and texto.isdigit()) or len(texto) > 6:
         return padrao
+    return int(texto)
+
+
+def voltar_para(request: Request, url: str) -> str:
+    """``url`` com a página e o tamanho das listas que o usuário estava vendo (do Referer).
+
+    Depois de adicionar ou excluir um item, a lista continua onde estava, em vez de voltar
+    à primeira página com o tamanho padrão.
+    """
+    caminho, _, ancora = url.partition("#")
+    referencia = urlsplit(request.headers.get("referer", ""))
+    if referencia.path != caminho or "?" in caminho:
+        return url
+    mantidos = [
+        (k, v) for k, v in parse_qsl(referencia.query) if _PARAMETRO.match(k) and _inteiro(v, 0)
+    ]
+    consulta = f"?{urlencode(mantidos)}" if mantidos else ""
+    return f"{caminho}{consulta}{'#' + ancora if ancora else ''}"
 
 
 def paginar(request: Request, itens: Sequence[object], chave: str) -> Pagina:
@@ -90,8 +111,11 @@ def paginar(request: Request, itens: Sequence[object], chave: str) -> Pagina:
     total = len(itens)
     ultima = max(1, -(-total // tamanho))
     pagina = min(max(1, _inteiro(consulta.get(f"{chave}_p"), 1)), ultima)
+    # Só os parâmetros de paginação das outras listas da tela são levados nos links.
     outros = tuple(
-        (k, v) for k, v in consulta.multi_items() if k not in (f"{chave}_p", f"{chave}_n")
+        (k, v)
+        for k, v in consulta.multi_items()
+        if _PARAMETRO.match(k) and _inteiro(v, 0) and k not in (f"{chave}_p", f"{chave}_n")
     )
     recorte = itens[(pagina - 1) * tamanho : pagina * tamanho]
     return Pagina(recorte, total, pagina, tamanho, chave, request.url.path, outros)

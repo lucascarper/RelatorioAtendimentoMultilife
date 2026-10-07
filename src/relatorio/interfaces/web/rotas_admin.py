@@ -41,7 +41,7 @@ from relatorio.interfaces.web.dependencias import (
     situacao_coleta,
 )
 from relatorio.interfaces.web.monitor import PainelMonitor, montar_painel
-from relatorio.interfaces.web.paginacao import paginar
+from relatorio.interfaces.web.paginacao import paginar, voltar_para
 
 log = structlog.get_logger(__name__)
 router = APIRouter(prefix="/admin")
@@ -289,7 +289,7 @@ def adicionar_destinatario(
             uow.destinatarios.adicionar(email, nome.strip()[:120] or None)
             uow.commit()
         mensagem(request, f"{email} cadastrado e ativo.")
-    return redirecionar("/admin/atendimento#destinatarios")
+    return redirecionar(voltar_para(request, "/admin/atendimento#destinatarios"))
 
 
 def _linha_destinatario(
@@ -393,7 +393,7 @@ def salvar_unidades(
             uow.configuracoes.definir(CHAVE_UNIDADES, ",".join(map(str, escolhidas)))
             uow.commit()
         mensagem(request, "Unidades do relatório atualizadas.")
-    return redirecionar("/admin/agendas")
+    return redirecionar(voltar_para(request, "/admin/agendas"))
 
 
 @router.post("/agendas/sincronizar")
@@ -410,7 +410,7 @@ def sincronizar_agendas(
             f"Agendas sincronizadas: {r['agendas']} no SGG, {r['novas']} nova(s), "
             f"{r['desativadas']} desativada(s).",
         )
-    return redirecionar("/admin/agendas")
+    return redirecionar(voltar_para(request, "/admin/agendas"))
 
 
 @router.post("/agendas/{id_agenda}/incluir", response_class=HTMLResponse)
