@@ -16,8 +16,10 @@ from relatorio.application.modelos import (
     ColetaExames,
     Destinatario,
     ExecucaoJob,
+    Exportacao,
     ResumoRegistro,
     StatusEnvio,
+    StatusExportacao,
     StatusJob,
     UsuarioSistema,
 )
@@ -36,6 +38,7 @@ from relatorio.infrastructure.db.modelos import (
     DestinatarioSesmtModel,
     ExameClinicoModel,
     ExecucaoJobModel,
+    ExportacaoModel,
     MedicoRelatorioModel,
     ResumoDiarioModel,
     ResumoFinanceiroModel,
@@ -354,6 +357,10 @@ class ResumoRepositorioSql:
         modelos = self._s.scalars(select(self._m).order_by(self._m.data.desc()).limit(limite)).all()
         return [_resumo(m) for m in modelos]
 
+    def listar_periodo(self, inicio: date, fim: date) -> list[ResumoRegistro]:
+        consulta = select(self._m).where(self._m.data.between(inicio, fim)).order_by(self._m.data)
+        return [_resumo(m) for m in self._s.scalars(consulta).all()]
+
     def apagar_anteriores_a(self, limite: date) -> int:
         resultado = self._s.execute(delete(self._m).where(self._m.data < limite))
         return _afetadas(resultado)
@@ -633,6 +640,98 @@ class ExameRepositorioSql:
         return _afetadas(resultado)
 
 
+def _exportacao(m: ExportacaoModel) -> Exportacao:
+    return Exportacao(
+        id=m.id,
+        tipo=m.tipo,
+        inicio=m.inicio,
+        fim=m.fim,
+        solicitante=m.solicitante,
+        criado_em=m.criado_em,
+        status=StatusExportacao(m.status),
+        progresso=m.progresso,
+        etapa=m.etapa,
+        nome_arquivo=m.nome_arquivo,
+        erro=m.erro,
+    )
+
+
+class ExportacaoRepositorioSql:
+    def __init__(self, sessao: Session) -> None:
+        self._s = sessao
+
+    def criar(self, exportacao: Exportacao) -> None:
+        self._s.add(
+            ExportacaoModel(
+                id=exportacao.id,
+                tipo=exportacao.tipo,
+                inicio=exportacao.inicio,
+                fim=exportacao.fim,
+                solicitante=exportacao.solicitante,
+                criado_em=exportacao.criado_em,
+                status=exportacao.status.value,
+                progresso=exportacao.progresso,
+                etapa=exportacao.etapa,
+            )
+        )
+        self._s.flush()
+
+    def obter(self, id_exportacao: str) -> Exportacao | None:
+        modelo = self._s.get(ExportacaoModel, id_exportacao, populate_existing=True)
+        return _exportacao(modelo) if modelo else None
+
+    def _atualizar(self, id_exportacao: str, **valores: Any) -> None:
+        self._s.execute(
+            update(ExportacaoModel).where(ExportacaoModel.id == id_exportacao).values(**valores)
+        )
+
+    def progresso(self, id_exportacao: str, progresso: int, etapa: str) -> None:
+        self._atualizar(
+            id_exportacao,
+            status=StatusExportacao.GERANDO.value,
+            progresso=max(0, min(progresso, 99)),
+            etapa=etapa[:200],
+        )
+
+    def concluir(self, id_exportacao: str, nome_arquivo: str, conteudo: bytes) -> None:
+        self._atualizar(
+            id_exportacao,
+            status=StatusExportacao.PRONTO.value,
+            progresso=100,
+            etapa="Planilha pronta",
+            nome_arquivo=nome_arquivo,
+            arquivo=conteudo,
+        )
+
+    def falhar(self, id_exportacao: str, erro: str) -> None:
+        self._atualizar(id_exportacao, status=StatusExportacao.FALHA.value, erro=erro[:2000])
+
+    def arquivo(self, id_exportacao: str) -> tuple[str, bytes] | None:
+        linha = self._s.execute(
+            select(ExportacaoModel.nome_arquivo, ExportacaoModel.arquivo).where(
+                ExportacaoModel.id == id_exportacao,
+                ExportacaoModel.status == StatusExportacao.PRONTO.value,
+            )
+        ).first()
+        if linha is None or linha.arquivo is None:
+            return None
+        return linha.nome_arquivo, bytes(linha.arquivo)
+
+    def ultimas(self, solicitante: str, desde: datetime) -> dict[str, Exportacao]:
+        consulta = (
+            select(ExportacaoModel)
+            .where(ExportacaoModel.solicitante == solicitante, ExportacaoModel.criado_em >= desde)
+            .order_by(ExportacaoModel.criado_em)
+        )
+        return {m.tipo: _exportacao(m) for m in self._s.scalars(consulta).all()}
+
+    def apagar_anteriores_a(self, limite: datetime) -> int:
+        resultado = self._s.execute(
+            delete(ExportacaoModel).where(ExportacaoModel.criado_em < limite)
+        )
+        return _afetadas(resultado)
+
+
 class ConfiguracaoRepositorioSql:
     def __init__(self, sessao: Session) -> None:
         self._s = sessao
@@ -815,6 +914,7 @@ class UnidadeDeTrabalhoSql:
         self.usuarios = UsuarioRepositorioSql(sessao)
         self.medicos = MedicoRepositorioSql(sessao)
         self.exames = ExameRepositorioSql(sessao)
+        self.exportacoes = ExportacaoRepositorioSql(sessao)
         self.configuracoes = ConfiguracaoRepositorioSql(sessao)
         self.execucoes = ExecucaoJobRepositorioSql(sessao)
         self.cursores = CursorRepositorioSql(sessao)

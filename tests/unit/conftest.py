@@ -7,6 +7,7 @@ import pytest
 from relatorio.application.configuracao import ConfiguracaoRelatorio, JanelaColeta
 from relatorio.application.montagem import montar_casos_de_uso
 from relatorio.infrastructure.planilha import GeradorPlanilhaXlsx
+from relatorio.infrastructure.planilha_exportacao import EscritorXlsx
 from tests.fabricas import hora
 from tests.fakes import (
     BancoEmMemoria,
@@ -49,6 +50,7 @@ class Sistema:
             sesmt=self.sesmt,
             exames=self.exames,
             planilha=GeradorPlanilhaXlsx(),
+            escritor=EscritorXlsx(self.relogio),
         )
         self.alertar = casos.alertar
         self.coletar = casos.coletar
@@ -74,6 +76,8 @@ class Sistema:
         assert casos.processar_exames is not None and casos.complemento_exames is not None
         self.processar_exames = casos.processar_exames
         self.complemento_exames = casos.complemento_exames
+        assert casos.exportar is not None
+        self.exportar = casos.exportar
 
     def alertas_enviados(self) -> list[str]:
         return [c.assunto for _, c in self.email.enviados if c.assunto.startswith("[Alerta]")]

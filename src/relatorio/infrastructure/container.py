@@ -16,6 +16,7 @@ from relatorio.infrastructure.email.envio import EnviadorArquivo, EnviadorSmtp
 from relatorio.infrastructure.email.renderizador import RenderizadorJinja
 from relatorio.infrastructure.jobs import ExecutorJobs
 from relatorio.infrastructure.planilha import GeradorPlanilhaXlsx
+from relatorio.infrastructure.planilha_exportacao import EscritorXlsx
 from relatorio.infrastructure.relogio import RelogioSistema
 from relatorio.infrastructure.sgg.cliente import ClienteSgg
 
@@ -99,6 +100,7 @@ class Container:
             sesmt=self.sgg,
             exames=self.sgg,
             planilha=GeradorPlanilhaXlsx(),
+            escritor=EscritorXlsx(self.relogio),
         )
 
     @cached_property

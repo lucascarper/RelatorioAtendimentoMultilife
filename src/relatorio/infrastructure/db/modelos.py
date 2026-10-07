@@ -19,6 +19,7 @@ from sqlalchemy import (
     Identity,
     Index,
     Integer,
+    LargeBinary,
     MetaData,
     String,
     Text,
@@ -244,6 +245,25 @@ class ColetaExamesModel(Base):
     clinicos: Mapped[int] = mapped_column(Integer)
     selecionados: Mapped[int] = mapped_column(Integer)
     medicos: Mapped[list[str]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
+
+
+class ExportacaoModel(Base):
+    """Exportações por período; o arquivo fica 24 h para download e depois é apagado."""
+
+    __tablename__ = "exportacao"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    tipo: Mapped[str] = mapped_column(String(20))
+    inicio: Mapped[date] = mapped_column(Date)
+    fim: Mapped[date] = mapped_column(Date)
+    solicitante: Mapped[str] = mapped_column(String(40))
+    criado_em: Mapped[datetime] = mapped_column(index=True)
+    status: Mapped[str] = mapped_column(String(10))
+    progresso: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    etapa: Mapped[str] = mapped_column(String(200), server_default=text("''"))
+    nome_arquivo: Mapped[str] = mapped_column(String(120), server_default=text("''"))
+    erro: Mapped[str] = mapped_column(Text, server_default=text("''"))
+    arquivo: Mapped[bytes | None] = mapped_column(LargeBinary, deferred=True)
 
 
 class ExecucaoJobModel(Base):

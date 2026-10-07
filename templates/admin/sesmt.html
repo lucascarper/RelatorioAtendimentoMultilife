@@ -111,4 +111,6 @@
     <button type="submit" class="btn btn-secundario">Salvar nomes</button>
   </form>
 </section>
+
+{% with tipo="sesmt", descricao="Relatório: pendências e envios ao eSocial de cada dia. Fonte: empresas, contratos, documentos e eventos do eSocial, relidos do SGG empresa por empresa.", aviso="Disponível só das 20h às 5h: a releitura faz mais de mil consultas ao SGG e leva de 15 a 30 minutos. Pode sair da página: ao voltar, a barra mostra o andamento." %}{% include "admin/_exportar.html" %}{% endwith %}
 {% endblock %}

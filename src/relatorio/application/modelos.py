@@ -55,6 +55,34 @@ class UsuarioSistema:
     criado_em: datetime
 
 
+class StatusExportacao(StrEnum):
+    FILA = "fila"
+    GERANDO = "gerando"
+    PRONTO = "pronto"
+    FALHA = "falha"
+
+
+@dataclass(frozen=True, slots=True)
+class Exportacao:
+    """Pedido de exportação de um relatório por período (o arquivo fica à parte)."""
+
+    id: str
+    tipo: str
+    inicio: date
+    fim: date
+    solicitante: str
+    criado_em: datetime
+    status: StatusExportacao = StatusExportacao.FILA
+    progresso: int = 0  # 0 a 100
+    etapa: str = ""
+    nome_arquivo: str = ""
+    erro: str = ""
+
+    @property
+    def terminou(self) -> bool:
+        return self.status in (StatusExportacao.PRONTO, StatusExportacao.FALHA)
+
+
 @dataclass(frozen=True, slots=True)
 class ExecucaoJob:
     id: int

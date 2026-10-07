@@ -16,8 +16,10 @@ from relatorio.application.modelos import (
     ColetaExames,
     Destinatario,
     ExecucaoJob,
+    Exportacao,
     ResumoRegistro,
     StatusEnvio,
+    StatusExportacao,
     StatusJob,
     UsuarioSistema,
 )
@@ -41,6 +43,8 @@ class BancoEmMemoria:
     medicos: dict[str, Medico] = field(default_factory=dict)
     exames: dict[int, ExameClinico] = field(default_factory=dict)
     coletas_exames: dict[date, ColetaExames] = field(default_factory=dict)
+    exportacoes: dict[str, Exportacao] = field(default_factory=dict)
+    arquivos: dict[str, tuple[str, bytes]] = field(default_factory=dict)
     configuracoes: dict[str, str] = field(default_factory=dict)
     execucoes: dict[int, ExecucaoJob] = field(default_factory=dict)
     cursores: dict[str, datetime] = field(default_factory=dict)
@@ -163,6 +167,9 @@ class _Resumos:
 
     def listar_recentes(self, limite: int = 30) -> list[ResumoRegistro]:
         return sorted(self.r.values(), key=lambda r: r.data, reverse=True)[:limite]
+
+    def listar_periodo(self, inicio: date, fim: date) -> list[ResumoRegistro]:
+        return sorted((r for r in self.r.values() if inicio <= r.data <= fim), key=lambda r: r.data)
 
     def apagar_anteriores_a(self, limite: date) -> int:
         antigos = [d for d in self.r if d < limite]
@@ -323,6 +330,61 @@ class _Exames:
         return len(antigos)
 
 
+class _Exportacoes:
+    def __init__(self, banco: BancoEmMemoria) -> None:
+        self.b = banco
+
+    def criar(self, exportacao: Exportacao) -> None:
+        self.b.exportacoes[exportacao.id] = exportacao
+
+    def obter(self, id_exportacao: str) -> Exportacao | None:
+        return self.b.exportacoes.get(id_exportacao)
+
+    def progresso(self, id_exportacao: str, progresso: int, etapa: str) -> None:
+        self.b.exportacoes[id_exportacao] = replace(
+            self.b.exportacoes[id_exportacao],
+            status=StatusExportacao.GERANDO,
+            progresso=max(0, min(progresso, 99)),
+            etapa=etapa,
+        )
+
+    def concluir(self, id_exportacao: str, nome_arquivo: str, conteudo: bytes) -> None:
+        self.b.exportacoes[id_exportacao] = replace(
+            self.b.exportacoes[id_exportacao],
+            status=StatusExportacao.PRONTO,
+            progresso=100,
+            etapa="Planilha pronta",
+            nome_arquivo=nome_arquivo,
+        )
+        self.b.arquivos[id_exportacao] = (nome_arquivo, conteudo)
+
+    def falhar(self, id_exportacao: str, erro: str) -> None:
+        self.b.exportacoes[id_exportacao] = replace(
+            self.b.exportacoes[id_exportacao], status=StatusExportacao.FALHA, erro=erro
+        )
+
+    def arquivo(self, id_exportacao: str) -> tuple[str, bytes] | None:
+        return self.b.arquivos.get(id_exportacao)
+
+    def ultimas(self, solicitante: str, desde: datetime) -> dict[str, Exportacao]:
+        escolhidas = sorted(
+            (
+                e
+                for e in self.b.exportacoes.values()
+                if e.solicitante == solicitante and e.criado_em >= desde
+            ),
+            key=lambda e: e.criado_em,
+        )
+        return {e.tipo: e for e in escolhidas}
+
+    def apagar_anteriores_a(self, limite: datetime) -> int:
+        antigas = [i for i, e in self.b.exportacoes.items() if e.criado_em < limite]
+        for id_exportacao in antigas:
+            del self.b.exportacoes[id_exportacao]
+            self.b.arquivos.pop(id_exportacao, None)
+        return len(antigas)
+
+
 class _Configuracoes:
     def __init__(self, banco: BancoEmMemoria) -> None:
         self.b = banco
@@ -446,6 +508,7 @@ class UoWEmMemoria:
         self.usuarios = _Usuarios(banco.usuarios)
         self.medicos = _Medicos(banco)
         self.exames = _Exames(banco)
+        self.exportacoes = _Exportacoes(banco)
         self.configuracoes = _Configuracoes(banco)
         self.execucoes = _Execucoes(banco)
         self.cursores = _Cursores(banco)
