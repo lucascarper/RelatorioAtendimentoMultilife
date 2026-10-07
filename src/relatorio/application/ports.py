@@ -283,14 +283,22 @@ class ExportacaoRepository(Protocol):
         """Marca como "gerando" e atualiza o andamento."""
         ...
 
-    def concluir(self, id_exportacao: str, nome_arquivo: str, conteudo: bytes) -> None: ...
+    def concluir(
+        self,
+        id_exportacao: str,
+        nome_arquivo: str,
+        conteudo: bytes | None,
+        etapa: str = "Planilha pronta",
+    ) -> None:
+        """``conteudo`` None: processamento sem arquivo (só a mensagem final em ``etapa``)."""
+        ...
 
     def falhar(self, id_exportacao: str, erro: str) -> None: ...
 
     def arquivo(self, id_exportacao: str) -> tuple[str, bytes] | None: ...
 
     def ultimas(self, solicitante: str, desde: datetime) -> dict[str, Exportacao]:
-        """A exportação mais recente de cada tipo pedida por ``solicitante`` desde ``desde``."""
+        """A mais recente de cada "acao:tipo" pedida por ``solicitante`` desde ``desde``."""
         ...
 
     def apagar_anteriores_a(self, limite: datetime) -> int: ...

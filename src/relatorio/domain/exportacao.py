@@ -36,12 +36,23 @@ Formato = Literal[
 ]
 
 
-def validar_periodo(inicio: date, fim: date, hoje: date) -> None:
-    """Lança ``ValueError`` com a mensagem para a tela se o período não pode ser exportado."""
+EXPORTAR = "exportar"
+PROCESSAR = "processar"
+ACOES = (EXPORTAR, PROCESSAR)
+# Os relatórios financeiro e do SESMT são do dia anterior: o dia de hoje ainda não fechou.
+SO_ATE_ONTEM = (FINANCEIRO, SESMT)
+
+
+def validar_periodo(
+    inicio: date, fim: date, hoje: date, tipo: str = "", acao: str = EXPORTAR
+) -> None:
+    """Lança ``ValueError`` com a mensagem para a tela se o período não pode ser pedido."""
     if fim < inicio:
         raise ValueError("A data final deve ser igual ou posterior à data inicial.")
     if fim > hoje:
         raise ValueError("A data final não pode ser no futuro.")
+    if acao == PROCESSAR and tipo in SO_ATE_ONTEM and fim >= hoje:
+        raise ValueError("Este relatório é do dia anterior: escolha a data final até ontem.")
     if (fim - inicio).days + 1 > MAX_DIAS:
         raise ValueError(f"O período pode ter no máximo {MAX_DIAS} dias.")
 

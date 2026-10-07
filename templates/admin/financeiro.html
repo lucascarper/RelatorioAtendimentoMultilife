@@ -108,5 +108,7 @@
   </form>
 </section>
 
+{% with tipo="financeiro", descricao="Lê o SGG e grava o resumo financeiro de cada dia do período (cerca de 1 minuto por dia). Projeções e contratos refletem a situação de agora." %}{% include "admin/_processar_periodo.html" %}{% endwith %}
+
 {% with tipo="financeiro", descricao="Relatório: caixa e faturamento de cada dia. Fonte: títulos recebidos, pagos e faturados no período, relidos do SGG na hora (alguns minutos)." %}{% include "admin/_exportar.html" %}{% endwith %}
 {% endblock %}

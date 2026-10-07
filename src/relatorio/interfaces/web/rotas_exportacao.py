@@ -55,11 +55,16 @@ def _fragmento(
     tipo: str,
     exportacao: Exportacao | None = None,
     erro: str | None = None,
+    acao: str = "exportar",
 ) -> HTMLResponse:
     # Fragmento sem as mensagens da sessão (não consome os avisos da página).
-    resposta = ctx.templates.TemplateResponse(
-        request, "admin/_exportacao.html", {"tipo": tipo, "e": exportacao, "erro": erro}
-    )
+    contexto = {
+        "tipo": tipo,
+        "e": exportacao,
+        "erro": erro,
+        "acao": exportacao.acao if exportacao else acao,
+    }
+    resposta = ctx.templates.TemplateResponse(request, "admin/_exportacao.html", contexto)
     resposta.headers["Cache-Control"] = "no-store"
     return resposta
 
@@ -74,12 +79,16 @@ def solicitar(
     tipo: Annotated[str, Form()],
     inicio: Annotated[date, Form()],
     fim: Annotated[date, Form()],
+    acao: Annotated[str, Form()] = "exportar",
+    reconciliar: Annotated[bool, Form()] = False,
 ) -> HTMLResponse:
     _exigir(acesso, tipo)
+    # Só o atendimento tem opção (reler o SGG antes de recalcular); nos outros é ignorada.
+    opcoes = "reconciliar" if reconciliar and tipo == ATENDIMENTO and acao == "processar" else ""
     try:
-        exportacao = _exportar(ctx).solicitar(tipo, inicio, fim, acesso.login)
+        exportacao = _exportar(ctx).solicitar(tipo, inicio, fim, acesso.login, acao, opcoes)
     except ValueError as erro:
-        return _fragmento(request, ctx, tipo, erro=str(erro))
+        return _fragmento(request, ctx, tipo, erro=str(erro), acao=acao)
     tarefas.add_task(gerar_em_segundo_plano, ctx.container, exportacao.id, tipo)
     return _fragmento(request, ctx, tipo, exportacao)
 
@@ -89,9 +98,20 @@ def gerar_em_segundo_plano(container: Container, id_exportacao: str, tipo: str) 
     if exportar is None:  # pragma: no cover
         return
     # O SESMT disputa a cota da API com a coleta noturna: usa a mesma trava do job.
-    trava = "consolidar_sesmt" if tipo == SESMT else f"exportar_{tipo}"
+    exportacao = exportar.obter(id_exportacao)
+    processando = exportacao is not None and exportacao.acao == "processar"
+    trava = f"exportar_{tipo}"
+    if tipo == SESMT:
+        trava = "consolidar_sesmt"
+    elif processando:  # a mesma trava dos jobs que gravam esses resumos
+        trava = {
+            ATENDIMENTO: "consolidar_dia",
+            FINANCEIRO: "consolidar_financeiro",
+            MEDICOS: "processar_exames",
+        }[tipo]
+    job = f"{'processar_periodo' if processando else 'exportar'}_{tipo}"
     resultado = container.executor.executar(
-        f"exportar_{tipo}", lambda: exportar.executar(id_exportacao), trava=trava
+        job, lambda: exportar.executar(id_exportacao), trava=trava
     )
     if resultado is StatusJob.IGNORADO:
         exportar.marcar_ocupado(id_exportacao)

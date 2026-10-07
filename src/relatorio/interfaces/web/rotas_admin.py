@@ -71,6 +71,10 @@ JOBS = {
     "exportar_financeiro": "Exportação por período: financeiro",
     "exportar_sesmt": "Exportação por período: SESMT",
     "exportar_medicos": "Exportação por período: atendimentos por médico",
+    "processar_periodo_atendimento": "Processar período: atendimento",
+    "processar_periodo_financeiro": "Processar período: financeiro",
+    "processar_periodo_sesmt": "Processar período: SESMT",
+    "processar_periodo_medicos": "Processar período: atendimentos por médico",
 }
 ROTULOS_DETALHE = {
     "requisicoes": "requisições",
@@ -113,6 +117,7 @@ ROTULOS_DETALHE = {
     "abas": "abas",
     "linhas": "linhas",
     "bytes": "tamanho (bytes)",
+    "resultado": "resultado",
 }
 CSP_PREVIA = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; frame-ancestors 'self'"
 

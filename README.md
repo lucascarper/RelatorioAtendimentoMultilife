@@ -109,6 +109,7 @@ Cada relatório tem o cartão **Exportar período** (Atendimento, Financeiro e S
 
 - A planilha traz a aba **Sobre**, as abas do relatório (o que o e-mail mostrou em cada dia) e as abas **Fonte** (os dados usados no cálculo).
 - Fonte do Atendimento: agendamentos e mudanças de status do banco. Financeiro: títulos e itens faturados relidos do SGG. SESMT: empresas, contratos, documentos e eventos do eSocial relidos do SGG, **só das 20h às 5h** (mais de mil consultas). Médicos: exames com o nome do trabalhador lido do SGG na hora, nunca gravado.
+- **Processar período** (cartão ao lado, nos mesmos quatro lugares): recalcula e grava o resumo de cada dia do período (até 31 dias), com a mesma barra. **Não reenvia e-mail.** O SESMT faz uma única leitura do SGG para todos os dias e só roda das 20h às 5h.
 - Regras e decisões no [ADR 0016](docs/adr/0016-exportacao-por-periodo.md).
 
 ### Painel administrativo: módulos e usuários

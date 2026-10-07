@@ -27,3 +27,14 @@ O banco guarda o resumo calculado de cada dia, mas só o relatório de atendimen
 - Uma exportação do SESMT leva de 15 a 30 minutos e não roda se a coleta noturna do SESMT estiver em andamento (a tela avisa para tentar depois).
 - Dias sem resumo (sem expediente) ou sem processamento dos exames aparecem na aba Sobre.
 - A planilha dos atendimentos por médico tem dados pessoais de saúde: a aba de fonte e a tela avisam que é de uso interno.
+
+## Processar por período
+
+Além de exportar, cada relatório tem o cartão **Processar período** (migração 0009: `exportacao.acao` e `opcoes`), que recalcula e grava o resumo de cada dia de um intervalo de até 31 dias, com a mesma barra de andamento. É o "reprocessar uma data" estendido a um período.
+
+- **Nunca reenvia e-mail:** reenviar um período mandaria um e-mail por dia. Para reenviar, vale a data única de cada relatório.
+- **Atendimento:** recalcula cada dia a partir dos eventos gravados; a opção "Reler o dia no SGG antes" refaz a varredura completa de cada dia (lenta). Vale até hoje.
+- **Financeiro:** relê o SGG e recalcula cada dia (cerca de 1 minuto por dia); vale até ontem.
+- **SESMT:** **uma única leitura do SGG** (mais de uma hora) serve a todos os dias, porque a API devolve todos os eventos de cada empresa e só a data de referência muda. Contratos e documentos refletem a situação de agora, como no processamento de uma data. Só das 20h às 5h e até ontem.
+- **Atendimentos por médico:** relê os exames clínicos de cada dia (uma consulta por dia, mais uma por empresa nova).
+- Um dia sem resposta do SGG não impede os outros: a frase final lista os dias que falharam, e só falha tudo se nenhum dia respondeu. Usa a mesma trava dos jobs que gravam o mesmo resumo (o processamento e a coleta noturna não rodam juntos).

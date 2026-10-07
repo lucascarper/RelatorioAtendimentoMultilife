@@ -20,5 +20,5 @@
     <button type="submit" class="btn btn-secundario">Exportar planilha</button>
   </form>
   <p class="nota exportar-rodape">Até 31 dias por vez. A planilha traz o relatório de cada dia e os dados fonte usados no cálculo, e fica disponível por 24 horas.</p>
-  {%- with e = (exportacoes or {}).get(tipo) %}{% include "admin/_exportacao.html" %}{% endwith %}
+  {%- with e = (exportacoes or {}).get("exportar:" ~ tipo), acao = "exportar" %}{% include "admin/_exportacao.html" %}{% endwith %}
 </section>

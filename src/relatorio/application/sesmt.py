@@ -20,6 +20,7 @@ aborta em vez de mandar um relatório vazio.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Sequence
+from dataclasses import replace
 from datetime import date, timedelta
 from typing import TypeVar
 
@@ -172,6 +173,31 @@ class ConsolidarSesmt:
             "a_vencer": resumo["a_vencer"]["total"],
             "vencidos": resumo["vencidos"]["total"],
             "eventos_esocial": resumo["esocial"]["total"],
+            "empresas_sem_consulta": dados.empresas_sem_consulta,
+        }
+
+    def executar_periodo(
+        self,
+        dias: Sequence[date],
+        andamento: Callable[[str, int, int], None] | None = None,
+    ) -> dict[str, object]:
+        """Recalcula vários dias com **uma só** leitura do SGG.
+
+        A API devolve todos os eventos do eSocial de cada empresa, então a mesma coleta
+        serve a todos os dias; só a data de referência muda. Como no processamento de um dia,
+        contratos e documentos valem pela situação de agora.
+        """
+        agora = self._relogio.agora()
+        hoje = agora.astimezone(FUSO_BRASILIA).date()
+        ultimo = max(dias)
+        dados = self.carregar(ultimo, max(hoje, ultimo + timedelta(days=1)), andamento)
+        with self._uow() as uow:
+            for dia in dias:
+                resumo = calcular_sesmt(replace(dados, referencia=dia), agora)
+                uow.resumos_sesmt.salvar_metricas(dia, resumo, VERSAO_REGRA_SESMT, agora)
+            uow.commit()
+        return {
+            "dias": len(dias),
             "empresas_sem_consulta": dados.empresas_sem_consulta,
         }
 

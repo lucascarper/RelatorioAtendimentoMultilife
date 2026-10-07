@@ -99,6 +99,8 @@
   {% endif %}
 </section>
 
+{% with tipo="atendimento", descricao="Recalcula o relatório de cada dia do período a partir dos eventos gravados (use depois de mudar configurações). Pode reler o dia no SGG antes, o que é lento.", reconciliar=true %}{% include "admin/_processar_periodo.html" %}{% endwith %}
+
 {% with tipo="atendimento", descricao="Relatório: indicadores de cada dia e o desempenho por agenda. Fonte: os agendamentos e as mudanças de status gravados pelo coletor (sem dados de pacientes)." %}{% include "admin/_exportar.html" %}{% endwith %}
 
 <section id="destinatarios" class="card">

@@ -653,6 +653,8 @@ def _exportacao(m: ExportacaoModel) -> Exportacao:
         etapa=m.etapa,
         nome_arquivo=m.nome_arquivo,
         erro=m.erro,
+        acao=m.acao,
+        opcoes=m.opcoes,
     )
 
 
@@ -672,6 +674,8 @@ class ExportacaoRepositorioSql:
                 status=exportacao.status.value,
                 progresso=exportacao.progresso,
                 etapa=exportacao.etapa,
+                acao=exportacao.acao,
+                opcoes=exportacao.opcoes,
             )
         )
         self._s.flush()
@@ -693,12 +697,18 @@ class ExportacaoRepositorioSql:
             etapa=etapa[:200],
         )
 
-    def concluir(self, id_exportacao: str, nome_arquivo: str, conteudo: bytes) -> None:
+    def concluir(
+        self,
+        id_exportacao: str,
+        nome_arquivo: str,
+        conteudo: bytes | None,
+        etapa: str = "Planilha pronta",
+    ) -> None:
         self._atualizar(
             id_exportacao,
             status=StatusExportacao.PRONTO.value,
             progresso=100,
-            etapa="Planilha pronta",
+            etapa=etapa[:200],
             nome_arquivo=nome_arquivo,
             arquivo=conteudo,
         )
@@ -723,7 +733,7 @@ class ExportacaoRepositorioSql:
             .where(ExportacaoModel.solicitante == solicitante, ExportacaoModel.criado_em >= desde)
             .order_by(ExportacaoModel.criado_em)
         )
-        return {m.tipo: _exportacao(m) for m in self._s.scalars(consulta).all()}
+        return {f"{m.acao}:{m.tipo}": _exportacao(m) for m in self._s.scalars(consulta).all()}
 
     def apagar_anteriores_a(self, limite: datetime) -> int:
         resultado = self._s.execute(

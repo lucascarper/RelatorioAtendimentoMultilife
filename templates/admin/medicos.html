@@ -64,5 +64,7 @@
   {% endif %}
 </section>
 
+{% with tipo="medicos", descricao="Lê no SGG os exames clínicos de cada dia do período e grava os dos médicos escolhidos (uma consulta por dia, mais uma por empresa nova)." %}{% include "admin/_processar_periodo.html" %}{% endwith %}
+
 {% with tipo="medicos", descricao="Relatório: exames clínicos por dia, médico e tipo. Fonte: a lista de exames com empresa, funcionário e tipo; o nome do funcionário é lido do SGG na hora e não é gravado (LGPD).", aviso="A planilha tem nomes de trabalhadores (dados pessoais de saúde): uso interno, não encaminhe." %}{% include "admin/_exportar.html" %}{% endwith %}
 {% endblock %}

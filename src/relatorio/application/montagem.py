@@ -32,6 +32,7 @@ from relatorio.application.ports import (
     SesmtGateway,
     SggGateway,
 )
+from relatorio.application.processadores import montar_processadores
 from relatorio.application.sesmt import ConsolidarSesmt
 
 
@@ -158,6 +159,12 @@ def montar_casos_de_uso(
                 relogio,
                 montar_exportadores(uow, relogio, financeiro, consolidar_sesmt, exames),
                 escritor,
+                montar_processadores(
+                    ReprocessarData(consolidar, enviar, reconciliar),
+                    consolidar_financeiro,
+                    consolidar_sesmt,
+                    processar_exames,
+                ),
             )
             if escritor is not None
             else None
