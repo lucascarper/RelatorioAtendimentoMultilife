@@ -535,22 +535,12 @@ html:fullscreen .conteudo-monitor { max-width: 1680px; padding: 20px 32px; }
 @media (max-width: 640px) { .login { margin: 24px 16px; padding: 24px; } }
 
 /* ---------------------------------------------------------------- exportar período
-   Barra de andamento em forma de líquido que preenche a calha da esquerda para a direita:
-   o nível cresce com o progresso (transição na largura, que o HTMX preserva entre as
-   atualizações), o corpo tem um fluxo contínuo no mesmo sentido e a frente do líquido é
-   arredondada e ondula. Sem movimento para quem pede movimento reduzido (regra global). */
-:root {
-  --liquido-claro: #5B9BE0;
-  --liquido-escuro: #164F95;
-  --liquido-brilho: rgba(255, 255, 255, .38);
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --liquido-claro: #6FA8EC;
-    --liquido-escuro: #2A5FA6;
-    --liquido-brilho: rgba(230, 240, 255, .28);
-  }
-}
+   Barra de andamento: um líquido azul liso que preenche a calha da esquerda para a direita.
+   O nível cresce com o progresso (transição na largura, que o HTMX preserva entre as
+   atualizações) e a frente do líquido é arredondada e ondula. Sem textura. Sem movimento
+   para quem pede movimento reduzido (regra global). */
+:root { --liquido: #2F6DB8; }
+@media (prefers-color-scheme: dark) { :root { --liquido: #4F8BD9; } }
 .exportar-aviso {
   margin: 0 0 12px; padding: 10px 14px; border-radius: var(--raio-controle);
   background: var(--aviso-suave); color: var(--aviso); font-size: 13px; border: 1px solid var(--aviso-borda);
@@ -560,35 +550,17 @@ html:fullscreen .conteudo-monitor { max-width: 1680px; padding: 20px 32px; }
 .exportacao:empty { display: none; }
 .exportacao .mensagem { margin: 0; }
 .agua-linha { display: flex; align-items: center; gap: 12px; }
-/* A calha: o vidro onde o líquido corre. */
 .agua {
   position: relative; flex: 1; height: 34px; overflow: hidden;
   border-radius: var(--raio-controle); border: 1px solid var(--borda-forte);
   background: var(--superficie-2);
-  box-shadow: inset 0 2px 4px rgba(22, 43, 77, .10);
 }
 .agua-nivel {
   position: absolute; inset: 0 auto 0 0; min-width: 3%;
   transition: width 900ms cubic-bezier(.2, .8, .2, 1);
 }
-/* Corpo do líquido: cor de um lado a outro, com brilho de vidro no alto. */
-.agua-corpo, .agua-frente {
-  background: linear-gradient(180deg, var(--liquido-claro) 0%, var(--liquido-escuro) 100%);
-}
-.agua-corpo { position: absolute; inset: 0; overflow: hidden; }
-.agua-corpo::before {
-  content: ""; position: absolute; inset: 3px 0 auto 0; height: 7px; border-radius: 4px;
-  background: linear-gradient(180deg, var(--liquido-brilho), transparent);
-}
-/* Fluxo: faixas inclinadas e bolhas deslizando no sentido do preenchimento (esquerda → direita). */
-.agua-fluxo {
-  position: absolute; inset: 0; opacity: .85;
-  background:
-    radial-gradient(circle at 20% 70%, var(--liquido-brilho) 0 2px, transparent 2.5px) 0 0 / 70px 34px,
-    radial-gradient(circle at 65% 35%, var(--liquido-brilho) 0 1.5px, transparent 2px) 0 0 / 53px 34px,
-    linear-gradient(105deg, transparent 0%, var(--liquido-brilho) 45%, transparent 90%) 0 0 / 128px 100%;
-  animation: liquido-fluxo 2.2s linear infinite;
-}
+.agua-corpo, .agua-frente { background: var(--liquido); }
+.agua-corpo { position: absolute; inset: 0; }
 /* Frente do líquido: borda que avança, arredondada, com a superfície ondulando na vertical. */
 .agua-frente {
   position: absolute; top: 0; bottom: 0; left: calc(100% - 3px); width: 16px;
@@ -599,10 +571,6 @@ html:fullscreen .conteudo-monitor { max-width: 1680px; padding: 20px 32px; }
 .agua-percentual { min-width: 4ch; text-align: right; font-weight: 700; color: var(--acento-texto); }
 .agua-etapa { margin: 8px 0 12px; font-size: 13px; color: var(--texto-2); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
 .exportacao-pronta .agua { border-color: var(--ok); }
-.exportacao-pronta .agua-fluxo, .exportacao-pronta .agua-frente { animation-play-state: paused; }
-.exportacao-falha .agua-corpo, .exportacao-falha .agua-frente {
-  background: linear-gradient(180deg, var(--borda-forte), var(--texto-3));
-}
-.exportacao-falha .agua-fluxo { display: none; }
-@keyframes liquido-fluxo { from { background-position: 0 0, 0 0, 0 0; } to { background-position: 70px 0, 53px 0, 128px 0; } }
+.exportacao-pronta .agua-frente { animation-play-state: paused; }
+.exportacao-falha .agua-corpo, .exportacao-falha .agua-frente { background: var(--texto-3); }
 @keyframes liquido-frente { from { -webkit-mask-position: 0 0; mask-position: 0 0; } to { -webkit-mask-position: 0 17px; mask-position: 0 17px; } }
