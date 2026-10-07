@@ -80,6 +80,7 @@ def para_agendamento(item: Mapping[str, Any]) -> AgendamentoSgg:
         hora_agendamento=_hora(item.get("hora_agendamento")),
         situacao=Situacao.de_texto(situacao),
         data_hora_edicao=_data_hora(item.get("data_hora_edicao")),
+        tipo=_texto(item.get("tipo")) or "",
     )
 
 
