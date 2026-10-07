@@ -93,3 +93,31 @@ def test_cartoes_nos_modulos_e_medicos_em_configuracoes(cliente: TestClient) -> 
         assert f'value="{tipo}"' in pagina and "Exportar planilha" in pagina, url
     assert "só das 20h às 5h" in cliente.get("/admin/sesmt").text
     assert 'value="medicos"' not in cliente.get("/admin/atendimento").text
+
+
+def test_processar_periodo_pela_tela_sem_download(cliente: TestClient) -> None:  # noqa: F811
+    token = entrar(cliente)
+    pagina = cliente.get("/admin/atendimento").text
+    assert "Processar período" in pagina and 'value="processar"' in pagina
+    assert "Reler o dia no SGG antes" in pagina and "não reenvia e-mail" in pagina
+    resposta = cliente.post(
+        "/admin/exportacoes",
+        data={
+            "tipo": "atendimento",
+            "acao": "processar",
+            "inicio": DIA.isoformat(),
+            "fim": DIA.isoformat(),
+        },
+        headers={"X-CSRF-Token": token, "HX-Request": "true"},
+    )
+    assert resposta.status_code == 200 and 'id="processamento-atendimento"' in resposta.text
+    id_exportacao = re.search(r"/admin/exportacoes/([0-9a-f]{32})", resposta.text)
+    assert id_exportacao
+    andamento = cliente.get(f"/admin/exportacoes/{id_exportacao.group(1)}")
+    assert "Concluído" in andamento.text and "dia(s) processado(s)" in andamento.text
+    assert "Baixar planilha" not in andamento.text
+    assert cliente.get(f"/admin/exportacoes/{id_exportacao.group(1)}/arquivo").status_code == 404
+    # Ao reabrir a página, o último processamento aparece no seu cartão (e o de exportar não).
+    reaberta = cliente.get("/admin/atendimento").text
+    assert "dia(s) processado(s)" in reaberta
+    assert "Baixar planilha" not in reaberta

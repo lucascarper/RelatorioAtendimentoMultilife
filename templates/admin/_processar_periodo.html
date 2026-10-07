@@ -1,0 +1,28 @@
+{#- Cartão "Processar período". Recebe: tipo, descricao e (opcional) aviso e reconciliar. -#}
+<section class="card exportar" aria-labelledby="processar-{{ tipo }}-titulo">
+  <div class="card-titulo">
+    <div>
+      <h2 id="processar-{{ tipo }}-titulo">Processar período</h2>
+      <p class="nota">{{ descricao }}</p>
+    </div>
+  </div>
+  {%- if aviso %}
+  <p class="exportar-aviso">{{ aviso }}</p>
+  {%- endif %}
+  <form class="form form-linha" hx-post="/admin/exportacoes" hx-target="#processamento-{{ tipo }}" hx-swap="outerHTML">
+    <input type="hidden" name="tipo" value="{{ tipo }}">
+    <input type="hidden" name="acao" value="processar">
+    <label>Data inicial
+      <input type="date" name="inicio" value="{{ (data_hoje.replace(day=1)).isoformat() }}" max="{{ data_hoje.isoformat() }}" required>
+    </label>
+    <label>Data final
+      <input type="date" name="fim" value="{{ data_hoje.isoformat() }}" max="{{ data_hoje.isoformat() }}" required>
+    </label>
+    {%- if reconciliar %}
+    <label class="check"><input type="checkbox" name="reconciliar" value="true"> Reler o dia no SGG antes (lento)</label>
+    {%- endif %}
+    <button type="submit" class="btn btn-secundario">Processar período</button>
+  </form>
+  <p class="nota exportar-rodape">Até 31 dias por vez. Recalcula e grava o resumo de cada dia; <strong>não reenvia e-mail</strong> (para reenviar, use a data única acima).</p>
+  {%- with e = (exportacoes or {}).get("processar:" ~ tipo), acao = "processar" %}{% include "admin/_exportacao.html" %}{% endwith %}
+</section>

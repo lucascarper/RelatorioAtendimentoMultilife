@@ -112,5 +112,7 @@
   </form>
 </section>
 
+{% with tipo="sesmt", descricao="Uma única leitura do SGG (mais de uma hora) serve a todos os dias do período. Contratos e documentos refletem a situação de agora; os eventos do eSocial são os de cada dia.", aviso="Disponível só das 20h às 5h, como a coleta do SESMT." %}{% include "admin/_processar_periodo.html" %}{% endwith %}
+
 {% with tipo="sesmt", descricao="Relatório: pendências e envios ao eSocial de cada dia. Fonte: empresas, contratos, documentos e eventos do eSocial, relidos do SGG empresa por empresa.", aviso="Disponível só das 20h às 5h: a releitura faz mais de mil consultas ao SGG e leva de 15 a 30 minutos. Pode sair da página: ao voltar, a barra mostra o andamento." %}{% include "admin/_exportar.html" %}{% endwith %}
 {% endblock %}

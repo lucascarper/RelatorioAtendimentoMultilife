@@ -249,5 +249,120 @@ def test_ultimas_por_usuario_e_limpeza_de_24h(sistema: Sistema) -> None:
     sistema.relogio.instante += timedelta(hours=25)
     nova = sistema.exportar.solicitar("atendimento", DIA, DIA, "admin")
     assert antiga.id not in sistema.banco.exportacoes  # apagada ao pedir a nova
-    assert sistema.exportar.ultimas("admin") == {"atendimento": nova}
+    assert sistema.exportar.ultimas("admin") == {"exportar:atendimento": nova}
     assert sistema.exportar.ultimas("ana") == {}
+
+
+# --------------------------------------------------------------------------- processar período
+
+
+def processar(s: Sistema, tipo: str, inicio: date = DIA, fim: date = DIA, opcoes: str = "") -> str:
+    pedido = s.exportar.solicitar(tipo, inicio, fim, "admin", "processar", opcoes)
+    resultado = s.exportar.executar(pedido.id)
+    final = s.exportar.obter(pedido.id)
+    assert final is not None and final.status is StatusExportacao.PRONTO and final.progresso == 100
+    assert pedido.id not in s.banco.arquivos  # processamento não gera arquivo
+    assert resultado["resultado"] == final.etapa
+    return final.etapa
+
+
+def test_processar_periodo_do_atendimento_recalcula_cada_dia_sem_enviar(sistema: Sistema) -> None:
+    preparar_envio(sistema)
+    sistema.banco.resumos.clear()
+    sistema.relogio.instante = hora("10:00", HOJE + timedelta(days=1))
+    etapa = processar(sistema, "atendimento", DIA - timedelta(days=1), DIA)
+    assert etapa == "2 dia(s) processado(s)"
+    assert DIA in sistema.banco.resumos and (DIA - timedelta(days=1)) in sistema.banco.resumos
+    assert sistema.email.enviados == []  # nunca reenvia e-mail no período
+
+
+def test_processar_atendimento_com_releitura_no_sgg_so_se_pedido(sistema: Sistema) -> None:
+    preparar_envio(sistema)
+    sistema.relogio.instante = hora("10:00", HOJE + timedelta(days=1))
+    antes = sistema.sgg.requisicoes_realizadas
+    processar(sistema, "atendimento")
+    sem_releitura = sistema.sgg.requisicoes_realizadas
+    processar(sistema, "atendimento", opcoes="reconciliar")
+    assert sistema.sgg.requisicoes_realizadas > sem_releitura >= antes
+
+
+def test_processar_financeiro_le_o_sgg_de_cada_dia(sistema: Sistema) -> None:
+    sistema.relogio.instante = hora("10:00", HOJE + timedelta(days=2))
+    etapa = processar(sistema, "financeiro", DIA - timedelta(days=1), DIA)
+    assert etapa == "2 dia(s) processado(s)"
+    assert {DIA, DIA - timedelta(days=1)} <= set(sistema.banco.resumos_financeiros)
+
+
+def test_processar_financeiro_tolera_dia_sem_sgg_mas_nao_todos(sistema: Sistema) -> None:
+    sistema.relogio.instante = hora("10:00", HOJE + timedelta(days=2))
+    sistema.financeiro.falhar = True
+    pedido = sistema.exportar.solicitar(
+        "financeiro", DIA - timedelta(days=1), DIA, "admin", "processar"
+    )
+    with pytest.raises(Exception, match="nenhum dia"):
+        sistema.exportar.executar(pedido.id)
+    final = sistema.exportar.obter(pedido.id)
+    assert final is not None and final.status is StatusExportacao.FALHA
+
+
+def test_processar_sesmt_uma_coleta_para_varios_dias(sistema: Sistema) -> None:
+    s = sistema.sesmt
+    s.empresas = [EmpresaSesmt(1, "Conplan LTDA", "", "1", True)]
+    s.contratos = [ContratoSesmt(10, 1, date(2026, 10, 30), "Em andamento", True, "2025-1")]
+    s.eventos = {
+        1: [
+            EventoEsocial("a", "S-2220", 1, 50, DIA, None, None, "1.1", ""),
+            EventoEsocial("b", "S-2240", 1, 51, DIA - timedelta(days=1), None, None, "", ""),
+        ]
+    }
+    sistema.relogio.instante = hora("22:00", HOJE)
+    etapa = processar(sistema, "sesmt", DIA - timedelta(days=1), DIA)
+    assert etapa == "2 dia(s) processado(s)"
+    assert s.chamadas.count("empresas") == 1  # uma leitura só
+    totais = {d: r.metricas["esocial"]["total"] for d, r in sistema.banco.resumos_sesmt.items()}
+    assert totais == {DIA: 1, DIA - timedelta(days=1): 1}
+    assert {d: r.metricas["referencia"] for d, r in sistema.banco.resumos_sesmt.items()} == {
+        DIA: DIA.isoformat(),
+        DIA - timedelta(days=1): (DIA - timedelta(days=1)).isoformat(),
+    }
+
+
+def test_processar_sesmt_so_na_janela_e_so_ate_ontem(sistema: Sistema) -> None:
+    sistema.relogio.instante = hora("10:00", HOJE)
+    with pytest.raises(ValueError, match=r"O processamento do SESMT.*20h às 5h"):
+        sistema.exportar.solicitar("sesmt", DIA, DIA, "admin", "processar")
+    sistema.relogio.instante = hora("22:00", HOJE)
+    with pytest.raises(ValueError, match="dia anterior"):
+        sistema.exportar.solicitar("sesmt", DIA, HOJE, "admin", "processar")
+    with pytest.raises(ValueError, match="dia anterior"):
+        sistema.exportar.solicitar("financeiro", DIA, HOJE, "admin", "processar")
+    sistema.exportar.solicitar("atendimento", DIA, HOJE, "admin", "processar")  # hoje vale
+
+
+def test_processar_medicos_le_os_exames_de_cada_dia(sistema: Sistema) -> None:
+    ana = Medico("34985-DF", "Ana Souza")
+    sistema.uow().medicos.adicionar(ana)
+    antes = DIA - timedelta(days=1)
+    sistema.exames.exames = {
+        DIA: [ExameClinico(1, DIA, 10, 501, ana.crm, ana.nome, "Outro", funcionario="X")],
+        antes: [ExameClinico(2, antes, 10, 502, ana.crm, ana.nome, "Periódico", funcionario="Y")],
+    }
+    sistema.exames.empresas = {10: EmpresaSesmt(10, "Conplan LTDA", "", "1", False)}
+    etapa = processar(sistema, "medicos", antes, DIA)
+    assert etapa == "2 dia(s) processado(s)"
+    assert set(sistema.banco.exames) == {1, 2}
+
+
+def test_acao_desconhecida(sistema: Sistema) -> None:
+    with pytest.raises(ValueError, match="desconhecido"):
+        sistema.exportar.solicitar("atendimento", DIA, DIA, "admin", "apagar")
+
+
+def test_ultimas_separa_exportar_e_processar(sistema: Sistema) -> None:
+    preparar_envio(sistema)
+    a = sistema.exportar.solicitar("atendimento", DIA, DIA, "admin")
+    b = sistema.exportar.solicitar("atendimento", DIA, DIA, "admin", "processar")
+    assert sistema.exportar.ultimas("admin") == {
+        "exportar:atendimento": a,
+        "processar:atendimento": b,
+    }

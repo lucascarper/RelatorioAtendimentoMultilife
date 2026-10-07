@@ -348,15 +348,22 @@ class _Exportacoes:
             etapa=etapa,
         )
 
-    def concluir(self, id_exportacao: str, nome_arquivo: str, conteudo: bytes) -> None:
+    def concluir(
+        self,
+        id_exportacao: str,
+        nome_arquivo: str,
+        conteudo: bytes | None,
+        etapa: str = "Planilha pronta",
+    ) -> None:
         self.b.exportacoes[id_exportacao] = replace(
             self.b.exportacoes[id_exportacao],
             status=StatusExportacao.PRONTO,
             progresso=100,
-            etapa="Planilha pronta",
+            etapa=etapa,
             nome_arquivo=nome_arquivo,
         )
-        self.b.arquivos[id_exportacao] = (nome_arquivo, conteudo)
+        if conteudo is not None:
+            self.b.arquivos[id_exportacao] = (nome_arquivo, conteudo)
 
     def falhar(self, id_exportacao: str, erro: str) -> None:
         self.b.exportacoes[id_exportacao] = replace(
@@ -375,7 +382,7 @@ class _Exportacoes:
             ),
             key=lambda e: e.criado_em,
         )
-        return {e.tipo: e for e in escolhidas}
+        return {f"{e.acao}:{e.tipo}": e for e in escolhidas}
 
     def apagar_anteriores_a(self, limite: datetime) -> int:
         antigas = [i for i, e in self.b.exportacoes.items() if e.criado_em < limite]

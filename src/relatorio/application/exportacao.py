@@ -18,6 +18,9 @@ from relatorio.application.modelos import Exportacao, StatusExportacao
 from relatorio.application.ports import ErroIntegracao, FabricaUoW, Relogio
 from relatorio.domain.entidades import FUSO_BRASILIA
 from relatorio.domain.exportacao import (
+    ACOES,
+    EXPORTAR,
+    PROCESSAR,
     ROTULOS,
     SESMT,
     SESMT_FIM_HORA,
@@ -40,6 +43,14 @@ class Exportador(Protocol):
     def gerar(self, inicio: date, fim: date, progresso: Progresso) -> Planilha: ...
 
 
+class ProcessadorPeriodo(Protocol):
+    def processar(
+        self, inicio: date, fim: date, opcoes: frozenset[str], progresso: Progresso
+    ) -> str:
+        """Recalcula os dias do período e devolve a frase final para a tela."""
+        ...
+
+
 class EscritorPlanilha(Protocol):
     def escrever(self, planilha: Planilha) -> tuple[str, bytes]:
         """Devolve o nome do arquivo e o conteúdo .xlsx."""
@@ -53,21 +64,33 @@ class ExportarRelatorio:
         relogio: Relogio,
         exportadores: Mapping[str, Exportador],
         escritor: EscritorPlanilha,
+        processadores: Mapping[str, ProcessadorPeriodo] | None = None,
     ) -> None:
         self._uow = uow
         self._relogio = relogio
         self._exportadores = exportadores
         self._escritor = escritor
+        self._processadores = processadores or {}
 
-    def solicitar(self, tipo: str, inicio: date, fim: date, solicitante: str) -> Exportacao:
+    def solicitar(
+        self,
+        tipo: str,
+        inicio: date,
+        fim: date,
+        solicitante: str,
+        acao: str = EXPORTAR,
+        opcoes: str = "",
+    ) -> Exportacao:
         """Valida e põe na fila. Lança ``ValueError`` com a mensagem para a tela."""
-        if tipo not in TIPOS or tipo not in self._exportadores:
+        disponiveis = self._processadores if acao == PROCESSAR else self._exportadores
+        if acao not in ACOES or tipo not in TIPOS or tipo not in disponiveis:
             raise ValueError("Relatório desconhecido.")
         agora = self._relogio.agora()
-        validar_periodo(inicio, fim, agora.astimezone(FUSO_BRASILIA).date())
+        validar_periodo(inicio, fim, agora.astimezone(FUSO_BRASILIA).date(), tipo, acao)
         if tipo == SESMT and not sesmt_liberado(agora):
+            o_que = "O processamento" if acao == PROCESSAR else "A exportação"
             raise ValueError(
-                f"A exportação do SESMT relê o SGG empresa por empresa e só roda das "
+                f"{o_que} do SESMT relê o SGG empresa por empresa e só roda das "
                 f"{SESMT_INICIO_HORA}h às {SESMT_FIM_HORA}h."
             )
         exportacao = Exportacao(
@@ -78,12 +101,14 @@ class ExportarRelatorio:
             solicitante=solicitante,
             criado_em=agora,
             etapa="Na fila",
+            acao=acao,
+            opcoes=opcoes,
         )
         with self._uow() as uow:
             uow.exportacoes.apagar_anteriores_a(agora - GUARDA_ARQUIVO)
             uow.exportacoes.criar(exportacao)
             uow.commit()
-        log.info("exportacao_solicitada", id=exportacao.id, tipo=tipo, por=solicitante)
+        log.info("exportacao_solicitada", id=exportacao.id, tipo=tipo, acao=acao, por=solicitante)
         return exportacao
 
     def ultimas(self, solicitante: str) -> dict[str, Exportacao]:
@@ -116,6 +141,8 @@ class ExportarRelatorio:
             return {"exportacao": id_exportacao, "status": "ignorada"}
         progresso = self._progresso(id_exportacao)
         progresso(1, "Começando")
+        if exportacao.acao == PROCESSAR:
+            return self._processar(exportacao, progresso)
         try:
             planilha = self._exportadores[exportacao.tipo].gerar(
                 exportacao.inicio, exportacao.fim, progresso
@@ -143,6 +170,34 @@ class ExportarRelatorio:
             "abas": len(planilha.abas),
             "linhas": sum(len(a.linhas) for a in planilha.abas),
             "bytes": len(conteudo),
+        }
+
+    def _processar(self, exportacao: Exportacao, progresso: Progresso) -> dict[str, object]:
+        opcoes = frozenset(o for o in exportacao.opcoes.split(",") if o)
+        try:
+            frase = self._processadores[exportacao.tipo].processar(
+                exportacao.inicio, exportacao.fim, opcoes, progresso
+            )
+        except Exception as erro:
+            mensagem = (
+                f"O SGG não respondeu: {erro}"
+                if isinstance(erro, ErroIntegracao)
+                else "Erro inesperado ao processar o período. Tente de novo; se persistir, "
+                "avise a TI."
+            )
+            with self._uow() as uow:
+                uow.exportacoes.falhar(exportacao.id, mensagem)
+                uow.commit()
+            log.exception("processamento_periodo_falhou", id=exportacao.id, tipo=exportacao.tipo)
+            raise
+        with self._uow() as uow:
+            uow.exportacoes.concluir(exportacao.id, "", None, etapa=frase)
+            uow.commit()
+        return {
+            "exportacao": exportacao.id,
+            "tipo": ROTULOS[exportacao.tipo],
+            "periodo": f"{exportacao.inicio:%d/%m/%Y} a {exportacao.fim:%d/%m/%Y}",
+            "resultado": frase,
         }
 
     def marcar_ocupado(self, id_exportacao: str) -> None:

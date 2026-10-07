@@ -77,6 +77,8 @@ class Exportacao:
     etapa: str = ""
     nome_arquivo: str = ""
     erro: str = ""
+    acao: str = "exportar"  # "exportar" (gera planilha) ou "processar" (recalcula os dias)
+    opcoes: str = ""  # opções do pedido, separadas por vírgula (ex.: "reconciliar")
 
     @property
     def terminou(self) -> bool:

@@ -1,10 +1,11 @@
 {%- from "admin/_icones.html" import icone -%}
+{%- set alvo = ("processamento-" if acao == "processar" else "exportacao-") ~ tipo -%}
 {%- if erro %}
-<div id="exportacao-{{ tipo }}" class="exportacao">
+<div id="{{ alvo }}" class="exportacao">
   <div class="mensagem mensagem-erro" role="alert">{{ icone("erro") }}<span>{{ erro }}</span></div>
 </div>
 {%- elif e %}
-<div id="exportacao-{{ tipo }}" class="exportacao{% if e.status == 'pronto' %} exportacao-pronta{% elif e.status == 'falha' %} exportacao-falha{% endif %}"
+<div id="{{ alvo }}" class="exportacao{% if e.status == 'pronto' %} exportacao-pronta{% elif e.status == 'falha' %} exportacao-falha{% endif %}"
      {%- if not e.terminou %} hx-get="/admin/exportacoes/{{ e.id }}" hx-trigger="every 1s" hx-swap="outerHTML"{% endif %}>
   <div class="agua-linha">
     <div class="agua" role="progressbar" aria-label="Andamento da exportação" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ e.progresso }}">
@@ -16,14 +17,15 @@
     <span class="agua-percentual num">{{ e.progresso }}%</span>
   </div>
   <p class="agua-etapa" aria-live="polite">
-    {%- if e.status == 'falha' %}<span class="badge badge-erro">{{ icone("erro") }}Não foi possível gerar</span> {{ e.erro }}
-    {%- elif e.status == 'pronto' %}<span class="badge badge-ok">{{ icone("ok") }}Pronta</span> {{ e.inicio | data_br }} a {{ e.fim | data_br }}
+    {%- if e.status == 'falha' %}<span class="badge badge-erro">{{ icone("erro") }}{{ "Não foi possível processar" if e.acao == "processar" else "Não foi possível gerar" }}</span> {{ e.erro }}
+    {%- elif e.status == 'pronto' %}{%- if e.acao == 'processar' %}<span class="badge badge-ok">{{ icone("ok") }}Concluído</span> {{ e.inicio | data_br }} a {{ e.fim | data_br }}: {{ e.etapa }}
+    {%- else %}<span class="badge badge-ok">{{ icone("ok") }}Pronta</span> {{ e.inicio | data_br }} a {{ e.fim | data_br }}{% endif %}
     {%- else %}{{ e.etapa or "Na fila" }}{% endif %}
   </p>
-  {%- if e.status == 'pronto' %}
+  {%- if e.status == 'pronto' and e.acao != 'processar' %}
   <a href="/admin/exportacoes/{{ e.id }}/arquivo" class="btn btn-primario" download>Baixar planilha</a>
   {%- endif %}
 </div>
 {%- else %}
-<div id="exportacao-{{ tipo }}"></div>
+<div id="{{ alvo }}"></div>
 {%- endif %}
