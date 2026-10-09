@@ -141,8 +141,8 @@ def atendimento(request: Request, ctx: Ctx, acesso: UsuarioAtendimento) -> HTMLR
         resumos = uow.resumos.listar_recentes(14)
         falhas_seguidas = uow.execucoes.falhas_consecutivas("coletar_ciclo")
         lista_destinatarios = uow.destinatarios.listar()
-        agendas_ativas = [a for a in uow.agendas.listar() if a.ativa]
-    marcadas = ctx.configuracao_atual().filtro.agendas_marcadas(agendas_ativas)
+        todas_agendas = uow.agendas.listar()
+    marcadas = ctx.configuracao_atual().filtro.agendas_marcadas(todas_agendas)
     return ctx.render(
         request,
         "admin/atendimento.html",
@@ -164,8 +164,9 @@ def atendimento(request: Request, ctx: Ctx, acesso: UsuarioAtendimento) -> HTMLR
                     # Marcadas: as que já saem no relatório (e-mail).
                     "marcada": a.id_agenda in marcadas,
                     "guiche": a.guiche,
+                    "inativa": not a.ativa,
                 }
-                for a in sorted(agendas_ativas, key=lambda a: a.consultorio.casefold())
+                for a in sorted(todas_agendas, key=lambda a: a.consultorio.casefold())
             ],
             **_contexto_planilha(acesso),
             "coletor_habilitado": ctx.settings.coletor_habilitado,

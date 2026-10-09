@@ -113,8 +113,9 @@ class ExportarAtendimento:
         escolhidas = agendas_das_opcoes(opcoes)
         if not escolhidas or self._metricas is None:
             return None, False
+        filtro = self._metricas.configuracao().filtro
         with self._uow() as uow:
-            padrao = self._metricas.configuracao().filtro.agendas_marcadas(uow.agendas.listar())
+            padrao = filtro.agendas_marcadas(uow.agendas.listar())
         return escolhidas, escolhidas != padrao
 
     @staticmethod
@@ -346,7 +347,11 @@ class ExportarAtendimento:
         planilha.abas = [resumo, agendas, fonte_agendamentos, fonte_eventos]
         if escolhidas is not None:
             nomes = sorted(
-                (agendas_cadastro[i].consultorio if i in agendas_cadastro else f"Agenda #{i}")
+                (
+                    f"{agendas_cadastro[i].consultorio} (#{i})"
+                    if i in agendas_cadastro
+                    else f"Agenda #{i}"
+                )
                 for i in escolhidas
             )
             planilha.observacoes.append(
@@ -357,6 +362,11 @@ class ExportarAtendimento:
                     else "É a mesma seleção do e-mail diário."
                 )
             )
+            if recalcular:
+                planilha.observacoes.append(
+                    "Faltas confirmadas na agenda do SGG só foram conferidas para as agendas do "
+                    "e-mail: em agendas fora dele, agendamentos sem baixa não viram falta."
+                )
         nota = _nota_faltando(_faltando(inicio, fim, (r.data for r in resumos)), "resumo")
         if nota:
             planilha.observacoes.append(nota + " Dias sem expediente não têm resumo.")

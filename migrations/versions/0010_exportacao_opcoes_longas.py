@@ -30,6 +30,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # O limite antigo é menor: corta o que passar dele (só a escolha de agendas se perde).
+    op.execute("UPDATE exportacao SET opcoes = left(opcoes, 100)")
     op.alter_column(
         "exportacao",
         "opcoes",

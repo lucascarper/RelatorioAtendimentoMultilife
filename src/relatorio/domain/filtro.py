@@ -20,12 +20,12 @@ class FiltroRelatorio:
         return not self.unidades
 
     def agendas_marcadas(self, agendas: Iterable[Agenda]) -> frozenset[int]:
-        """Agendas ativas que o relatório inclui: as que vêm marcadas na exportação."""
+        """Agendas que o relatório inclui (as marcadas na exportação), com a mesma regra de
+        ``inclui``: a agenda desativada depois continua valendo para os dias antigos."""
         return frozenset(
             a.id_agenda
             for a in agendas
-            if a.ativa
-            and a.incluir_relatorio
+            if a.incluir_relatorio
             and (self.todas_unidades or a.id_unidade_atendimento in self.unidades)
         )
 
