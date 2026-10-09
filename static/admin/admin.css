@@ -602,3 +602,10 @@ html:fullscreen .conteudo-monitor { max-width: 1680px; padding: 20px 32px; }
 .paginacao-paginas span[aria-current] { background: var(--marca-azul); border-color: var(--marca-azul); color: #fff; font-weight: 600; }
 .paginacao-reticencias { display: inline-flex; align-items: center; padding: 0 4px; }
 @media (max-width: 640px) { .paginacao-tamanho { margin-left: 0; width: 100%; } }
+
+/* escolha de agendas na exportação do Atendimento */
+.agendas-escolha { flex: 1 1 100%; border: 1px solid var(--borda); border-radius: var(--raio-controle); padding: 10px 14px; background: var(--superficie); }
+.agendas-escolha summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.agendas-escolha .nota { margin: 8px 0; }
+.agendas-lista { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 6px 16px; }
+.agendas-lista .check { flex-direction: row; align-items: center; gap: 8px; font-weight: 400; margin: 0; color: var(--texto); }

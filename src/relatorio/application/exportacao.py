@@ -40,7 +40,9 @@ Progresso = Callable[[int, str], None]
 
 
 class Exportador(Protocol):
-    def gerar(self, inicio: date, fim: date, progresso: Progresso) -> Planilha: ...
+    def gerar(
+        self, inicio: date, fim: date, progresso: Progresso, opcoes: frozenset[str]
+    ) -> Planilha: ...
 
 
 class ProcessadorPeriodo(Protocol):
@@ -144,8 +146,9 @@ class ExportarRelatorio:
         if exportacao.acao == PROCESSAR:
             return self._processar(exportacao, progresso)
         try:
+            opcoes = frozenset(o for o in exportacao.opcoes.split(",") if o)
             planilha = self._exportadores[exportacao.tipo].gerar(
-                exportacao.inicio, exportacao.fim, progresso
+                exportacao.inicio, exportacao.fim, progresso, opcoes
             )
             progresso(97, "Montando a planilha")
             nome, conteudo = self._escritor.escrever(planilha)

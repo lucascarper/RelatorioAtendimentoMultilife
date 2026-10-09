@@ -17,6 +17,18 @@
     <label>Data final
       <input type="date" name="fim" value="{{ data_hoje.isoformat() }}" max="{{ data_hoje.isoformat() }}" required>
     </label>
+    {%- if agendas_exportacao %}
+    <input type="hidden" name="filtrar_agendas" value="true">
+    <details class="agendas-escolha">
+      <summary>Agendas na planilha <span class="nota">({{ agendas_exportacao | length }})</span></summary>
+      <p class="nota">Vêm marcadas as agendas que já saem no e-mail (inclusive as desativadas depois, para os dias antigos). Marcar ou desmarcar vale só para esta planilha e recalcula os indicadores com a seleção.</p>
+      <ul class="agendas-lista">
+        {%- for a in agendas_exportacao %}
+        <li><label class="check"><input type="checkbox" name="agenda" value="{{ a.id }}"{% if a.marcada %} checked{% endif %}> {{ a.nome }}{% if a.guiche %} <span class="badge badge-neutro">guichê</span>{% endif %}{% if a.inativa %} <span class="badge badge-neutro">inativa</span>{% endif %}</label></li>
+        {%- endfor %}
+      </ul>
+    </details>
+    {%- endif %}
     <button type="submit" class="btn btn-secundario">Exportar planilha</button>
   </form>
   <p class="nota exportar-rodape">Até 31 dias por vez. A planilha traz o relatório de cada dia e os dados fonte usados no cálculo, e fica disponível por 24 horas.</p>

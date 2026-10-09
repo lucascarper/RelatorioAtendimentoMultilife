@@ -83,7 +83,9 @@ class ObterMetricasPeriodo:
         with self._uow() as uow:
             return self._padrao.mesclar(uow.configuracoes.obter_todas())
 
-    def carregar(self, inicio: datetime, fim: datetime) -> DadosPeriodo:
+    def carregar(
+        self, inicio: datetime, fim: datetime, agendas_escolhidas: frozenset[int] | None = None
+    ) -> DadosPeriodo:
         dia_inicio = inicio.astimezone(FUSO_BRASILIA).date()
         dia_fim = fim.astimezone(FUSO_BRASILIA).date()
         with self._uow() as uow:
@@ -134,7 +136,12 @@ class ObterMetricasPeriodo:
                 )
 
         return DadosPeriodo(
-            agendamentos=tuple(configuracao.filtro.aplicar(agendamentos, por_id)),
+            agendamentos=tuple(
+                configuracao.filtro.aplicar(agendamentos, por_id)
+                if agendas_escolhidas is None
+                # Escolha manual (exportação): vale no lugar do filtro de unidades e do "incluir".
+                else [a for a in agendamentos if a.id_agenda in agendas_escolhidas]
+            ),
             agendas=por_id,
             configuracao=configuracao,
             unidades=descrever_unidades(configuracao, agendas),
@@ -148,8 +155,9 @@ class ObterMetricasPeriodo:
         *,
         faltas_confirmadas: Iterable[int] = (),
         verificacao_faltas_indisponivel: bool = False,
+        agendas_escolhidas: frozenset[int] | None = None,
     ) -> ResultadoMetricas:
-        dados = self.carregar(inicio, fim)
+        dados = self.carregar(inicio, fim, agendas_escolhidas)
         metricas = calcular_metricas(
             dados.agendamentos,
             dados.agendas,

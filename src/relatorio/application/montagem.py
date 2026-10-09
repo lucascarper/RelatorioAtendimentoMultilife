@@ -157,7 +157,9 @@ def montar_casos_de_uso(
             ExportarRelatorio(
                 uow,
                 relogio,
-                montar_exportadores(uow, relogio, financeiro, consolidar_sesmt, exames, sgg),
+                montar_exportadores(
+                    uow, relogio, financeiro, consolidar_sesmt, exames, sgg, metricas
+                ),
                 escritor,
                 montar_processadores(
                     ReprocessarData(consolidar, enviar, reconciliar),
