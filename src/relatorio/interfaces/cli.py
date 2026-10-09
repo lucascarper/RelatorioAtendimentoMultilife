@@ -7,6 +7,7 @@ Exemplos:
     relatorio previa --simulado --saida exemplo.html
     relatorio demo --dias 14
     relatorio spike-sgg --data 2026-09-23
+    relatorio diagnostico-exames --data 2026-08-25 --funcionario 37563
     relatorio gerar-hash-senha
 """
 
@@ -31,6 +32,7 @@ from relatorio.interfaces.demo import (
     montar_ambiente,
     simular_dias,
 )
+from relatorio.interfaces.diagnostico_exames import diagnosticar_exames
 from relatorio.interfaces.spike import executar_spike
 from relatorio.interfaces.web.seguranca import gerar_hash_senha
 
@@ -150,6 +152,12 @@ def cmd_spike(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+def cmd_diagnostico_exames(args: argparse.Namespace, settings: Settings) -> int:
+    container = _container(settings)
+    _imprimir(diagnosticar_exames(container.sgg, args.data, args.funcionario))
+    return 0
+
+
 def cmd_verificar(_args: argparse.Namespace, settings: Settings) -> int:
     resultado = {"web": settings.pendencias("web"), "worker": settings.pendencias("worker")}
     _imprimir({"ambiente": settings.app_env, "variaveis_faltando": resultado})
@@ -209,6 +217,13 @@ def criar_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("spike-sgg", help="valida a API real do SGG (só leitura, agregados)")
     p.add_argument("--data", type=_data, default=None)
     p.set_defaults(funcao=cmd_spike)
+
+    p = sub.add_parser(
+        "diagnostico-exames", help="compara a leitura dos exames clínicos de um dia (só leitura)"
+    )
+    p.add_argument("--data", type=_data, default=None)
+    p.add_argument("--funcionario", type=int, default=None, help="código do funcionário a checar")
+    p.set_defaults(funcao=cmd_diagnostico_exames)
 
     p = sub.add_parser("verificar-config", help="lista variáveis de ambiente faltando")
     p.set_defaults(funcao=cmd_verificar)

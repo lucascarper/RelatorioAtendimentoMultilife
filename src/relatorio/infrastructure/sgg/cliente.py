@@ -417,6 +417,24 @@ class ClienteSgg:
                 exames[exame.id] = exame
         return list(exames.values())
 
+    def exames_realizados_paginas(
+        self, filtros: Mapping[str, str], tamanho: int = TAMANHO_PAGINA
+    ) -> list[list[dict[str, Any]]]:
+        """Itens brutos de ``exames-realizados/`` página a página (só para o diagnóstico)."""
+        paginas: list[list[dict[str, Any]]] = []
+        for pagina in range(MAX_PAGINAS + 1):
+            corpo = self._get(
+                "exames-realizados/",
+                {**filtros, "paginador[pagina]": pagina, "paginador[tamanho]": tamanho},
+            )
+            resultado = corpo.get("resultado")
+            if isinstance(resultado, dict):
+                resultado = [resultado]
+            paginas.append([i for i in resultado or [] if isinstance(i, dict)])
+            if not _verdadeiro(corpo.get("temProximaPagina")):
+                return paginas
+        raise ErroSgg(f"Paginação de exames-realizados/ passou de {MAX_PAGINAS} páginas")
+
     def empresa(self, id_empresa: int) -> EmpresaSesmt | None:
         for item in self._paginar("empresa/", {"codigo": str(id_empresa)}):
             try:
