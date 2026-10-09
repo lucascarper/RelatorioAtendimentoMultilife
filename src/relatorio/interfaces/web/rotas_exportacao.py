@@ -31,6 +31,7 @@ MODULO_DO_TIPO = {
     SESMT: modulos.SESMT,
     MEDICOS: modulos.CONFIGURACOES,
 }
+MAX_OPCOES = 2000  # tamanho da coluna exportacao.opcoes
 TIPO_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
@@ -90,7 +91,15 @@ def solicitar(
     if filtrar_agendas and tipo == ATENDIMENTO and acao == "exportar":
         if not agenda:
             return _fragmento(request, ctx, tipo, erro="Marque ao menos uma agenda.", acao=acao)
+        with ctx.container.uow() as uow:
+            conhecidas = {a.id_agenda for a in uow.agendas.listar()}
+        if not set(agenda) <= conhecidas:
+            return _fragmento(request, ctx, tipo, erro="Agenda desconhecida.", acao=acao)
         opcoes = ",".join(f"a{i}" for i in sorted(set(agenda)))
+        if len(opcoes) > MAX_OPCOES:
+            return _fragmento(
+                request, ctx, tipo, erro="Muitas agendas marcadas para uma planilha.", acao=acao
+            )
     try:
         exportacao = _exportar(ctx).solicitar(tipo, inicio, fim, acesso.login, acao, opcoes)
     except ValueError as erro:

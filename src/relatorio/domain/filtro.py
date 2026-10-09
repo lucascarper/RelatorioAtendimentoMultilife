@@ -19,6 +19,16 @@ class FiltroRelatorio:
     def todas_unidades(self) -> bool:
         return not self.unidades
 
+    def agendas_marcadas(self, agendas: Iterable[Agenda]) -> frozenset[int]:
+        """Agendas ativas que o relatório inclui: as que vêm marcadas na exportação."""
+        return frozenset(
+            a.id_agenda
+            for a in agendas
+            if a.ativa
+            and a.incluir_relatorio
+            and (self.todas_unidades or a.id_unidade_atendimento in self.unidades)
+        )
+
     def inclui(self, agendamento: AgendamentoDoDia, agendas: Mapping[int, Agenda]) -> bool:
         agenda = agendas.get(agendamento.id_agenda) if agendamento.id_agenda is not None else None
         if agenda is not None and not agenda.incluir_relatorio:

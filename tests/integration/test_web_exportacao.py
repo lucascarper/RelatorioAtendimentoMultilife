@@ -158,6 +158,7 @@ def test_escolha_de_agendas_na_exportacao_do_atendimento(
         return r.text
 
     assert "Marque ao menos uma agenda" in pedir_com({})
+    assert "Agenda desconhecida" in pedir_com({"agenda": ["10", "999"]})
     ok = pedir_com({"agenda": ["10", "11"]})
     achado = re.search(r"/admin/exportacoes/([0-9a-f]{32})", ok)
     assert achado

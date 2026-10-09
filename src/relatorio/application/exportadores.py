@@ -33,7 +33,7 @@ from relatorio.application.ports import (
 )
 from relatorio.application.sesmt import ConsolidarSesmt
 from relatorio.domain.comparativo import comparar
-from relatorio.domain.entidades import FUSO_BRASILIA
+from relatorio.domain.entidades import FUSO_BRASILIA, Agenda, Snapshot
 from relatorio.domain.exames import TIPOS_EXAME
 from relatorio.domain.exportacao import (
     ATENDIMENTO,
@@ -46,6 +46,7 @@ from relatorio.domain.exportacao import (
     Valor,
 )
 from relatorio.domain.financeiro import Titulo
+from relatorio.domain.metricas import AgendamentoDoDia
 from relatorio.domain.resumo import ResumoDiario
 
 DIAS_SEMANA = ("seg", "ter", "qua", "qui", "sex", "sáb", "dom")
@@ -112,27 +113,59 @@ class ExportarAtendimento:
         escolhidas = agendas_das_opcoes(opcoes)
         if not escolhidas or self._metricas is None:
             return None, False
-        unidades = self._metricas.configuracao().filtro.unidades
         with self._uow() as uow:
-            padrao = frozenset(
-                a.id_agenda
-                for a in uow.agendas.listar()
-                if a.ativa
-                and a.incluir_relatorio
-                and (not unidades or a.id_unidade_atendimento in unidades)
-            )
+            padrao = self._metricas.configuracao().filtro.agendas_marcadas(uow.agendas.listar())
         return escolhidas, escolhidas != padrao
+
+    @staticmethod
+    def _filtrar_fonte(
+        snapshots: list[Snapshot],
+        agendas: Mapping[int, Agenda],
+        escolhidas: frozenset[int],
+        recalcular: bool,
+        metricas: ObterMetricasPeriodo,
+    ) -> list[Snapshot]:
+        """Só os agendamentos das agendas escolhidas. Com a seleção do relatório, vale o
+        mesmo filtro do e-mail (inclusive agendamentos que ele conta sem agenda resolvida)."""
+        resolvedor = ResolvedorAgendas(list(agendas.values()))
+
+        def agenda_de(s: Snapshot) -> int | None:
+            if s.id_agenda is not None:
+                return s.id_agenda
+            return resolvedor.resolver(s.agenda_nome, s.id_unidade_atendimento)
+
+        if recalcular:
+            return [s for s in snapshots if agenda_de(s) in escolhidas]
+        filtro = metricas.configuracao().filtro
+        return [
+            s
+            for s in snapshots
+            if filtro.inclui(
+                AgendamentoDoDia(
+                    s.id_agendamento,
+                    agenda_de(s),
+                    s.agenda_nome,
+                    s.id_unidade_atendimento,
+                    s.data_agendamento,
+                    s.hora_agendamento,
+                    s.situacao_atual,
+                    (),
+                ),
+                agendas,
+            )
+        ]
 
     @staticmethod
     def _recalcular(
         metricas: ObterMetricasPeriodo, registro: ResumoRegistro, escolhidas: frozenset[int]
     ) -> Mapping[str, Any]:
         """Os indicadores do dia só com as agendas escolhidas (mesmas regras do e-mail)."""
-        faltas = registro.metricas.get("alertas", {}).get("faltas_confirmadas_na_agenda", {})
+        alertas = registro.metricas.get("alertas", {})
         resultado = metricas.executar(
             inicio_do_dia(registro.data),
             fim_do_dia(registro.data),
-            faltas_confirmadas=faltas.get("ids", []),
+            faltas_confirmadas=alertas.get("faltas_confirmadas_na_agenda", {}).get("ids", []),
+            verificacao_faltas_indisponivel=bool(alertas.get("verificacao_faltas_indisponivel")),
             agendas_escolhidas=escolhidas,
         )
         resumo = ResumoDiario(
@@ -154,7 +187,9 @@ class ExportarAtendimento:
             resumos = uow.resumos.listar_periodo(inicio, fim)
         resumo = Aba(
             "Resumo diário",
-            "Indicadores de cada dia (os mesmos do e-mail diário)",
+            "Indicadores de cada dia, recalculados só com as agendas escolhidas"
+            if recalcular
+            else "Indicadores de cada dia (os mesmos do e-mail diário)",
             (
                 Coluna("Data", "data", 12),
                 Coluna("Dia", largura=6),
@@ -209,7 +244,8 @@ class ExportarAtendimento:
                     _num(k.get("espera_consultorio_s")),
                     _num(k.get("tma_consultorios_s", k.get("tma_s"))),
                     _num(k.get("permanencia_total_s")),
-                    ENVIO.get(str(registro.status_envio), str(registro.status_envio)),
+                    ENVIO.get(str(registro.status_envio), str(registro.status_envio))
+                    + (" (e-mail com a seleção original)" if recalcular else ""),
                 )
             )
             for a in m.get("agendas", []):
@@ -231,18 +267,10 @@ class ExportarAtendimento:
         with self._uow() as uow:
             snapshots = uow.snapshots.listar_por_data(inicio, fim)
             agendas_cadastro = {a.id_agenda: a for a in uow.agendas.listar()}
-        if escolhidas is not None:
-            resolvedor = ResolvedorAgendas(list(agendas_cadastro.values()))
-            snapshots = [
-                s
-                for s in snapshots
-                if (
-                    s.id_agenda
-                    if s.id_agenda is not None
-                    else resolvedor.resolver(s.agenda_nome, s.id_unidade_atendimento)
-                )
-                in escolhidas
-            ]
+        if escolhidas is not None and self._metricas is not None:
+            snapshots = self._filtrar_fonte(
+                snapshots, agendas_cadastro, escolhidas, recalcular, self._metricas
+            )
         progresso(55, "Lendo as mudanças de status")
         with self._uow() as uow:
             eventos = uow.eventos.listar_por_agendamentos([s.id_agendamento for s in snapshots])

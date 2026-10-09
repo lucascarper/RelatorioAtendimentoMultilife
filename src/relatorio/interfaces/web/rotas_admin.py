@@ -142,7 +142,7 @@ def atendimento(request: Request, ctx: Ctx, acesso: UsuarioAtendimento) -> HTMLR
         falhas_seguidas = uow.execucoes.falhas_consecutivas("coletar_ciclo")
         lista_destinatarios = uow.destinatarios.listar()
         agendas_ativas = [a for a in uow.agendas.listar() if a.ativa]
-    unidades = ctx.configuracao_atual().filtro.unidades
+    marcadas = ctx.configuracao_atual().filtro.agendas_marcadas(agendas_ativas)
     return ctx.render(
         request,
         "admin/atendimento.html",
@@ -162,8 +162,7 @@ def atendimento(request: Request, ctx: Ctx, acesso: UsuarioAtendimento) -> HTMLR
                     "nome": a.consultorio,
                     "agenda": a.nome,
                     # Marcadas: as que já saem no relatório (e-mail).
-                    "marcada": a.incluir_relatorio
-                    and (not unidades or a.id_unidade_atendimento in unidades),
+                    "marcada": a.id_agenda in marcadas,
                     "guiche": a.guiche,
                 }
                 for a in sorted(agendas_ativas, key=lambda a: a.consultorio.casefold())
