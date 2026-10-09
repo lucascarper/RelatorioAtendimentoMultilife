@@ -150,6 +150,30 @@ def test_atendimento_sem_resposta_do_sgg_deixa_o_tipo_em_branco_e_avisa(
     assert any("tipo de exame ficou em branco" in str(v) for v in capa)
 
 
+def test_atendimento_so_com_as_agendas_escolhidas(sistema: Sistema) -> None:
+    preparar_envio(sistema)
+    sistema.uow().snapshots.salvar(
+        snapshot(2, Situacao.AGENDADO, id_agenda=11, agenda_nome="Outra")
+    )
+
+    def exportar_com(opcoes: str) -> Workbook:
+        pedido = sistema.exportar.solicitar("atendimento", DIA, DIA, "admin", "exportar", opcoes)
+        sistema.exportar.executar(pedido.id)
+        return load_workbook(BytesIO(sistema.banco.arquivos[pedido.id][1]))
+
+    livro = exportar_com("a11")
+    (dia,) = linhas(livro, "Resumo diário")
+    assert dia[2] == 1 and dia[3] == 0  # agendados, atendimentos: só a agenda 11
+    assert [r[0] for r in linhas(livro, "Fonte - Agendamentos")] == [2]
+    capa = [r[1] for r in livro["Sobre"].iter_rows(values_only=True)]
+    assert any("Agendas escolhidas (1)" in str(v) for v in capa)
+
+    livro = exportar_com("a10")
+    (dia,) = linhas(livro, "Resumo diário")
+    assert dia[3] == 1  # o atendimento é da agenda 10
+    assert [r[0] for r in linhas(livro, "Fonte - Agendamentos")] == [1]
+
+
 def test_atendimento_ordena_agendamentos_com_e_sem_horario(sistema: Sistema) -> None:
     preparar_envio(sistema)
     uow = sistema.uow()

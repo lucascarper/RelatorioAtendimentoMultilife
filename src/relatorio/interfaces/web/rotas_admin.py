@@ -141,6 +141,8 @@ def atendimento(request: Request, ctx: Ctx, acesso: UsuarioAtendimento) -> HTMLR
         resumos = uow.resumos.listar_recentes(14)
         falhas_seguidas = uow.execucoes.falhas_consecutivas("coletar_ciclo")
         lista_destinatarios = uow.destinatarios.listar()
+        agendas_ativas = [a for a in uow.agendas.listar() if a.ativa]
+    unidades = ctx.configuracao_atual().filtro.unidades
     return ctx.render(
         request,
         "admin/atendimento.html",
@@ -154,6 +156,18 @@ def atendimento(request: Request, ctx: Ctx, acesso: UsuarioAtendimento) -> HTMLR
             "destinatarios": lista_destinatarios,
             "pg_destinatarios": paginar(request, lista_destinatarios, "destinatarios"),
             "destinatarios_ativos": sum(1 for d in lista_destinatarios if d.ativo),
+            "agendas_exportacao": [
+                {
+                    "id": a.id_agenda,
+                    "nome": a.consultorio,
+                    "agenda": a.nome,
+                    # Marcadas: as que já saem no relatório (e-mail).
+                    "marcada": a.incluir_relatorio
+                    and (not unidades or a.id_unidade_atendimento in unidades),
+                    "guiche": a.guiche,
+                }
+                for a in sorted(agendas_ativas, key=lambda a: a.consultorio.casefold())
+            ],
             **_contexto_planilha(acesso),
             "coletor_habilitado": ctx.settings.coletor_habilitado,
             "ontem": ctx.hoje() - timedelta(days=1),

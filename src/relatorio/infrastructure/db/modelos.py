@@ -264,7 +264,7 @@ class ExportacaoModel(Base):
     nome_arquivo: Mapped[str] = mapped_column(String(120), server_default=text("''"))
     erro: Mapped[str] = mapped_column(Text, server_default=text("''"))
     acao: Mapped[str] = mapped_column(String(10), server_default=text("'exportar'"))
-    opcoes: Mapped[str] = mapped_column(String(100), server_default=text("''"))
+    opcoes: Mapped[str] = mapped_column(String(2000), server_default=text("''"))
     arquivo: Mapped[bytes | None] = mapped_column(LargeBinary, deferred=True)
 
 

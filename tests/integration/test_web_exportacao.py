@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
 
+from relatorio.domain.entidades import Agenda
 from tests.fabricas import DIA
 from tests.integration.test_web import (  # noqa: F401
     cliente,
@@ -121,3 +122,44 @@ def test_processar_periodo_pela_tela_sem_download(cliente: TestClient) -> None: 
     reaberta = cliente.get("/admin/atendimento").text
     assert "dia(s) processado(s)" in reaberta
     assert "Baixar planilha" not in reaberta
+
+
+def test_escolha_de_agendas_na_exportacao_do_atendimento(
+    cliente: TestClient,  # noqa: F811
+    container,  # noqa: F811
+) -> None:
+    token = entrar(cliente)
+    with container.uow() as uow:
+        uow.agendas.sincronizar(
+            [
+                Agenda(10, "Clínico", "Sala 1", 1, "Unidade 1"),
+                Agenda(11, "Coleta", "Sala 2", 1, "Unidade 1", incluir_relatorio=False),
+            ]
+        )
+        uow.commit()
+    pagina = cliente.get("/admin/atendimento").text
+    assert 'name="filtrar_agendas"' in pagina
+    assert re.search(r'name="agenda" value="10" checked', pagina)  # do relatório: marcada
+    assert re.search(r'name="agenda" value="11"(?! checked)', pagina)  # fora: desmarcada
+
+    def pedir_com(dados: dict[str, object]) -> str:
+        r = cliente.post(
+            "/admin/exportacoes",
+            data={
+                "tipo": "atendimento",
+                "inicio": DIA.isoformat(),
+                "fim": DIA.isoformat(),
+                "filtrar_agendas": "true",
+                **dados,
+            },
+            headers={"X-CSRF-Token": token, "HX-Request": "true"},
+        )
+        assert r.status_code == 200, r.text
+        return r.text
+
+    assert "Marque ao menos uma agenda" in pedir_com({})
+    ok = pedir_com({"agenda": ["10", "11"]})
+    achado = re.search(r"/admin/exportacoes/([0-9a-f]{32})", ok)
+    assert achado
+    with container.uow() as uow:
+        assert uow.exportacoes.obter(achado.group(1)).opcoes == "a10,a11"  # type: ignore[union-attr]

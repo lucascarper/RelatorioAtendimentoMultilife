@@ -81,10 +81,16 @@ def solicitar(
     fim: Annotated[date, Form()],
     acao: Annotated[str, Form()] = "exportar",
     reconciliar: Annotated[bool, Form()] = False,
+    filtrar_agendas: Annotated[bool, Form()] = False,
+    agenda: Annotated[list[int] | None, Form()] = None,
 ) -> HTMLResponse:
     _exigir(acesso, tipo)
     # Só o atendimento tem opção (reler o SGG antes de recalcular); nos outros é ignorada.
     opcoes = "reconciliar" if reconciliar and tipo == ATENDIMENTO and acao == "processar" else ""
+    if filtrar_agendas and tipo == ATENDIMENTO and acao == "exportar":
+        if not agenda:
+            return _fragmento(request, ctx, tipo, erro="Marque ao menos uma agenda.", acao=acao)
+        opcoes = ",".join(f"a{i}" for i in sorted(set(agenda)))
     try:
         exportacao = _exportar(ctx).solicitar(tipo, inicio, fim, acesso.login, acao, opcoes)
     except ValueError as erro:
