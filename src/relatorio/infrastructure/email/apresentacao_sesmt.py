@@ -14,8 +14,8 @@ from typing import Any
 from relatorio.domain.resumo import dia_semana
 from relatorio.domain.sesmt import DIAS_VENCENDO
 
-AZUL = "#164F95"
-VERMELHO = "#D0080F"
+AZUL = "#2F4A80"
+VERMELHO = "#B43432"
 VERDE = "#1E7A3A"
 NEUTRO = "#20295A"
 MUDO = "#626883"

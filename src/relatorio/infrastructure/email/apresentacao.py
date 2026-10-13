@@ -13,8 +13,8 @@ from datetime import date, datetime
 from typing import Any
 
 # Tokens de cor (contraste WCAG AA conferido: texto ≥ 4,5:1 na superfície branca).
-AZUL = "#164F95"  # azul MultiLife — marca e barras (8,1:1)
-VERMELHO = "#D0080F"  # vermelho MultiLife — destaque e alertas críticos (5,6:1)
+AZUL = "#2F4A80"  # azul MultiLife — marca e barras (8,1:1)
+VERMELHO = "#B43432"  # vermelho MultiLife — destaque e alertas críticos (5,6:1)
 TINTA = "#20295A"
 TINTA_SECUNDARIA = "#444B68"
 TINTA_MUDA = "#626883"
@@ -27,7 +27,7 @@ SEVERIDADES = {
     # severidade: (ícone, rótulo, cor do texto, fundo, borda)
     "critico": ("●", "Crítico", "#A3060B", "#FDECEC", VERMELHO),
     "atencao": ("▲", "Atenção", "#7A4D00", "#FFF4DB", "#E0A100"),
-    "info": ("i", "Informativo", AZUL, "#EAF1FA", AZUL),
+    "info": ("i", "Informativo", AZUL, "#EBF0F9", AZUL),
     "ok": ("✓", "Tudo certo", VERDE, "#E8F5EC", VERDE),
 }
 

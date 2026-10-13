@@ -180,12 +180,12 @@ code {
 }
 .lateral-topo { display: flex; align-items: center; gap: 8px; }
 .lateral-marca {
-  flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; height: 52px;
-  background: #fff; border-radius: 12px; padding: 8px 12px; text-decoration: none;
+  flex: 1; min-width: 0; display: flex; align-items: center; height: 52px; padding: 0 4px;
+  border-radius: 12px; text-decoration: none;
 }
-.lateral-marca img { display: block; height: auto; max-height: 100%; }
-.logo-cheio { width: 100%; max-width: 168px; }
-.logo-simbolo { display: none; width: 28px; }
+.lateral-marca img { height: auto; max-height: 100%; }
+.lateral-marca .logo-cheio { display: block; width: 100%; max-width: 176px; }
+.lateral-marca .logo-simbolo { display: none; width: 36px; }
 .lateral-recolher {
   flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px;
   background: transparent; border: 0; color: var(--lateral-texto); cursor: pointer; font-size: 18px;
@@ -226,9 +226,9 @@ code {
   .lateral-recolhida .lateral { width: var(--lateral-recolhida); }
   .lateral-recolhida .logo-cheio, .lateral-recolhida .lateral-produto, .lateral-recolhida .menu-rotulo,
   .lateral-recolhida .usuario-nome, .lateral-recolhida .lateral-rodape .avatar { display: none; }
-  .lateral-recolhida .logo-simbolo { display: block; }
+  .lateral-recolhida .lateral-marca .logo-simbolo { display: block; }
   .lateral-recolhida .lateral-topo { flex-direction: column; }
-  .lateral-recolhida .lateral-marca { flex: none; width: 52px; padding: 8px; }
+  .lateral-recolhida .lateral-marca { flex: none; width: 52px; justify-content: center; padding: 0; }
   .lateral-recolhida .lateral-recolher .icone { transform: rotate(180deg); }
   .lateral-recolhida .menu a { justify-content: center; padding: 9px 0; }
   .lateral-recolhida .menu a[aria-current="page"]::before { left: -12px; }
@@ -594,7 +594,7 @@ html:fullscreen .conteudo-monitor { max-width: 1680px; padding: 20px 32px; }
     background: var(--lateral-fundo); color: #fff;
   }
   .barra-mobile .lateral-recolher { width: 40px; height: 40px; color: #fff; font-size: 22px; }
-  .barra-mobile .logo-simbolo { display: block; width: 26px; background: #fff; border-radius: 8px; padding: 5px; box-sizing: content-box; }
+  .barra-mobile .logo-simbolo { display: block; width: 28px; height: auto; }
   .barra-mobile strong { font-size: 14px; font-weight: 650; }
   .lateral {
     position: fixed; inset: 0 auto 0 0; width: min(300px, 86vw); transform: translateX(-102%);
