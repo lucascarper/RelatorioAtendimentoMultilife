@@ -168,7 +168,7 @@ class TestPaginas:
         resposta = cliente.get(url)
         assert resposta.status_code == 200
         assert texto in resposta.text
-        assert "/static/brand/logo-multilife-admin.png" in resposta.text
+        assert "/static/brand/logo-multilife-escuro.png" in resposta.text
 
 
 class TestDestinatarios:
