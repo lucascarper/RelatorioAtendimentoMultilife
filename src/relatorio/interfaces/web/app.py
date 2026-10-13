@@ -118,6 +118,10 @@ def create_app(settings: Settings | None = None, container: Container | None = N
         resposta.headers.setdefault("X-Content-Type-Options", "nosniff")
         resposta.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
         resposta.headers.setdefault("Referrer-Policy", "same-origin")
+        if request.url.path.startswith("/static/"):
+            # Sem isto o navegador guarda o CSS/JS por horas (cache heurístico) e mostra o
+            # visual antigo depois de um deploy. "no-cache" revalida pelo ETag (304 barato).
+            resposta.headers.setdefault("Cache-Control", "no-cache")
         resposta.headers.setdefault("Content-Security-Policy", CSP)
         if settings.app_env == "production":
             resposta.headers.setdefault(
