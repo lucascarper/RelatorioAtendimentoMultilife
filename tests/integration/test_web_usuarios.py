@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 
 import httpx
@@ -68,7 +69,7 @@ def itens_do_menu(html: str) -> list[str]:
 
     menu = re.search(r'<nav class="menu".*?</nav>', html, re.S)
     assert menu, "página sem menu"
-    return re.findall(r">([^<]+)</a>", menu.group(0))
+    return re.findall(r'class="menu-rotulo">([^<]+)</span>', menu.group(0))
 
 
 class TestModulosDoMenu:
@@ -83,7 +84,7 @@ class TestModulosDoMenu:
             "Execuções",
         ]
         assert "Sistema de Relatórios" in pagina.text
-        assert 'href="/admin/atendimento" aria-current="page"' in pagina.text
+        assert re.search(r'href="/admin/atendimento"[^>]*aria-current="page"', pagina.text)
 
     def test_atendimento_reune_painel_destinatarios_e_atalhos(self, cliente: TestClient) -> None:  # noqa: F811
         entrar(cliente)
@@ -97,10 +98,10 @@ class TestModulosDoMenu:
         # As telas de apoio voltam para o módulo, e o menu continua em Atendimento.
         monitor = cliente.get("/admin/monitor").text
         assert 'href="/admin/atendimento"' in monitor
-        assert 'href="/admin/atendimento" aria-current="page"' in monitor
+        assert re.search(r'href="/admin/atendimento"[^>]*aria-current="page"', monitor)
         agendas = cliente.get("/admin/agendas").text
         assert "&larr; Atendimento" in agendas
-        assert 'href="/admin/atendimento" aria-current="page"' in agendas
+        assert re.search(r'href="/admin/atendimento"[^>]*aria-current="page"', agendas)
 
     def test_inicio_leva_ao_primeiro_modulo_e_links_antigos_continuam(
         self,
@@ -117,7 +118,7 @@ class TestModulosDoMenu:
         pagina = cliente.get("/admin/configuracoes").text
         assert 'class="abas"' in pagina and "Regras do relatório" in pagina
         assert f'href="{URL}"' in pagina
-        assert 'href="/admin/configuracoes" aria-current="page"' in pagina
+        assert re.search(r'href="/admin/configuracoes"[^>]*aria-current="page"', pagina)
 
 
 class TestCadastro:

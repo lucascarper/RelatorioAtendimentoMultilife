@@ -3,10 +3,22 @@
 {% block conteudo %}
 {%- from "admin/_icones.html" import icone %}
 <h1>Execuções dos jobs</h1>
-<p class="nota">Últimas 7 execuções de cada job (horário de Brasília).</p>
+<p class="subtitulo-pagina">Últimas 7 execuções de cada job (horário de Brasília). Os jobs com falha na última execução abrem sozinhos.</p>
 {% for job, rotulo, lista in jobs %}
-<section class="card">
-  <h2>{{ rotulo }}</h2>
+{% set ult = lista[0] if lista else None %}
+<details class="card job"{% if loop.first or (ult and ult.status.value == "falha") %} open{% endif %}>
+  <summary>
+    <h2>{{ rotulo }}</h2>
+    {% if ult %}
+    <span class="job-resumo">
+      <span class="nota">{{ ult.inicio | datahora_br }}</span>
+      {% if ult.status.value == "sucesso" %}<span class="badge badge-ok">{{ icone("ok") }}Sucesso</span>
+      {% elif ult.status.value == "falha" %}<span class="badge badge-erro">{{ icone("erro") }}Falha</span>
+      {% elif ult.status.value == "executando" %}<span class="badge badge-aviso">{{ icone("relogio") }}Executando</span>
+      {% else %}<span class="badge badge-neutro">{{ ult.status.value }}</span>{% endif %}
+    </span>
+    {% endif %}
+  </summary>
   <div class="rolagem">
   <table class="tabela">
     <thead><tr><th>Início</th><th class="num">Duração</th><th>Situação</th><th>Detalhe</th></tr></thead>
@@ -36,7 +48,7 @@
     </tbody>
   </table>
   </div>
-</section>
+</details>
 {% else %}
 <section class="card"><p class="nota">Nenhuma execução registrada ainda.</p></section>
 {% endfor %}

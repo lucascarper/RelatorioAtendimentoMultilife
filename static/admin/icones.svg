@@ -10,4 +10,11 @@
   <symbol id="i-seguir" viewBox="0 0 24 24"><path d="M5 12l14 0" /> <path d="M13 18l6 -6" /> <path d="M13 6l6 6" /></symbol>
   <symbol id="i-relogio" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /> <path d="M12 12l3 2" /> <path d="M12 7v5" /></symbol>
   <symbol id="i-ao-vivo" viewBox="0 0 24 24"><path d="M3 12h4l3 8l4 -16l3 8h4" /></symbol>
+  <symbol id="i-atendimento" viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z" /> <path d="M16 3v4" /> <path d="M8 3v4" /> <path d="M4 11h16" /> <path d="M9 16l2 2l4 -4" /></symbol>
+  <symbol id="i-financeiro" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /> <path d="M14.8 9a2 2 0 0 0 -1.8 -1h-2a2 2 0 1 0 0 4h2a2 2 0 1 1 0 4h-2a2 2 0 0 1 -1.8 -1" /> <path d="M12 6v2" /> <path d="M12 16v2" /></symbol>
+  <symbol id="i-sesmt" viewBox="0 0 24 24"><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /> <path d="M9 5a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2" /> <path d="M9 14l2 2l4 -4" /></symbol>
+  <symbol id="i-configuracoes" viewBox="0 0 24 24"><path d="M4 6h8" /> <path d="M16 6h4" /> <path d="M12 6a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /> <path d="M4 12h2" /> <path d="M10 12h10" /> <path d="M6 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /> <path d="M4 18h10" /> <path d="M18 18h2" /> <path d="M14 18a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /></symbol>
+  <symbol id="i-execucoes" viewBox="0 0 24 24"><path d="M9 6h11" /> <path d="M9 12h11" /> <path d="M9 18h11" /> <path d="M5 6v.01" /> <path d="M5 12v.01" /> <path d="M5 18v.01" /></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16" /> <path d="M4 12h16" /> <path d="M4 18h16" /></symbol>
+  <symbol id="i-recolher" viewBox="0 0 24 24"><path d="M11 7l-5 5l5 5" /> <path d="M17 7l-5 5l5 5" /></symbol>
 </svg>

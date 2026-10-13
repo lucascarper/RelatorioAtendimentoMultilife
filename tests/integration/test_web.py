@@ -324,7 +324,9 @@ class TestMonitor:
         entrar(cliente)
         pagina = cliente.get("/admin/monitor")
         assert pagina.status_code == 200
-        assert 'aria-current="page">Atendimento</a>' in pagina.text
+        assert re.search(
+            r'aria-current="page">[^<]*(<[^>]+>[^<]*)*Atendimento</span></a>', pagina.text
+        )
         assert "/static/admin/monitor.js" in pagina.text
         assert "1 pessoa na recepção agora; a maior espera é de 20 min." in pagina.text
         assert "Movimento por hora" in pagina.text
@@ -361,7 +363,7 @@ class TestFinanceiro:
         assert pagina.status_code == 200
         assert "Relatório financeiro" in pagina.text
         assert "FINANCEIRO_HABILITADO=false" in pagina.text
-        assert 'href="/admin/financeiro" aria-current="page"' in pagina.text
+        assert re.search(r'href="/admin/financeiro"[^>]*aria-current="page"', pagina.text)
 
         ok = cliente.post(
             "/admin/financeiro/destinatarios",
@@ -418,7 +420,7 @@ class TestSesmt:
         assert pagina.status_code == 200
         assert "Relatório do SESMT" in pagina.text
         assert "SESMT_HABILITADO=false" in pagina.text
-        assert 'href="/admin/sesmt" aria-current="page"' in pagina.text
+        assert re.search(r'href="/admin/sesmt"[^>]*aria-current="page"', pagina.text)
         assert "1=GESTÃO PREMIUM" in pagina.text  # padrão dos grupos do SGG
 
         ok = cliente.post(
