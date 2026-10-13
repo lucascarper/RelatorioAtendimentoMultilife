@@ -338,6 +338,9 @@ class TestMonitor:
         assert "Na recepção agora" in fragmento.text
         assert "data-dica=" in fragmento.text
         assert cliente.get("/static/admin/monitor.js").status_code == 200
+        estatico = cliente.get("/static/admin/admin.css")
+        assert estatico.headers["cache-control"] == "no-cache"  # deploy novo vale na hora
+        assert estatico.headers["etag"]
 
     def test_dia_sem_agendamentos(self, cliente: TestClient) -> None:
         entrar(cliente)
