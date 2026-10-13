@@ -5,34 +5,49 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titulo %}Admin{% endblock %} · Sistema de Relatórios · MultiLife</title>
+  <meta name="theme-color" content="#2F4A80">
+  <meta name="description" content="Painel interno de relatórios de atendimento da MultiLife.">
   <link rel="icon" type="image/png" href="/static/brand/favicon.png">
   <link rel="stylesheet" href="/static/admin/admin.css">
+  <script src="/static/admin/lateral.js"></script>
   <script src="/static/admin/htmx.min.js" defer></script>
   {% block scripts %}{% endblock %}
 </head>
 <body hx-headers='{"X-CSRF-Token": "{{ csrf }}"}'>
+  <a href="#conteudo" class="pular">Pular para o conteúdo</a>
   <div class="faixa-marca" aria-hidden="true"><span></span><span></span></div>
   {% if usuario %}
-  <header class="topo">
-    <div class="topo-conteudo">
-      <a href="/admin" class="marca" aria-label="Início do painel">
-        <img src="/static/brand/logo-multilife-admin.png" alt="MultiLife, Saúde e Segurança do Trabalho" height="34">
-        <span class="marca-produto">Sistema de Relatórios</span>
-      </a>
+  <div class="app">
+    <aside class="lateral" id="lateral" aria-label="Navegação">
+      <div class="lateral-topo">
+        <a href="/admin" class="lateral-marca" aria-label="Início do painel">
+          <img src="/static/brand/logo-multilife-admin.png" alt="MultiLife, Saúde e Segurança do Trabalho" class="logo-cheio" width="168" height="38">
+          <img src="/static/brand/simbolo-multilife.png" alt="" class="logo-simbolo" width="28" height="28">
+        </a>
+        <button type="button" class="lateral-recolher" data-lateral-alternar aria-controls="lateral" aria-expanded="true" aria-label="Recolher ou expandir o menu">{{ icone("recolher") }}</button>
+      </div>
+      <p class="lateral-produto">Sistema de Relatórios</p>
       <nav class="menu" aria-label="Principal">
         {% for m in menu %}
-        <a href="{{ m.url }}" {% if modulo_ativo == m.chave %}aria-current="page"{% endif %}>{{ m.rotulo }}</a>
+        <a href="{{ m.url }}" title="{{ m.rotulo }}" {% if modulo_ativo == m.chave %}aria-current="page"{% endif %}>{{ icone(m.chave) }}<span class="menu-rotulo">{{ m.rotulo }}</span></a>
         {% endfor %}
       </nav>
-      <form method="post" action="/logout" class="sair">
+      <form method="post" action="/logout" class="lateral-rodape">
         <input type="hidden" name="csrf" value="{{ csrf }}">
-        <span class="usuario">{{ usuario }}</span>
-        <button type="submit" class="btn btn-link">{{ icone("sair") }}Sair</button>
+        <span class="avatar" aria-hidden="true">{{ usuario[:1] | upper }}</span>
+        <span class="usuario-nome" title="{{ usuario }}">{{ usuario }}</span>
+        <span class="sair"><button type="submit" class="btn btn-link" title="Sair" aria-label="Sair">{{ icone("sair") }}<span>Sair</span></button></span>
       </form>
-    </div>
-  </header>
+    </aside>
+    <div class="lateral-fundo" aria-hidden="true"></div>
+    <div class="principal">
+      <header class="barra-mobile">
+        <button type="button" class="lateral-recolher" data-lateral-alternar aria-controls="lateral" aria-expanded="false" aria-label="Abrir o menu">{{ icone("menu") }}</button>
+        <img src="/static/brand/simbolo-multilife.png" alt="" class="logo-simbolo" width="26" height="26">
+        <strong>Sistema de Relatórios</strong>
+      </header>
   {% endif %}
-  <main class="conteudo{% block classe_conteudo %}{% endblock %}">
+  <main id="conteudo" class="conteudo{% block classe_conteudo %}{% endblock %}">
     {% if ambiente != "production" and usuario %}
     <p class="ambiente">Ambiente: <strong>{{ ambiente }}</strong></p>
     {% endif %}
@@ -42,5 +57,9 @@
     {% block conteudo %}{% endblock %}
   </main>
   <footer class="rodape">MultiLife, Saúde e Segurança do Trabalho. Dados agregados do SGG, sem dados de pacientes (LGPD).</footer>
+  {% if usuario %}
+    </div>
+  </div>
+  {% endif %}
 </body>
 </html>
