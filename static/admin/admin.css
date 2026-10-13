@@ -739,6 +739,7 @@ html:fullscreen .conteudo-monitor { max-width: 1680px; padding: 20px 32px; }
 
 /* Tabelas: cabeçalho discreto, leitura em colunas, ações como links claros. */
 .tabela thead th { position: sticky; top: 0; background: var(--superficie); z-index: 1; }
+.alerta .tabela thead th { position: static; background: transparent; }
 .tabela td strong { font-weight: 650; }
 .tabela td.num strong { font-weight: 700; }
 .tabela td > a:not(.btn):not(.badge) { font-size: 13px; white-space: nowrap; }

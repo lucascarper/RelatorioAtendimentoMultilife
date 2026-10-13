@@ -68,7 +68,7 @@ def itens_do_menu(html: str) -> list[str]:
 
     menu = re.search(r'<nav class="menu".*?</nav>', html, re.S)
     assert menu, "página sem menu"
-    return re.findall(r">([^<]+)</a>", menu.group(0))
+    return re.findall(r'class="menu-rotulo">([^<]+)</span>', menu.group(0))
 
 
 class TestModulosDoMenu:
