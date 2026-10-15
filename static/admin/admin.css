@@ -797,3 +797,55 @@ html:fullscreen .conteudo-monitor { max-width: 1680px; padding: 20px 32px; }
 }
 .form select:hover, .form textarea:hover { border-color: var(--texto-3); }
 .form select:focus-visible, .form textarea:focus-visible { border-color: var(--acento); outline: 3px solid var(--acento-anel); outline-offset: 0; }
+
+/* ---------------------------------------------------------------- controles nativos padronizados
+   Caixas de marcar, opções, listas, links de texto e marcadores de "detalhes" com a mesma
+   linguagem dos botões e campos: borda fina, raio de 5px/8px, anel de foco e o azul da marca. */
+input[type="checkbox"], input[type="radio"] {
+  appearance: none; -webkit-appearance: none; flex: none; margin: 0; width: 18px; height: 18px;
+  display: inline-grid; place-content: center; cursor: pointer;
+  background-color: var(--superficie); border: 1.5px solid var(--borda-forte);
+  transition: background-color var(--transicao), border-color var(--transicao), box-shadow var(--transicao);
+}
+input[type="checkbox"], .form input[type="checkbox"] { border-radius: 5px; }
+input[type="radio"], .form input[type="radio"] { border-radius: 50%; }
+input[type="checkbox"]:hover, input[type="radio"]:hover { border-color: var(--acento); }
+input[type="checkbox"]:checked, .form input[type="checkbox"]:checked {
+  background-color: var(--acento); border-color: var(--acento);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-6.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: center; background-size: 12px;
+}
+input[type="radio"]:checked, .form input[type="radio"]:checked {
+  border-color: var(--acento); background-color: var(--acento); box-shadow: inset 0 0 0 3.5px var(--superficie);
+}
+input[type="checkbox"]:focus-visible, input[type="radio"]:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+input[type="checkbox"]:disabled, input[type="radio"]:disabled { opacity: .5; cursor: not-allowed; }
+label.check { cursor: pointer; }
+
+select {
+  appearance: none; -webkit-appearance: none; font: inherit; font-size: 14px; color: var(--texto);
+  min-height: 36px; padding: 6px 34px 6px 12px; cursor: pointer;
+  border: 1px solid var(--borda-forte); border-radius: var(--raio-controle);
+  background-color: var(--superficie);
+  background-image: linear-gradient(45deg, transparent 50%, var(--texto-2) 50%), linear-gradient(135deg, var(--texto-2) 50%, transparent 50%);
+  background-position: calc(100% - 17px) 50%, calc(100% - 12px) 50%; background-size: 5px 5px; background-repeat: no-repeat;
+  transition: border-color var(--transicao);
+}
+select:hover { border-color: var(--texto-3); }
+select:focus-visible { border-color: var(--acento); outline: 3px solid var(--acento-anel); outline-offset: 0; }
+
+/* Links de texto: sublinhado fino que engrossa ao passar o mouse; os botões e menus não mudam. */
+a { text-decoration-thickness: 1px; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); }
+a:hover { text-decoration-thickness: 2px; text-decoration-color: currentColor; }
+.status .acao a { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.status .acao a::after { content: "→"; transition: transform var(--transicao); }
+.status .acao a:hover::after { transform: translateX(3px); }
+
+/* "Detalhes": mesmo marcador (seta que gira) dos blocos de Execuções. */
+.agendas-escolha > summary, .tabela-alternativa > summary { display: flex; align-items: center; gap: 8px; list-style: none; width: max-content; }
+.agendas-escolha > summary::-webkit-details-marker, .tabela-alternativa > summary::-webkit-details-marker { display: none; }
+.agendas-escolha > summary::before, .tabela-alternativa > summary::before {
+  content: ""; width: 7px; height: 7px; flex: none; border-right: 2px solid var(--texto-3);
+  border-bottom: 2px solid var(--texto-3); transform: rotate(-45deg); transition: transform var(--transicao);
+}
+.agendas-escolha[open] > summary::before, .tabela-alternativa[open] > summary::before { transform: rotate(45deg); }
