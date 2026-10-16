@@ -31,13 +31,13 @@ from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-VERSAO_REGRA_FINANCEIRO = "1.2.0"  # 1.2: projeção ganha coluna até o fim do mês atual
+VERSAO_REGRA_FINANCEIRO = "1.3.0"  # 1.3: projeção até o fim do mês, 60 e 90 dias
 
 ZERO = Decimal("0")
 CENTAVO = Decimal("0.01")
 JANELA_MRR_DIAS = 30
 JANELA_CONTRATOS_DIAS = 30
-HORIZONTES_PROJECAO = (7, 15, 30)
+HORIZONTES_PROJECAO = (60, 90)
 MAXIMO_SERVICOS_MARGEM = 10
 MAXIMO_CLASSIFICACOES = 8
 SEM_CENTRO = "Sem centro de custo"
@@ -135,6 +135,9 @@ class Titulo:
     classificacao: str = ""
     rateio: tuple[tuple[str, Decimal], ...] = ()
     itens: tuple[ItemFaturado, ...] = ()
+    # Só existe em memória, no envio (fluxo de caixa do e-mail). Pode ter nome de pessoa:
+    # nunca é gravada nem registrada em log.
+    descricao: str = field(default="", repr=False, compare=False)
 
     @property
     def valor_liquidado(self) -> Decimal:
@@ -250,12 +253,12 @@ def _projecao(dados: DadosFinanceiros) -> list[dict[str, Any]]:
             "fim_mes": fim_mes,
         }
 
-    linhas = [
+    ate_fim_mes = fim_do_mes(dados.hoje)
+    linhas = [linha(ate_fim_mes, (ate_fim_mes - dados.hoje).days + 1, fim_mes=True)]
+    linhas.extend(
         linha(dados.hoje + timedelta(days=dias - 1), dias, fim_mes=False)
         for dias in HORIZONTES_PROJECAO
-    ]
-    ate_fim_mes = fim_do_mes(dados.hoje)
-    linhas.append(linha(ate_fim_mes, (ate_fim_mes - dados.hoje).days + 1, fim_mes=True))
+    )
     return linhas
 
 

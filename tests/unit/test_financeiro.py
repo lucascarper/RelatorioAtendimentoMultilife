@@ -106,8 +106,8 @@ def test_projecao_de_entradas_e_saidas_por_horizonte() -> None:
         dados(
             a_receber=[
                 titulo(1, "100.00", vencimento=HOJE),
-                titulo(2, "200.00", vencimento=d("2026-10-04")),  # dia 7 (inclusive)
-                titulo(3, "400.00", vencimento=d("2026-10-05")),  # dia 8
+                titulo(2, "200.00", vencimento=d("2026-10-04")),  # dentro dos 60 dias
+                titulo(3, "400.00", vencimento=d("2026-10-05")),  # dentro dos 60 dias
                 titulo(4, "999.00", vencimento=d("2026-10-01"), pagamento=d("2026-09-27")),
             ],
             a_pagar=[titulo(10, "150.00", vencimento=d("2026-10-20"))],
@@ -115,8 +115,10 @@ def test_projecao_de_entradas_e_saidas_por_horizonte() -> None:
         GERADO,
     )
     p = {linha["dias"]: linha for linha in r["projecao"] if not linha["fim_mes"]}
-    assert (p[7]["entradas"], p[7]["saidas"], p[7]["titulos_entrada"]) == (300.0, 0.0, 2)
-    assert (p[30]["entradas"], p[30]["saidas"], p[30]["saldo"]) == (700.0, 150.0, 550.0)
+    assert sorted(p) == [60, 90]
+    assert r["projecao"][0]["fim_mes"]  # a primeira coluna é "até o fim do mês"
+    assert (p[60]["entradas"], p[60]["saidas"], p[60]["titulos_entrada"]) == (700.0, 150.0, 3)
+    assert (p[90]["entradas"], p[90]["saidas"], p[90]["saldo"]) == (700.0, 150.0, 550.0)
     (fim_mes,) = [linha for linha in r["projecao"] if linha["fim_mes"]]
     assert fim_mes["ate"] == "2026-09-30"  # HOJE é 28/09: só faltam 3 dias no mês
     assert (fim_mes["entradas"], fim_mes["saidas"], fim_mes["titulos_entrada"]) == (100.0, 0.0, 1)

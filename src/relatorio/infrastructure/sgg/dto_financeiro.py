@@ -7,7 +7,8 @@ tabela de preços, ``centro_de_custos`` como lista de rateio nas contas).
 
 LGPD: de cada conta só ficam valores, datas, situação, classificação, rateio e o nome
 do cliente pessoa jurídica. Quando o CPF/CNPJ é de pessoa física, o nome é trocado por
-um identificador; descrição, links e documentos são descartados.
+um identificador; links e documentos são descartados. A descrição só vive em memória (o
+fluxo de caixa do e-mail a lê do SGG no envio) e nunca é gravada.
 """
 
 from __future__ import annotations
@@ -108,6 +109,7 @@ def para_titulo(item: Mapping[str, Any]) -> Titulo:
         classificacao=_texto(item.get("centro_de_resultados")) or "",
         rateio=_rateio(item.get("centro_de_custos"), pago=pagamento is not None),
         itens=_itens(item.get("faturamento")),
+        descricao=" ".join((_texto(item.get("descricao")) or "").split()),
     )
 
 

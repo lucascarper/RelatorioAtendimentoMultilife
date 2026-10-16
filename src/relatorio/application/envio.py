@@ -90,6 +90,7 @@ class EnviarRelatorio:
         destinatarios_override: Sequence[str] = (),
         tipo: TipoRelatorio = ATENDIMENTOS,
         complemento: ComplementoRelatorio | None = None,
+        rotulo_complemento: str = "os atendimentos por médico",
     ) -> None:
         self._uow = uow
         self._relogio = relogio
@@ -100,6 +101,7 @@ class EnviarRelatorio:
         self._override = tuple(destinatarios_override)
         self._tipo = tipo
         self._complemento = complemento
+        self._rotulo_complemento = rotulo_complemento
 
     def _complementar(self, dia: date, com_anexo: bool) -> Complemento:
         """O complemento nunca impede o relatório principal: se falhar, sai sem ele."""
@@ -110,12 +112,22 @@ class EnviarRelatorio:
         except Exception as erro:
             log.warning("complemento_falhou", dia=dia.isoformat(), erro=type(erro).__name__)
             self._alertar.enviar(
-                f"{self._tipo.nome} enviado sem os atendimentos por médico",
-                "Não foi possível montar a seção de atendimentos por médico e a planilha "
-                "anexa. O relatório principal foi enviado normalmente.",
+                f"{self._tipo.nome} enviado sem {self._rotulo_complemento}",
+                f"Não foi possível montar {self._rotulo_complemento}. "
+                "O relatório principal foi enviado normalmente.",
                 {"Data": f"{dia:%d/%m/%Y}", "Erro": f"{type(erro).__name__}: {erro}"},
             )
             return Complemento({})
+
+    def com_complemento(self, dia: date, metricas: Mapping[str, Any]) -> dict[str, Any]:
+        """Prévia no admin: soma o complemento se o SGG responder; falha não alerta ninguém."""
+        if self._complemento is None:
+            return dict(metricas)
+        try:
+            return {**metricas, **self._complemento.para(dia, com_anexo=False).metricas}
+        except Exception as erro:
+            log.warning("previa_sem_complemento", dia=dia.isoformat(), erro=type(erro).__name__)
+            return dict(metricas)
 
     def executar(self, dia: date, *, forcar: bool = False) -> dict[str, object]:
         referencia = dia.isoformat()

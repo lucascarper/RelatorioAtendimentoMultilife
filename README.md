@@ -74,10 +74,14 @@ Tecnicamente: layout em tabelas compatível com Outlook e Gmail, CSS inline (pre
 
 Um segundo e-mail às 07:59, para financeiro e diretoria, com lista de destinatários própria (admin → **Financeiro**). Os dados vêm dos endpoints financeiros do SGG (`contasReceber`, `contasPagar`, `contratoCliente`, `fornecedor-valores`):
 
-1. **Fluxo de caixa:** receita recebida, despesas pagas e saldo operacional, no dia e no mês.
-2. **Projeção de entradas e saídas:** títulos em aberto (a receber e a pagar) previstos para 7, 15 e 30 dias, mais uma coluna até o fim do mês atual.
-3. **Faturamento por serviço:** volume, faturado e ticket médio por categoria (exames clínicos, complementares, PGR/PCMSO, mensalidades…).
-4. **Receita recorrente, contratos e margem:** MRR, faturamento por vidas, contratos a vencer em 30 dias, margem bruta estimada por exame e rateio por centro de custo.
+O e-mail traz só o essencial, sobre o dia anterior (D-1):
+
+1. **Saldo operacional de D-1** e **faturamento do mês até D-1** (dois cartões no topo).
+2. **Fluxo de caixa de D-1:** receita recebida, despesas pagas e saldo (dia e mês) e, abaixo, cada conta paga ou recebida no dia com **conta** (cliente ou fornecedor), **classificação**, **descrição** e **valor**. Receita em azul; despesa em vermelho, com sinal de menos.
+3. **Projeção do caixa:** entradas e saídas previstas até o fim do mês, em 60 e em 90 dias.
+4. **Rateio por centro de custo** (mês até D-1).
+
+O detalhamento do fluxo é lido do SGG na hora do envio e a **descrição não é gravada** no banco (pode ter nome de pessoa, LGPD). Se o SGG não responder nessa hora, o e-mail sai com os totais e o aviso "Detalhamento indisponível". A prévia do admin também lê o SGG para mostrar o detalhamento.
 
 Regras e decisões no [ADR 0011](docs/adr/0011-relatorio-financeiro-diario.md). O envio automático fica desligado até `FINANCEIRO_HABILITADO=true` no worker. A prévia e o reenvio pelo admin funcionam sempre.
 

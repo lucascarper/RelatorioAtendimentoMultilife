@@ -215,8 +215,11 @@ class RenderizadorFake:
         )
 
     def relatorio_financeiro(self, metricas: Mapping[str, Any]) -> ConteudoEmail:
+        fluxo = metricas.get("fluxo_dia")
         return ConteudoEmail(
-            assunto=f"Financeiro {metricas.get('referencia')}", html="<p>fin</p>", texto="fin"
+            assunto=f"Financeiro {metricas.get('referencia')}",
+            html="<p>fin</p>",
+            texto="fin" if fluxo is None else f"fin fluxo={len(fluxo['linhas'])}",
         )
 
     def relatorio_sesmt(self, metricas: Mapping[str, Any]) -> ConteudoEmail:

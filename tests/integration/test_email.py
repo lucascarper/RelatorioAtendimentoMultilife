@@ -7,7 +7,7 @@ from datetime import date
 from email import message_from_bytes
 from email.message import EmailMessage
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
@@ -464,27 +464,62 @@ class TestRelatorioFinanceiro:
             dados, datetime(2026, 9, 28, 5, 45, tzinfo=FUSO_BRASILIA), anterior
         )
 
+    FLUXO: ClassVar[dict[str, Any]] = {
+        "linhas": [
+            {
+                "natureza": "receita",
+                "conta": "Empresa Cinco",
+                "classificacao": "EXAMES CLÍNICOS",
+                "descricao": "Faturamento de setembro",
+                "valor": 1500.0,
+            },
+            {
+                "natureza": "despesa",
+                "conta": "Fornecedor Seis",
+                "classificacao": "ADMINISTRATIVAS",
+                "descricao": "Aluguel da sala",
+                "valor": 2000.0,
+            },
+        ]
+    }
+
     def test_estrutura_do_email_financeiro(self, renderizador: RenderizadorJinja) -> None:
         ontem = self.metricas()
-        conteudo = renderizador.relatorio_financeiro(self.metricas(anterior=ontem))
+        metricas = {**self.metricas(anterior=ontem), "fluxo_dia": self.FLUXO}
+        conteudo = renderizador.relatorio_financeiro(metricas)
         assert conteudo.assunto == "Relatório Financeiro — 27/09/2026 (domingo)"
         html, texto = conteudo.html, conteudo.texto
         for trecho in (
             "Saldo operacional de 27/09",
+            "Faturamento do mês até 27/09",
             "-R$ 500,00",  # saldo negativo do dia
             "R$ 900,00",
-            "Fluxo de caixa",
-            "Projeção de entradas e saídas",
-            "Faturamento por serviço",
-            "Receita recorrente, contratos e margem",
-            "Empresa Cinco",  # contrato vencendo em 12 dias
-            "sem alteração desde ontem",
-            "Regra de cálculo v1.2.0",
+            "Fluxo de caixa de 27/09",
+            "Movimentos de 27/09",
+            "Empresa Cinco",
+            "EXAMES CLÍNICOS",
+            "Faturamento de setembro",
+            "- ADMINISTRATIVAS",  # despesa: sinal de menos
+            "-R$ 2.000,00",
+            "Projeção do caixa",
+            "Rateio por centro de custo",
+            "Regra de cálculo v1.3.0",
             f'src="cid:{LOGO_CID}"',
         ):
             assert trecho in html, trecho
+        for removido in (
+            "Faturamento por serviço",
+            "Receita recorrente",
+            "MRR",
+            "Margem bruta",
+            "Contratos a vencer",
+        ):
+            assert removido not in html, removido
         assert "Saldo operacional de 27/09: -R$ 500,00" in texto
-        assert "Contratos a vencer em 30 dias" in texto
+
+    def test_fluxo_de_caixa_sem_detalhamento_avisa(self, renderizador: RenderizadorJinja) -> None:
+        conteudo = renderizador.relatorio_financeiro(self.metricas())
+        assert "Detalhamento indisponível" in conteudo.html
 
 
 class TestRelatorioSesmt:

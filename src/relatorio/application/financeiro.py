@@ -16,6 +16,7 @@ from datetime import date, timedelta
 import structlog
 
 from relatorio.application.alertas import AlertarTecnico
+from relatorio.application.exames import Complemento
 from relatorio.application.ports import FabricaUoW, FinanceiroGateway, Relogio
 from relatorio.domain.entidades import FUSO_BRASILIA
 from relatorio.domain.financeiro import (
@@ -23,6 +24,7 @@ from relatorio.domain.financeiro import (
     JANELA_CONTRATOS_DIAS,
     VERSAO_REGRA_FINANCEIRO,
     DadosFinanceiros,
+    Titulo,
     calcular_financeiro,
     inicio_do_mes,
     inicio_janela_emissao,
@@ -33,6 +35,38 @@ JOB_CONSOLIDAR_FINANCEIRO = "consolidar_financeiro"
 CHAVE_NOMES_CENTROS = "financeiro_centros_custo"
 
 log = structlog.get_logger(__name__)
+
+
+class FluxoDoDia:
+    """Fluxo de caixa detalhado do dia no e-mail financeiro (receitas e despesas pagas).
+
+    Lê as contas pagas do dia no SGG no momento do envio. A descrição pode ter nome de
+    pessoa: ela só vai no e-mail e não é gravada (LGPD).
+    """
+
+    def __init__(self, sgg: FinanceiroGateway) -> None:
+        self._sgg = sgg
+
+    def para(self, dia: date, *, com_anexo: bool = True) -> Complemento:
+        del com_anexo  # o financeiro não tem anexo
+        receitas = self._linhas(self._sgg.receber_pagos(dia, dia), dia, "receita")
+        despesas = self._linhas(self._sgg.pagar_pagos(dia, dia), dia, "despesa")
+        return Complemento({"fluxo_dia": {"linhas": [*receitas, *despesas]}})
+
+    @staticmethod
+    def _linhas(titulos: list[Titulo], dia: date, natureza: str) -> list[dict[str, object]]:
+        pagos = [t for t in titulos if not t.cancelada and t.pagamento == dia]
+        pagos.sort(key=lambda t: (-t.valor_liquidado, t.id))
+        return [
+            {
+                "natureza": natureza,
+                "conta": t.nome or "Sem nome",
+                "classificacao": t.classificacao,
+                "descricao": t.descricao,
+                "valor": float(t.valor_liquidado),
+            }
+            for t in pagos
+        ]
 
 
 def ler_nomes_centros(texto: str) -> dict[str, str]:

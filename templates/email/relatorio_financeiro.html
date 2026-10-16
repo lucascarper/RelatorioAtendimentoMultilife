@@ -102,14 +102,16 @@
     <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px; line-height:18px; color:#20295A;">
       <tr>
         {%- for h in t.cabecalho %}
-        <th{% if loop.index0 in t.ocultar_no_celular %} class="oculta-mobile"{% endif %} align="{{ 'left' if loop.first else 'right' }}" bgcolor="#EBF0F9" style="background:#EBF0F9; padding:8px 10px; font-size:12px; color:#2F4A80; font-weight:700; text-align:{{ 'left' if loop.first else 'right' }};{% if loop.first %} border-radius:6px 0 0 0;{% elif loop.last %} border-radius:0 6px 0 0;{% endif %}">{{ h }}</th>
+        {%- set al = t.alinhar[loop.index0] if t.alinhar else ('left' if loop.first else 'right') %}
+        <th{% if loop.index0 in t.ocultar_no_celular %} class="oculta-mobile"{% endif %} align="{{ al }}" bgcolor="#EBF0F9" style="background:#EBF0F9; padding:8px 10px; font-size:12px; color:#2F4A80; font-weight:700; text-align:{{ al }};{% if loop.first %} border-radius:6px 0 0 0;{% elif loop.last %} border-radius:0 6px 0 0;{% endif %}">{{ h }}</th>
         {%- endfor %}
       </tr>
       {%- for linha in t.linhas %}
       <tr>
         <td style="padding:8px 10px; color:#444B68;{% if linha.destaque %} font-weight:700; color:#20295A;{% endif %}">{{ linha.rotulo }}{% if linha.nota %}<br><span style="font-size:11px; color:#626883; font-weight:400;">{{ linha.nota }}</span>{% endif %}</td>
         {%- for v in linha.valores %}
-        <td class="num{% if loop.index in t.ocultar_no_celular %} oculta-mobile{% endif %}" align="right" style="padding:8px 10px; text-align:right; color:{{ linha.cores[loop.index0] if linha.cores else '#20295A' }};{% if linha.destaque %} font-weight:700;{% endif %}">{{ v }}</td>
+        {%- set al = t.alinhar[loop.index] if t.alinhar else 'right' %}
+        <td class="{{ 'num' if al == 'right' else 'txt' }}{% if loop.index in t.ocultar_no_celular %} oculta-mobile{% endif %}" align="{{ al }}" style="padding:8px 10px; text-align:{{ al }}; color:{{ linha.cores[loop.index0] if linha.cores else '#20295A' }};{% if linha.destaque %} font-weight:700;{% endif %}">{{ v }}</td>
         {%- endfor %}
       </tr>
       {%- endfor %}
