@@ -326,13 +326,11 @@ a.badge { text-decoration: none; }
 .form input:not([type="checkbox"]):not([type="radio"]):focus-visible { border-color: var(--acento); outline: 3px solid var(--acento-anel); outline-offset: 0; }
 .form input:not([type="checkbox"]):not([type="radio"]) { font-weight: 400; }
 .form input::placeholder { color: var(--texto-3); opacity: 1; font-weight: 400; }
-.form input[type="checkbox"], .form input[type="radio"] { accent-color: var(--acento); width: 16px; height: 16px; }
 .form input:focus-visible, .btn:focus-visible, .alternador:focus-visible, a:focus-visible, summary:focus-visible {
   outline: 2px solid var(--acento); outline-offset: 2px;
 }
 .form-linha { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; }
 .form-linha label { margin-bottom: 0; }
-.form .check { flex-direction: row; align-items: center; gap: 8px; font-weight: 400; color: var(--texto); padding-bottom: 10px; }
 .form-linha .btn { margin-bottom: 1px; }
 .grade-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0 16px; }
 .opcoes { border: 0; padding: 0; margin: 0 0 12px; }
@@ -849,3 +847,49 @@ a:hover { text-decoration-thickness: 2px; text-decoration-color: currentColor; }
   border-bottom: 2px solid var(--texto-3); transform: rotate(-45deg); transition: transform var(--transicao);
 }
 .agendas-escolha[open] > summary::before, .tabela-alternativa[open] > summary::before { transform: rotate(45deg); }
+
+/* ---------------------------------------------------------------- caixas de marcação e datas
+   Checkbox e radio desenhados no padrão do sistema (sem o controle nativo); a opção inteira
+   vira um alvo de clique em forma de pastilha, que acende quando marcada. */
+input[type="checkbox"], input[type="radio"] {
+  -webkit-appearance: none; appearance: none; flex: none; margin: 0; width: 20px; height: 20px;
+  display: inline-grid; place-content: center; cursor: pointer; vertical-align: -.2em;
+  background: var(--superficie) no-repeat center / 14px; border: 1.5px solid var(--borda-forte); border-radius: 6px;
+  transition: background-color var(--transicao), border-color var(--transicao), box-shadow var(--transicao), transform var(--transicao);
+}
+input[type="radio"] { border-radius: 50%; }
+input[type="checkbox"]:hover, input[type="radio"]:hover { border-color: var(--acento); }
+input[type="checkbox"]:active, input[type="radio"]:active { transform: scale(.9); }
+input[type="checkbox"]:checked, input[type="radio"]:checked {
+  background-color: var(--acento); border-color: var(--acento); box-shadow: 0 2px 6px -2px var(--acento-anel);
+}
+input[type="checkbox"]:checked {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+}
+input[type="radio"]:checked {
+  background-image: radial-gradient(circle at center, #fff 0 3.5px, transparent 4px);
+}
+input[type="checkbox"]:focus-visible, input[type="radio"]:focus-visible { outline: 3px solid var(--acento-anel); outline-offset: 1px; }
+input[type="checkbox"]:disabled, input[type="radio"]:disabled { opacity: .5; cursor: not-allowed; }
+
+/* A opção inteira é clicável e acompanha a altura dos campos (40px). */
+.form .check {
+  display: inline-flex; flex-direction: row; align-items: center; gap: 10px; min-height: 40px; margin-bottom: 0;
+  padding: 8px 14px 8px 10px; font-size: 14px; font-weight: 500; color: var(--texto); cursor: pointer;
+  background: var(--superficie); border: 1px solid var(--borda-forte); border-radius: var(--raio-controle);
+  transition: background var(--transicao), border-color var(--transicao);
+}
+.form .check:hover { border-color: var(--acento); }
+.form .check:has(input:checked) { background: var(--acento-suave); border-color: var(--acento); color: var(--acento-texto); font-weight: 600; }
+.form .check:has(input:focus-visible) { outline: 3px solid var(--acento-anel); outline-offset: 1px; }
+.form-linha .check { margin-bottom: 0; }
+.opcoes-lista .check, .agendas-lista .check { padding: 7px 12px 7px 9px; }
+
+/* Campo de data: ícone do calendário discreto, números alinhados. */
+.form input[type="date"], .form input[type="time"] { font-variant-numeric: tabular-nums; cursor: text; }
+.form input[type="date"]::-webkit-calendar-picker-indicator, .form input[type="time"]::-webkit-calendar-picker-indicator {
+  cursor: pointer; opacity: .55; padding: 4px; margin-right: -4px; border-radius: 6px; transition: opacity var(--transicao), background var(--transicao);
+}
+.form input[type="date"]::-webkit-calendar-picker-indicator:hover, .form input[type="time"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1; background: var(--acento-suave);
+}
