@@ -24,7 +24,7 @@ Financeiro e diretoria querem um e-mail diário às 07:59, separado do relatóri
   - Caixa e faturamento são do **dia anterior** e do mês até ele.
   - Projeções e contratos são a **foto do momento da coleta**, porque a API só devolve a situação atual.
   - Reprocessar uma data antiga refaz a foto com a situação de hoje.
-- **Regras** (`domain/financeiro.py`, `VERSAO_REGRA_FINANCEIRO` 1.2.0):
+- **Regras** (`domain/financeiro.py`, `VERSAO_REGRA_FINANCEIRO` 1.2.0; ver revisões abaixo):
   - Recebido pelo valor cobrado.
   - Projeção de hoje até hoje + N − 1, mais uma coluna até o último dia do mês atual.
   - MRR = mensalidades faturadas nos últimos 30 dias a clientes com contrato ativo.
@@ -68,3 +68,13 @@ O e-mail passa a trazer só o essencial de D-1:
 - Rateio por centro de custo (mês até D-1).
 - Saem do e-mail: faturamento por serviço, receita recorrente (MRR), contratos a vencer, margem bruta e despesas por classificação. Esses números continuam sendo calculados e gravados no resumo; só não aparecem no e-mail.
 - **LGPD:** a descrição das contas pode ter nome de pessoa. Ela é lida do SGG no envio (`FluxoDoDia`, complemento do `EnviarRelatorio`), vive só em memória (`Titulo.descricao` fora do `repr`) e não entra no resumo gravado. Se o SGG não responder, o e-mail sai sem o detalhamento e o técnico é alertado.
+
+## Revisão: projeção pelo histórico do dia do mês (v1.4.0)
+
+A projeção pela "foto" dos títulos em aberto ficava fora do plausível: o SGG só tem lançados os títulos já emitidos, então as saídas recorrentes (folha, impostos, fornecedores) e as entradas de faturas ainda não emitidas não apareciam, e o resultado dependia de quanto já estava cadastrado no dia.
+
+- **Base:** os 6 meses completos antes do mês da referência (`MESES_HISTORICO = 6`; referência em 15/10 → 01/04 a 30/09). Lidos com `receber_pagos`/`pagar_pagos` numa só coleta, que também alimenta o caixa do mês (o recorte do mês sai da mesma lista). As chamadas de títulos a vencer deixaram de ser feitas.
+- **Perfil por dia do mês:** para cada dia 1..31, a soma do valor liquidado (pago/recebido, sem cancelados) nesse dia dividida pelo número de meses da base que têm esse dia (o dia 31 é a média dos meses de 31 dias).
+- **Projeção:** de `hoje` até o fim do mês, hoje + 59 e hoje + 89, soma o perfil de cada dia. No último dia de um mês curto entra também o que costuma cair nos dias que ele não tem (30/09 recebe o "dia 31"; 28/02 recebe 29, 30 e 31), para não perder os vencimentos de fim de mês.
+- **E-mail:** a tabela continua com entradas, saídas e saldo por horizonte, e o subtítulo diz a base ("média do que entrou e saiu em cada dia do mês de abr/2026 a set/2026 (6 meses)"). Resumos antigos, gravados sem `projecao_base`, mantêm o texto de antes.
+- **Limites:** é uma média, então não vê sazonalidade nem contratos novos ou encerrados; um mês atípico na base pesa 1/6. A regra fica em `_perfil_dia_do_mes`/`_previsto` para trocar por outra se o financeiro pedir.

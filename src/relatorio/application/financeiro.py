@@ -20,13 +20,12 @@ from relatorio.application.exames import Complemento
 from relatorio.application.ports import FabricaUoW, FinanceiroGateway, Relogio
 from relatorio.domain.entidades import FUSO_BRASILIA
 from relatorio.domain.financeiro import (
-    HORIZONTES_PROJECAO,
-    JANELA_CONTRATOS_DIAS,
     VERSAO_REGRA_FINANCEIRO,
     DadosFinanceiros,
     Titulo,
     calcular_financeiro,
     inicio_do_mes,
+    inicio_historico,
     inicio_janela_emissao,
     servicos_para_margem,
 )
@@ -97,9 +96,11 @@ class ConsolidarFinanceiro:
         self._alertar = alertar
 
     def carregar(self, referencia: date, hoje: date) -> DadosFinanceiros:
-        """Lê o SGG: ~40 requisições, divididas em janelas de até 31 dias."""
+        """Lê o SGG em janelas de até 31 dias: o mês corrente e os 6 meses de histórico."""
         mes = inicio_do_mes(referencia)
-        ate_projecao = hoje + timedelta(days=max(*HORIZONTES_PROJECAO, JANELA_CONTRATOS_DIAS))
+        # Uma leitura só para o caixa do mês e para a base da projeção (meses anteriores).
+        recebidos = self._sgg.receber_pagos(inicio_historico(referencia), referencia)
+        pagos = self._sgg.pagar_pagos(inicio_historico(referencia), referencia)
         emitidos = self._sgg.receber_emitidos(inicio_janela_emissao(referencia), referencia)
         do_mes = [t for t in emitidos if t.emissao and mes <= t.emissao <= referencia]
         precos = {s: self._sgg.precos_servico(s) for s in servicos_para_margem(do_mes)}
@@ -108,14 +109,17 @@ class ConsolidarFinanceiro:
         return DadosFinanceiros(
             referencia=referencia,
             hoje=hoje,
-            recebidos_mes=self._sgg.receber_pagos(mes, referencia),
-            pagos_mes=self._sgg.pagar_pagos(mes, referencia),
+            recebidos_mes=[t for t in recebidos if t.pagamento and t.pagamento >= mes],
+            pagos_mes=[t for t in pagos if t.pagamento and t.pagamento >= mes],
             emitidos=emitidos,
-            a_receber=self._sgg.receber_a_vencer(hoje, ate_projecao),
-            a_pagar=self._sgg.pagar_a_vencer(hoje, ate_projecao),
+            # A projeção é pelo histórico: os títulos em aberto não são mais lidos.
+            a_receber=[],
+            a_pagar=[],
             contratos=self._sgg.contratos_ativos(),
             precos=precos,
             nomes_centros=nomes,
+            historico_recebidos=recebidos,
+            historico_pagos=pagos,
         )
 
     def executar(self, referencia: date) -> dict[str, object]:

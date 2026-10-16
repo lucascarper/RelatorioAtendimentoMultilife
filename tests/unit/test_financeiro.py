@@ -101,27 +101,37 @@ def test_caixa_usa_valor_cobrado_e_separa_dia_e_mes() -> None:
     assert (c["titulos_recebidos_dia"], c["titulos_pagos_dia"]) == (1, 1)
 
 
-def test_projecao_de_entradas_e_saidas_por_horizonte() -> None:
-    r = calcular_financeiro(
-        dados(
-            a_receber=[
-                titulo(1, "100.00", vencimento=HOJE),
-                titulo(2, "200.00", vencimento=d("2026-10-04")),  # dentro dos 60 dias
-                titulo(3, "400.00", vencimento=d("2026-10-05")),  # dentro dos 60 dias
-                titulo(4, "999.00", vencimento=d("2026-10-01"), pagamento=d("2026-09-27")),
-            ],
-            a_pagar=[titulo(10, "150.00", vencimento=d("2026-10-20"))],
-        ),
-        GERADO,
-    )
-    p = {linha["dias"]: linha for linha in r["projecao"] if not linha["fim_mes"]}
-    assert sorted(p) == [60, 90]
-    assert r["projecao"][0]["fim_mes"]  # a primeira coluna é "até o fim do mês"
-    assert (p[60]["entradas"], p[60]["saidas"], p[60]["titulos_entrada"]) == (700.0, 150.0, 3)
-    assert (p[90]["entradas"], p[90]["saidas"], p[90]["saldo"]) == (700.0, 150.0, 550.0)
-    (fim_mes,) = [linha for linha in r["projecao"] if linha["fim_mes"]]
-    assert fim_mes["ate"] == "2026-09-30"  # HOJE é 28/09: só faltam 3 dias no mês
-    assert (fim_mes["entradas"], fim_mes["saidas"], fim_mes["titulos_entrada"]) == (100.0, 0.0, 1)
+def test_projecao_pelo_historico_do_dia_do_mes() -> None:
+    meses = ("03", "04", "05", "06", "07", "08")  # 6 meses completos antes de setembro
+    recebidos = [titulo(i, "600.00", pagamento=d(f"2026-{m}-10")) for i, m in enumerate(meses)]
+    recebidos += [  # dia 31 só existe em mar/mai/jul/ago: a média é sobre esses 4 meses
+        titulo(10 + i, "400.00", pagamento=d(f"2026-{m}-31"))
+        for i, m in enumerate(("03", "05", "07", "08"))
+    ]
+    recebidos += [
+        titulo(20, "9999.00", pagamento=d("2026-09-10")),  # mês corrente: fora da base
+        titulo(21, "9999.00", pagamento=d("2026-05-10"), cancelada=True),
+        titulo(22, "9999.00", pagamento=d("2026-02-10")),  # antes da base
+    ]
+    pagos = [titulo(30 + i, "300.00", pagamento=d(f"2026-{m}-05")) for i, m in enumerate(meses)]
+    r = calcular_financeiro(dados(historico_recebidos=recebidos, historico_pagos=pagos), GERADO)
+
+    assert r["projecao_base"] == {"de": "2026-03-01", "ate": "2026-08-31", "meses": 6}
+    fim_mes, p60, p90 = r["projecao"]
+    assert fim_mes["fim_mes"] and not p60["fim_mes"] and not p90["fim_mes"]
+    # HOJE é 28/09: até 30/09 (mês de 30 dias) entra o que costuma cair no dia 31
+    assert (fim_mes["ate"], fim_mes["dias"]) == ("2026-09-30", 3)
+    assert (fim_mes["entradas"], fim_mes["saidas"]) == (400.0, 0.0)
+    # 28/09 a 26/11: dia 31 de setembro e outubro, dias 5 e 10 de outubro e novembro
+    assert (p60["dias"], p60["ate"]) == (60, "2026-11-26")
+    assert (p60["entradas"], p60["saidas"], p60["saldo"]) == (2000.0, 600.0, 1400.0)
+    # até 26/12: mais o "dia 31" de novembro (cai em 30/11) e os dias 5 e 10 de dezembro
+    assert (p90["entradas"], p90["saidas"], p90["saldo"]) == (3000.0, 900.0, 2100.0)
+
+
+def test_projecao_sem_historico_fica_zerada() -> None:
+    r = calcular_financeiro(dados(), GERADO)
+    assert all((p["entradas"], p["saidas"], p["saldo"]) == (0, 0, 0) for p in r["projecao"])
 
 
 def test_faturamento_por_competencia_e_categorias() -> None:

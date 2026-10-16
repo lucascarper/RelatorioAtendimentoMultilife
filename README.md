@@ -78,7 +78,7 @@ O e-mail traz só o essencial, sobre o dia anterior (D-1):
 
 1. **Saldo operacional de D-1** e **faturamento do mês até D-1** (dois cartões no topo).
 2. **Fluxo de caixa de D-1:** receita recebida, despesas pagas e saldo (dia e mês) e, abaixo, cada conta paga ou recebida no dia com **conta** (cliente ou fornecedor), **classificação**, **descrição** e **valor**. Receita em azul; despesa em vermelho, com sinal de menos.
-3. **Projeção do caixa:** entradas e saídas previstas até o fim do mês, em 60 e em 90 dias.
+3. **Projeção do caixa:** entradas e saídas previstas até o fim do mês, em 60 e em 90 dias, pelo **histórico dos 6 meses completos anteriores**: para cada dia do mês, a média do que de fato entrou e saiu (data e valor do pagamento) nesse dia; a projeção soma essas médias de hoje até cada horizonte. O e-mail mostra o período usado como base.
 4. **Rateio por centro de custo** (mês até D-1).
 
 O detalhamento do fluxo é lido do SGG na hora do envio e a **descrição não é gravada** no banco (pode ter nome de pessoa, LGPD). Se o SGG não responder nessa hora, o e-mail sai com os totais e o aviso "Detalhamento indisponível". A prévia do admin também lê o SGG para mostrar o detalhamento.

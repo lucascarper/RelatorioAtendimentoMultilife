@@ -213,6 +213,26 @@ def _rotulo_horizonte(p: Mapping[str, Any]) -> str:
     return f"{p['dias']} dias"
 
 
+MESES = ("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
+
+
+def _mes_ano(dia: date) -> str:
+    return f"{MESES[dia.month - 1]}/{dia:%Y}"
+
+
+def _subtitulo_projecao(base: Mapping[str, Any] | None, hoje: date) -> str:
+    if not base:  # resumos gravados antes da regra 1.4 (títulos em aberto)
+        return (
+            f"Foto de {hoje:%d/%m}: títulos em aberto (a receber e a pagar)"
+            " que vencem de hoje em diante."
+        )
+    de, ate = date.fromisoformat(base["de"]), date.fromisoformat(base["ate"])
+    return (
+        f"Pelo histórico: média do que entrou e saiu em cada dia do mês de {_mes_ano(de)}"
+        f" a {_mes_ano(ate)} ({base['meses']} meses), somada de {hoje:%d/%m} até cada horizonte."
+    )
+
+
 def _secao_projecao(m: Mapping[str, Any], hoje: date) -> Secao:
     proj = m["projecao"]
     horizontes = [_rotulo_horizonte(p) for p in proj]
@@ -228,10 +248,7 @@ def _secao_projecao(m: Mapping[str, Any], hoje: date) -> Secao:
     )
     return Secao(
         titulo="Projeção do caixa",
-        subtitulo=(
-            f"Foto de {hoje:%d/%m}: títulos em aberto (a receber e a pagar)"
-            " que vencem de hoje em diante."
-        ),
+        subtitulo=_subtitulo_projecao(m.get("projecao_base"), hoje),
         tabelas=(
             Tabela(
                 cabecalho=("Horizonte", *horizontes),
@@ -265,8 +282,9 @@ DEFINICOES = (
     ("Saldo operacional", "receita recebida menos despesas pagas."),
     (
         "Projeção",
-        "títulos em aberto (a receber e a pagar) que vencem de hoje até o fim do mês,"
-        " em 60 e em 90 dias.",
+        "para cada dia do mês, a média do que entrou e saiu nesse dia nos últimos 6 meses"
+        " completos, somada de hoje até o fim do mês, até 60 e até 90 dias. Contas já"
+        " lançadas em aberto não entram; o padrão do histórico é que manda.",
     ),
     ("Rateio", "recebido e pago no mês por centro de custo, pelo rateio de cada conta."),
 )
