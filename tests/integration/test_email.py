@@ -503,7 +503,8 @@ class TestRelatorioFinanceiro:
             "-R$ 2.000,00",
             "Projeção do caixa",
             "Rateio por centro de custo",
-            "Regra de cálculo v1.3.0",
+            "Regra de cálculo v1.4.0",
+            "Pelo histórico",
             f'src="cid:{LOGO_CID}"',
         ):
             assert trecho in html, trecho

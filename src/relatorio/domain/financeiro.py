@@ -8,8 +8,11 @@ de fornecedores, já lidos do SGG. As regras seguem o glossário do escopo:
 * **Despesas pagas** (caixa): títulos a pagar com pagamento na data, mesmo critério.
 * **Faturamento** (competência): títulos a receber emitidos no período, sem os
   cancelados. É outro número, mesmo quando coincide com a receita do dia.
-* **Projeções**: títulos em aberto que vencem de hoje até hoje + N - 1 dias, mais uma
-  coluna até o último dia do mês atual (calendário, não N fixo).
+* **Projeção do caixa**: pelo histórico. Para cada dia do mês (1 a 31), a média do que
+  entrou e do que saiu nesse dia nos últimos 6 meses completos; a soma dessas médias nos
+  dias de hoje até o fim do mês, até hoje + 59 e até hoje + 89 dá entradas e saídas
+  previstas. No último dia de um mês curto entram também as médias dos dias que ele não
+  tem (o que cai no dia 31 vai para o dia 30). Títulos lançados em aberto não entram.
 * **MRR**: mensalidades (planos de gestão, cobrança por vidas) faturadas nos últimos
   30 dias para clientes com contrato ativo. O SGG não guarda o valor mensal no
   contrato, então a receita recorrente é medida pelo que foi de fato faturado.
@@ -31,13 +34,14 @@ from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-VERSAO_REGRA_FINANCEIRO = "1.3.0"  # 1.3: projeção até o fim do mês, 60 e 90 dias
+VERSAO_REGRA_FINANCEIRO = "1.4.0"  # 1.4: projeção pelo histórico de 6 meses (dia do mês)
 
 ZERO = Decimal("0")
 CENTAVO = Decimal("0.01")
 JANELA_MRR_DIAS = 30
 JANELA_CONTRATOS_DIAS = 30
 HORIZONTES_PROJECAO = (60, 90)
+MESES_HISTORICO = 6  # base da projeção: meses completos anteriores ao do relatório
 MAXIMO_SERVICOS_MARGEM = 10
 MAXIMO_CLASSIFICACOES = 8
 SEM_CENTRO = "Sem centro de custo"
@@ -183,6 +187,9 @@ class DadosFinanceiros:
     contratos: Sequence[Contrato]
     precos: Mapping[int, Sequence[PrecoFornecedor]] = field(default_factory=dict)
     nomes_centros: Mapping[str, str] = field(default_factory=dict)
+    # Base da projeção: contas pagas e recebidas nos meses completos anteriores.
+    historico_recebidos: Sequence[Titulo] = ()
+    historico_pagos: Sequence[Titulo] = ()
 
 
 def inicio_do_mes(dia: date) -> date:
@@ -192,6 +199,18 @@ def inicio_do_mes(dia: date) -> date:
 def fim_do_mes(dia: date) -> date:
     primeiro_dia_prox_mes = (dia.replace(day=1) + timedelta(days=32)).replace(day=1)
     return primeiro_dia_prox_mes - timedelta(days=1)
+
+
+def inicio_historico(referencia: date) -> date:
+    """Primeiro dia do 6.º mês completo antes do mês da referência (15/10 → 01/04)."""
+    dia = inicio_do_mes(referencia)
+    for _ in range(MESES_HISTORICO):
+        dia = inicio_do_mes(dia - timedelta(days=1))
+    return dia
+
+
+def fim_historico(referencia: date) -> date:
+    return inicio_do_mes(referencia) - timedelta(days=1)
 
 
 def inicio_janela_emissao(referencia: date) -> date:
@@ -234,22 +253,49 @@ def _caixa(dados: DadosFinanceiros) -> dict[str, Any]:
     }
 
 
+def _perfil_dia_do_mes(titulos: Sequence[Titulo], de: date, ate: date) -> dict[int, Decimal]:
+    """Média, por dia do mês, do valor pago ou recebido nos meses de ``de`` a ``ate``."""
+    soma: dict[int, Decimal] = defaultdict(lambda: ZERO)
+    for t in titulos:
+        if not t.cancelada and t.pagamento and de <= t.pagamento <= ate:
+            soma[t.pagamento.day] += t.valor_liquidado
+    tamanhos = []
+    mes = inicio_do_mes(de)
+    while mes <= ate:
+        tamanhos.append(fim_do_mes(mes).day)
+        mes = fim_do_mes(mes) + timedelta(days=1)
+    perfil: dict[int, Decimal] = {}
+    for dia in range(1, 32):
+        meses_com_o_dia = sum(1 for n in tamanhos if n >= dia)
+        perfil[dia] = soma[dia] / meses_com_o_dia if meses_com_o_dia else ZERO
+    return perfil
+
+
+def _previsto(perfil: Mapping[int, Decimal], de: date, ate: date) -> Decimal:
+    total, dia = ZERO, de
+    while dia <= ate:
+        total += perfil[dia.day]
+        ultimo = fim_do_mes(dia).day
+        if dia.day == ultimo:  # mês curto: o que caía nos dias que ele não tem vem para cá
+            total += sum((perfil[d] for d in range(ultimo + 1, 32)), ZERO)
+        dia += timedelta(days=1)
+    return total
+
+
 def _projecao(dados: DadosFinanceiros) -> list[dict[str, Any]]:
-    def no_prazo(titulos: Sequence[Titulo], ate: date) -> list[Titulo]:
-        return [
-            t for t in titulos if t.em_aberto and t.vencimento and dados.hoje <= t.vencimento <= ate
-        ]
+    de, ate_base = inicio_historico(dados.referencia), fim_historico(dados.referencia)
+    entradas_dia = _perfil_dia_do_mes(dados.historico_recebidos, de, ate_base)
+    saidas_dia = _perfil_dia_do_mes(dados.historico_pagos, de, ate_base)
 
     def linha(ate: date, dias: int, fim_mes: bool) -> dict[str, Any]:
-        entradas, saidas = no_prazo(dados.a_receber, ate), no_prazo(dados.a_pagar, ate)
+        entradas = _previsto(entradas_dia, dados.hoje, ate)
+        saidas = _previsto(saidas_dia, dados.hoje, ate)
         return {
             "dias": dias,
             "ate": ate.isoformat(),
-            "entradas": _dinheiro(_soma_valor(entradas)),
-            "saidas": _dinheiro(_soma_valor(saidas)),
-            "saldo": _dinheiro(_soma_valor(entradas) - _soma_valor(saidas)),
-            "titulos_entrada": len(entradas),
-            "titulos_saida": len(saidas),
+            "entradas": _dinheiro(entradas),
+            "saidas": _dinheiro(saidas),
+            "saldo": _dinheiro(entradas - saidas),
             "fim_mes": fim_mes,
         }
 
@@ -260,6 +306,14 @@ def _projecao(dados: DadosFinanceiros) -> list[dict[str, Any]]:
         for dias in HORIZONTES_PROJECAO
     )
     return linhas
+
+
+def _base_projecao(dados: DadosFinanceiros) -> dict[str, Any]:
+    return {
+        "de": inicio_historico(dados.referencia).isoformat(),
+        "ate": fim_historico(dados.referencia).isoformat(),
+        "meses": MESES_HISTORICO,
+    }
 
 
 def _emitidos(dados: DadosFinanceiros, de: date, ate: date) -> list[Titulo]:
@@ -513,6 +567,7 @@ def calcular_financeiro(
         "gerado_em": gerado_em.isoformat(),
         "caixa": _caixa(dados),
         "projecao": _projecao(dados),
+        "projecao_base": _base_projecao(dados),
         "faturamento": _faturamento(dados),
         "recorrente": recorrente,
         "contratos_a_vencer": _contratos_a_vencer(dados, mensal_por_cliente),
