@@ -73,7 +73,11 @@ def ver_relatorio_financeiro(dia: date, ctx: Ctx, _usuario: UsuarioFinanceiro) -
         registro = uow.resumos_financeiros.obter(dia)
     if registro is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Resumo financeiro não encontrado")
-    conteudo = ctx.container.renderizador.relatorio_financeiro(registro.metricas)
+    metricas = dict(registro.metricas)
+    envio = ctx.container.casos.enviar_financeiro
+    if envio is not None:  # o detalhamento do fluxo de caixa vem do SGG, não do banco
+        metricas = envio.com_complemento(dia, metricas)
+    conteudo = ctx.container.renderizador.relatorio_financeiro(metricas)
     return HTMLResponse(
         html_para_navegador(conteudo), headers={"Content-Security-Policy": CSP_PREVIA}
     )

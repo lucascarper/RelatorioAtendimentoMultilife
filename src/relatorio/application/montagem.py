@@ -13,7 +13,7 @@ from relatorio.application.envio import FINANCEIRO, SESMT, EnviarRelatorio, Veri
 from relatorio.application.exames import ComplementoExames, GeradorPlanilha, ProcessarExames
 from relatorio.application.exportacao import EscritorPlanilha, ExportarRelatorio
 from relatorio.application.exportadores import montar_exportadores
-from relatorio.application.financeiro import ConsolidarFinanceiro
+from relatorio.application.financeiro import ConsolidarFinanceiro, FluxoDoDia
 from relatorio.application.manutencao import (
     AlertaFalhasColeta,
     CompactarExecucoes,
@@ -105,6 +105,7 @@ def montar_casos_de_uso(
         ConsolidarFinanceiro(financeiro, uow, relogio, alertar) if financeiro is not None else None
     )
     consolidar_sesmt = ConsolidarSesmt(sesmt, uow, relogio, alertar) if sesmt is not None else None
+    fluxo_do_dia = FluxoDoDia(financeiro) if financeiro is not None else None
     return CasosDeUso(
         alertar=alertar,
         coletar=ColetarCiclo(sgg, uow, relogio),
@@ -130,6 +131,8 @@ def montar_casos_de_uso(
                 alertar,
                 destinatarios_override,
                 tipo=FINANCEIRO,
+                complemento=fluxo_do_dia,
+                rotulo_complemento="o fluxo de caixa detalhado",
             )
             if consolidar_financeiro is not None
             else None

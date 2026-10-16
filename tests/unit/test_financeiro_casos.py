@@ -10,6 +10,7 @@ import pytest
 from relatorio.application.envio import RelatorioIndisponivel
 from relatorio.application.financeiro import (
     CHAVE_NOMES_CENTROS,
+    FluxoDoDia,
     formatar_nomes_centros,
     ler_nomes_centros,
 )
@@ -86,6 +87,7 @@ def test_envia_so_para_a_lista_do_financeiro(sistema_financeiro: Sistema) -> Non
     ((destinatarios, conteudo),) = s.email.enviados
     assert destinatarios == ["diretoria@multilife.com.br"]
     assert conteudo.assunto == "Financeiro 2026-09-27"
+    assert conteudo.texto == "fin fluxo=2"  # a receita e a despesa pagas no dia, lidas do SGG
     assert s.banco.resumos_financeiros[REF].status_envio is StatusEnvio.ENVIADO
     assert s.enviar_financeiro.executar(REF)["status"] == "ja_enviado"
     assert s.verificar_financeiro.executar(REF)["status"] == "ok"
@@ -123,3 +125,45 @@ def test_nomes_dos_centros_de_custo() -> None:
     nomes = ler_nomes_centros(" 3 = Ocupacional ;2=Clínica\n=sem código; 4=")
     assert nomes == {"3": "Ocupacional", "2": "Clínica"}
     assert formatar_nomes_centros(nomes) == "2=Clínica; 3=Ocupacional"
+
+
+def test_fluxo_do_dia_lista_receitas_e_despesas_sem_gravar_a_descricao(
+    sistema_financeiro: Sistema,
+) -> None:
+    s = sistema_financeiro
+    s.financeiro.recebidos = [
+        titulo(1, "500.00", pagamento=REF, nome="Empresa Dez", descricao="Fatura de setembro"),
+        titulo(4, "900.00", pagamento=REF, nome="Empresa Onze", descricao="Fatura"),
+        titulo(5, "70.00", pagamento=REF, cancelada=True, nome="Cancelada"),
+    ]
+    s.financeiro.pagos = [
+        titulo(2, "120.00", pagamento=REF, nome="Fornecedor", classificacao="ADMINISTRATIVAS")
+    ]
+    fluxo = FluxoDoDia(s.financeiro).para(REF).metricas["fluxo_dia"]["linhas"]
+    assert [(m["natureza"], m["conta"], m["valor"]) for m in fluxo] == [
+        ("receita", "Empresa Onze", 900.0),  # maiores valores primeiro
+        ("receita", "Empresa Dez", 500.0),
+        ("despesa", "Fornecedor", 120.0),
+    ]
+    assert fluxo[1]["descricao"] == "Fatura de setembro"
+    assert fluxo[2]["classificacao"] == "ADMINISTRATIVAS"
+    # A descrição não entra no resumo gravado (LGPD).
+    s.consolidar_financeiro.executar(REF)
+    assert "Fatura de setembro" not in str(s.banco.resumos_financeiros[REF].metricas)
+
+
+def test_dto_le_a_descricao_so_em_memoria() -> None:
+    from relatorio.infrastructure.sgg.dto_financeiro import para_titulo  # noqa: PLC0415
+
+    t = para_titulo(
+        {
+            "id": "7",
+            "valor": "10,00",
+            "descricao": "  Fatura   de\nsetembro ",
+            "nome": "Empresa X",
+            "cnpj_cpf": "12.345.678/0001-90",
+            "centro_de_resultados": "EXAMES",
+        }
+    )
+    assert t.descricao == "Fatura de setembro" and t.classificacao == "EXAMES"
+    assert "setembro" not in repr(t)  # nunca aparece em log

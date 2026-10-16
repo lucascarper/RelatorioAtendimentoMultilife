@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Any
 
 from relatorio.domain.resumo import dia_semana
@@ -79,6 +79,7 @@ class Tabela:
     vazio: str = "Nada no período."
     etiqueta: str = ""
     ocultar_no_celular: tuple[int, ...] = ()  # índices das colunas (0 = rótulo)
+    alinhar: tuple[str, ...] = ()  # "left"/"right" por coluna; padrão: rótulo à esquerda
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,23 +120,72 @@ def _cartoes(m: Mapping[str, Any], ref: date) -> tuple[Cartao, ...]:
             cor=_cor(caixa["saldo_dia"]),
         ),
         Cartao(
-            rotulo="Faturamento",
-            valor=moeda(fat["dia"]),
-            rotulo_valor=f"em {ref:%d/%m}",
-            valor_2=moeda(fat["mes"]),
-            rotulo_valor_2=f"no mês até {ref:%d/%m}",
-            contexto=f"{inteiro(fat['titulos_mes'])} títulos emitidos no mês",
+            rotulo=f"Faturamento do mês até {ref:%d/%m}",
+            valor=moeda(fat["mes"]),
+            contexto=(
+                f"{inteiro(fat['titulos_mes'])} "
+                f"{'título emitido' if fat['titulos_mes'] == 1 else 'títulos emitidos'} no mês"
+            ),
         ),
     )
 
 
-def _secao_caixa(m: Mapping[str, Any], ref: date) -> Secao:
+MAX_DESCRICAO = 90
+RECEITA = "#1F5FBF"  # azul: entrada (vermelho é saída)
+
+
+def _descricao(texto: Any) -> str:
+    limpo = " ".join(str(texto or "").split())
+    return limpo if len(limpo) <= MAX_DESCRICAO else limpo[: MAX_DESCRICAO - 1].rstrip() + "…"
+
+
+def _movimentos(fluxo: Mapping[str, Any] | None, ref: date) -> Tabela:
+    """Cada conta paga ou recebida no dia: conta, classificação, descrição e valor."""
+    cabecalho = ("Conta", "Classificação", "Descrição", "Valor")
+    alinhar = ("left", "left", "left", "right")
+    titulo = f"Movimentos de {ref:%d/%m}"
+    if fluxo is None:
+        return Tabela(
+            titulo=titulo,
+            cabecalho=cabecalho,
+            linhas=(),
+            alinhar=alinhar,
+            vazio="Detalhamento indisponível: o SGG não respondeu na hora do envio.",
+        )
+    linhas = []
+    for mov in fluxo["linhas"]:
+        despesa = mov["natureza"] == "despesa"
+        valor = float(mov["valor"])
+        cor = NEGATIVO if despesa else RECEITA
+        linhas.append(
+            Linha(
+                mov["conta"],
+                (
+                    f"{'- ' if despesa else ''}{mov['classificacao'] or 'Sem classificação'}",
+                    _descricao(mov["descricao"]),
+                    moeda(-valor if despesa else valor),
+                ),
+                cores=(cor, "#444B68", cor),
+            )
+        )
+    return Tabela(
+        titulo=titulo,
+        cabecalho=cabecalho,
+        linhas=tuple(linhas),
+        alinhar=alinhar,
+        ocultar_no_celular=(1, 2),
+        vazio=f"Nenhuma conta paga ou recebida em {ref:%d/%m}.",
+    )
+
+
+def _secao_caixa(m: Mapping[str, Any], ref: date, fluxo: Mapping[str, Any] | None) -> Secao:
     c = m["caixa"]
     return Secao(
-        titulo="Fluxo de caixa",
+        titulo=f"Fluxo de caixa de {ref:%d/%m}",
         subtitulo=(
             "Regime de caixa: o que entrou e saiu pela data de pagamento."
-            " Recebido inclui juros e multas."
+            " Recebido inclui juros e multas. Receitas em azul; despesas em vermelho, com sinal"
+            " de menos."
         ),
         tabelas=(
             Tabela(
@@ -151,6 +201,7 @@ def _secao_caixa(m: Mapping[str, Any], ref: date) -> Secao:
                     ),
                 ),
             ),
+            _movimentos(fluxo, ref),
         ),
     )
 
@@ -176,7 +227,7 @@ def _secao_projecao(m: Mapping[str, Any], hoje: date) -> Secao:
         ),
     )
     return Secao(
-        titulo="Projeção de entradas e saídas",
+        titulo="Projeção do caixa",
         subtitulo=(
             f"Foto de {hoje:%d/%m}: títulos em aberto (a receber e a pagar)"
             " que vencem de hoje em diante."
@@ -190,127 +241,19 @@ def _secao_projecao(m: Mapping[str, Any], hoje: date) -> Secao:
     )
 
 
-def _secao_faturamento(m: Mapping[str, Any], ref: date) -> Secao:
-    fat = m["faturamento"]
-    linhas = [
-        Linha(
-            c["categoria"],
-            (
-                inteiro(c["qtde"]),
-                moeda(c["valor"]),
-                moeda(c["ticket"]) if c["ticket"] is not None else "-",
-            ),
-        )
-        for c in fat["categorias"]
-    ]
-    if fat.get("ajuste_mes"):
-        linhas.append(Linha("Descontos, acréscimos e ajustes", ("", moeda(fat["ajuste_mes"]), "")))
-    linhas.append(Linha("Total faturado no mês", ("", moeda(fat["mes"]), ""), destaque=True))
-    return Secao(
-        titulo="Faturamento por serviço",
-        subtitulo=(
-            f"Regime de competência: contas emitidas de 01/{ref:%m} a {ref:%d/%m},"
-            " sem as canceladas. "
-            "Ticket médio considera só os itens cobrados."
-        ),
-        tabelas=(
-            Tabela(
-                cabecalho=("Categoria", "Volume", "Faturado", "Ticket médio"),
-                linhas=tuple(linhas),
-                vazio="Nenhuma conta emitida no mês.",
-            ),
-        ),
-    )
-
-
-def _secao_recorrente(m: Mapping[str, Any], hoje: date, sem: Sequence[str]) -> Secao:
-    rec = m["recorrente"]
-    resumo = (
-        Linha("MRR (mensalidades dos últimos 30 dias)", (moeda(rec["mrr"]),), destaque=True),
-        Linha("Clientes com mensalidade faturada", (inteiro(rec["clientes_mrr"]),)),
-        Linha("Contratos ativos", (inteiro(rec["contratos_ativos"]),)),
-        Linha(
-            "Faturamento por vidas no mês",
-            (moeda(rec["mensalidades_mes"]),),
-            nota=f"{inteiro(rec['titulos_mensalidade_mes'])} contas",
-        ),
-        Linha(
-            "Excedentes faturados no mês",
-            (moeda(rec["excedentes_mes"]),),
-            nota=f"{inteiro(rec['contratos_com_excedente'])} contratos com excedente configurado",
-        ),
-    )
-    contratos = tuple(
-        Linha(
-            c["cliente"],
-            (
-                f"#{c['id']}",
-                f"{_data(c['vencimento']):%d/%m/%Y}" if c["vencimento"] else "-",
-                f"{c['dias']} dias" if c["dias"] is not None else "-",
-                moeda(c["mensalidade"]) if c["mensalidade"] else "-",
-            ),
-        )
-        for c in m["contratos_a_vencer"]
-    )
-    margem = tuple(
-        Linha(
-            s["servico"],
-            (
-                inteiro(s["qtde"]),
-                moeda(s["faturado"]),
-                moeda(s["custo"]) if s["custo"] is not None else "sem custo na tabela",
-                moeda(s["margem"]) if s["margem"] is not None else "-",
-                percentual(s["margem_pct"]),
-            ),
-            cores=(NEUTRO, NEUTRO, NEUTRO, _cor(s["margem"]), _cor(s["margem"])),
-        )
-        for s in m["margem"]
-    )
-    rateio = m["rateio"]
+def _secao_rateio(m: Mapping[str, Any], ref: date, sem: Sequence[str]) -> Secao:
     centros = tuple(
-        Linha(c["centro"], (moeda(c["recebido"]), moeda(c["pago"]))) for c in rateio["centros"]
-    )
-    despesas = tuple(
-        Linha(d["classificacao"], (inteiro(d["titulos"]), moeda(d["valor"])))
-        for d in rateio["despesas_por_classificacao"]
+        Linha(c["centro"], (moeda(c["recebido"]), moeda(c["pago"]))) for c in m["rateio"]["centros"]
     )
     return Secao(
-        titulo="Receita recorrente, contratos e margem",
-        subtitulo=(
-            "MRR medido pelas mensalidades faturadas a clientes com contrato ativo"
-            " (o SGG não guarda o valor mensal no contrato)."
-        ),
-        etiqueta=_etiqueta("mrr", sem),
+        titulo="Rateio por centro de custo",
+        subtitulo=f"Recebido e pago no mês até {ref:%d/%m}, pelo rateio de cada conta.",
+        etiqueta=_etiqueta("rateio", sem),
         tabelas=(
-            Tabela(cabecalho=("Indicador", "Valor"), linhas=resumo),
             Tabela(
-                titulo=f"Contratos a vencer em 30 dias (até {hoje + timedelta(days=30):%d/%m})",
-                cabecalho=("Cliente", "Contrato", "Vencimento", "Faltam", "Mensalidade"),
-                linhas=contratos,
-                ocultar_no_celular=(1, 3),
-                vazio="Nenhum contrato vence nos próximos 30 dias.",
-                etiqueta=_etiqueta("contratos_a_vencer", sem),
-            ),
-            Tabela(
-                titulo="Margem bruta estimada por exame (mês)",
-                cabecalho=("Serviço", "Qtd.", "Faturado", "Custo estimado", "Margem", "%"),
-                linhas=margem,
-                ocultar_no_celular=(1, 3),
-                vazio="Nenhum exame faturado no mês.",
-                etiqueta=_etiqueta("margem", sem),
-            ),
-            Tabela(
-                titulo="Rateio por centro de custo (mês)",
                 cabecalho=("Centro de custo", "Recebido", "Pago"),
                 linhas=centros,
                 vazio="Nenhum pagamento no mês.",
-                etiqueta=_etiqueta("rateio", sem),
-            ),
-            Tabela(
-                titulo="Despesas pagas por classificação (mês)",
-                cabecalho=("Classificação", "Títulos", "Valor"),
-                linhas=despesas,
-                vazio="Nenhuma despesa paga no mês.",
             ),
         ),
     )
@@ -318,21 +261,21 @@ def _secao_recorrente(m: Mapping[str, Any], hoje: date, sem: Sequence[str]) -> S
 
 DEFINICOES = (
     ("Receita recebida", "títulos a receber pagos na data (caixa), pelo valor cobrado."),
-    ("Faturamento", "contas a receber emitidas no período (competência)."),
+    ("Faturamento", "contas a receber emitidas no mês até o dia anterior (competência)."),
     ("Saldo operacional", "receita recebida menos despesas pagas."),
     (
         "Projeção",
-        "títulos em aberto (a receber e a pagar) que vencem de hoje em diante,"
-        " inclusive até o fim do mês atual.",
+        "títulos em aberto (a receber e a pagar) que vencem de hoje até o fim do mês,"
+        " em 60 e em 90 dias.",
     ),
-    ("MRR", "mensalidades faturadas nos últimos 30 dias a clientes com contrato ativo."),
-    ("Margem bruta", "faturado menos o custo médio dos credenciados na tabela de preços do SGG."),
+    ("Rateio", "recebido e pago no mês por centro de custo, pelo rateio de cada conta."),
 )
 
 
 def montar_apresentacao_financeira(
     m: Mapping[str, Any], admin_url: str = ""
 ) -> ApresentacaoFinanceira:
+    fluxo: Mapping[str, Any] | None = m.get("fluxo_dia")
     ref = date.fromisoformat(m["referencia"])
     hoje = date.fromisoformat(m["hoje"])
     sem = tuple(m.get("sem_alteracao") or ())
@@ -350,10 +293,9 @@ def montar_apresentacao_financeira(
         manchete=manchete,
         cartoes=_cartoes(m, ref),
         secoes=(
-            _secao_caixa(m, ref),
+            _secao_caixa(m, ref, fluxo),
             _secao_projecao(m, hoje),
-            _secao_faturamento(m, ref),
-            _secao_recorrente(m, hoje, sem),
+            _secao_rateio(m, ref, sem),
         ),
         notas=(
             'Blocos marcados com "sem alteração desde ontem" repetem o número'

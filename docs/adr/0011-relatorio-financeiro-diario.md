@@ -56,3 +56,15 @@ Além dos horizontes fixos de 7/15/30 dias, a tabela de projeção ganhou uma co
 - Os nomes dos centros de custo do rateio são configurados no admin, porque a API só informa o código.
 - A margem é **estimada** pela tabela de preços. O custo real de cada exame dependeria de cruzar `exames-realizados` com o fornecedor que atendeu, o que fica para uma evolução.
 - Mudou uma regra ou uma categoria? Suba `VERSAO_REGRA_FINANCEIRO` e regere as datas no admin.
+
+
+## Revisão: e-mail enxuto e fluxo de caixa detalhado (v1.3.0)
+
+O e-mail passa a trazer só o essencial de D-1:
+
+- Cartões: saldo operacional de D-1 e faturamento do mês até D-1.
+- **Fluxo de caixa de D-1** com cada conta paga ou recebida: conta (cliente ou fornecedor), classificação (`centro_de_resultados`), descrição e valor. Receita em azul; despesa em vermelho com "-".
+- **Projeção do caixa** até o fim do mês, 60 e 90 dias (`HORIZONTES_PROJECAO = (60, 90)`; antes 7, 15 e 30).
+- Rateio por centro de custo (mês até D-1).
+- Saem do e-mail: faturamento por serviço, receita recorrente (MRR), contratos a vencer, margem bruta e despesas por classificação. Esses números continuam sendo calculados e gravados no resumo; só não aparecem no e-mail.
+- **LGPD:** a descrição das contas pode ter nome de pessoa. Ela é lida do SGG no envio (`FluxoDoDia`, complemento do `EnviarRelatorio`), vive só em memória (`Titulo.descricao` fora do `repr`) e não entra no resumo gravado. Se o SGG não responder, o e-mail sai sem o detalhamento e o técnico é alertado.
