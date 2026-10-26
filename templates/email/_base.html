@@ -21,6 +21,10 @@
   .fonte { font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif; }
   .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
   .tabela td, .tabela th { border-bottom: 1px solid #E3E8EF; }
+  summary { list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+  details[open] > summary .fluxo-fechado { display: none !important; }
+  details[open] > summary .fluxo-aberto { display: inline !important; }
   @media screen and (max-width: 520px) {
     .container { width: 100% !important; }
     .px { padding-left: 16px !important; padding-right: 16px !important; }

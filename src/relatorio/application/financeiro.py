@@ -99,8 +99,11 @@ class ConsolidarFinanceiro:
         """Lê o SGG em janelas de até 31 dias: o mês corrente e os 6 meses de histórico."""
         mes = inicio_do_mes(referencia)
         # Uma leitura só para o caixa do mês e para a base da projeção (meses anteriores).
-        recebidos = self._sgg.receber_pagos(inicio_historico(referencia), referencia)
-        pagos = self._sgg.pagar_pagos(inicio_historico(referencia), referencia)
+        # A base da projeção são os 6 meses completos antes do mês de HOJE: no dia 1 isso
+        # inclui o mês que acabou de fechar (o mês da referência).
+        inicio = inicio_historico(hoje)
+        recebidos = self._sgg.receber_pagos(inicio, referencia)
+        pagos = self._sgg.pagar_pagos(inicio, referencia)
         emitidos = self._sgg.receber_emitidos(inicio_janela_emissao(referencia), referencia)
         do_mes = [t for t in emitidos if t.emissao and mes <= t.emissao <= referencia]
         precos = {s: self._sgg.precos_servico(s) for s in servicos_para_margem(do_mes)}

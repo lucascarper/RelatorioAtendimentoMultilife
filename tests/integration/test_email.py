@@ -27,7 +27,7 @@ from relatorio.infrastructure.email.envio import (
     ErroEmail,
     montar_mensagem,
 )
-from relatorio.infrastructure.email.renderizador import LOGO_CID, RenderizadorJinja
+from relatorio.infrastructure.email.renderizador import GRAFICO_CID, LOGO_CID, RenderizadorJinja
 from relatorio.infrastructure.sgg.simulado import gerar_dia
 from relatorio.interfaces.demo import gerar_previa, html_para_navegador, volume_do_dia
 from tests.fabricas import agenda, atendimento, hora
@@ -490,24 +490,39 @@ class TestRelatorioFinanceiro:
         assert conteudo.assunto == "Relatório Financeiro — 27/09/2026 (domingo)"
         html, texto = conteudo.html, conteudo.texto
         for trecho in (
+            "Indicadores principais",
             "Saldo operacional de 27/09",
             "Faturamento do mês até 27/09",
             "-R$ 500,00",  # saldo negativo do dia
             "R$ 900,00",
+            "Projeção e gráfico",
+            "Saldo acumulado",
+            "Mês 1",
+            "Mês 3",
+            f'src="cid:{GRAFICO_CID}"',
             "Fluxo de caixa de 27/09",
-            "Movimentos de 27/09",
+            "<details",  # lista retrátil
+            "Ver 1 entrada e 1 saída",
+            "Entradas",
+            "Saídas",
             "Empresa Cinco",
             "EXAMES CLÍNICOS",
             "Faturamento de setembro",
-            "- ADMINISTRATIVAS",  # despesa: sinal de menos
             "-R$ 2.000,00",
-            "Projeção do caixa",
             "Rateio por centro de custo",
-            "Regra de cálculo v1.4.0",
+            "Regra de cálculo v1.5.0",
             "Pelo histórico",
             f'src="cid:{LOGO_CID}"',
         ):
             assert trecho in html, trecho
+        # A ordem do e-mail: indicadores, projeção e gráfico, fluxo de caixa.
+        assert (
+            html.index("Indicadores principais")
+            < html.index("Projeção e gráfico")
+            < html.index("Fluxo de caixa de 27/09")
+        )
+        assert [i.cid for i in conteudo.imagens] == [LOGO_CID, GRAFICO_CID]
+        assert conteudo.imagens[1].conteudo.startswith(b"\x89PNG")
         for removido in (
             "Faturamento por serviço",
             "Receita recorrente",

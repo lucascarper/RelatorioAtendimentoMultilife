@@ -8,11 +8,17 @@ de fornecedores, já lidos do SGG. As regras seguem o glossário do escopo:
 * **Despesas pagas** (caixa): títulos a pagar com pagamento na data, mesmo critério.
 * **Faturamento** (competência): títulos a receber emitidos no período, sem os
   cancelados. É outro número, mesmo quando coincide com a receita do dia.
-* **Projeção do caixa**: pelo histórico. Para cada dia do mês (1 a 31), a média do que
-  entrou e do que saiu nesse dia nos últimos 6 meses completos; a soma dessas médias nos
-  dias de hoje até o fim do mês, até hoje + 59 e até hoje + 89 dá entradas e saídas
-  previstas. No último dia de um mês curto entram também as médias dos dias que ele não
-  tem (o que cai no dia 31 vai para o dia 30). Títulos lançados em aberto não entram.
+* **Projeção do caixa**: pelo histórico, em regime de caixa (só o que foi de fato pago ou
+  recebido). Para cada dia do mês (1 a 31), a média do que entrou e do que saiu nesse dia
+  nos últimos 6 meses completos antes do mês de hoje. Os 90 dias a partir de hoje viram
+  três períodos seguidos de 30 dias (Mês 1, 2 e 3); o saldo operacional de cada período
+  (entradas menos saídas) se acumula no seguinte, e o mesmo cálculo dia a dia alimenta o
+  gráfico. No último dia de um mês curto entram também as médias dos dias que ele não
+  tem (o que cai no dia 31 vai para o dia 30). Títulos lançados em aberto não entram, e
+  como a base é o que de fato foi recebido, o atraso e a inadimplência de sempre já estão
+  descontados. O SGG não informa o saldo bancário: o "saldo acumulado" parte de zero e
+  mostra só a variação do caixa projetada. Também ficam no resumo as linhas até o fim do
+  mês, 60 e 90 dias (``projecao``), usadas por resumos e telas antigos.
 * **MRR**: mensalidades (planos de gestão, cobrança por vidas) faturadas nos últimos
   30 dias para clientes com contrato ativo. O SGG não guarda o valor mensal no
   contrato, então a receita recorrente é medida pelo que foi de fato faturado.
@@ -34,13 +40,17 @@ from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-VERSAO_REGRA_FINANCEIRO = "1.4.0"  # 1.4: projeção pelo histórico de 6 meses (dia do mês)
+VERSAO_REGRA_FINANCEIRO = (
+    "1.5.0"  # 1.5: projeção em 3 períodos de 30 dias, série diária e base no mês de hoje
+)
 
 ZERO = Decimal("0")
 CENTAVO = Decimal("0.01")
 JANELA_MRR_DIAS = 30
 JANELA_CONTRATOS_DIAS = 30
 HORIZONTES_PROJECAO = (60, 90)
+DIAS_PERIODO_PROJECAO = 30
+PERIODOS_PROJECAO = 3
 MESES_HISTORICO = 6  # base da projeção: meses completos anteriores ao do relatório
 MAXIMO_SERVICOS_MARGEM = 10
 MAXIMO_CLASSIFICACOES = 8
@@ -282,22 +292,46 @@ def _previsto(perfil: Mapping[int, Decimal], de: date, ate: date) -> Decimal:
     return total
 
 
+def _centavos(valor: Decimal) -> Decimal:
+    return valor.quantize(CENTAVO, rounding=ROUND_HALF_UP)
+
+
+def _perfis(dados: DadosFinanceiros) -> tuple[dict[int, Decimal], dict[int, Decimal]]:
+    """Perfis de entradas e saídas por dia do mês, sobre os 6 meses completos antes de hoje."""
+    de, ate_base = inicio_historico(dados.hoje), fim_historico(dados.hoje)
+    return (
+        _perfil_dia_do_mes(dados.historico_recebidos, de, ate_base),
+        _perfil_dia_do_mes(dados.historico_pagos, de, ate_base),
+    )
+
+
+def _linha_projecao(
+    entradas: Decimal, saidas: Decimal, dias: int, ate: date, fim_mes: bool = False
+) -> dict[str, Any]:
+    # O saldo sai dos valores já arredondados: o que o e-mail mostra fecha ao centavo.
+    entradas, saidas = _centavos(entradas), _centavos(saidas)
+    return {
+        "dias": dias,
+        "ate": ate.isoformat(),
+        "entradas": float(entradas),
+        "saidas": float(saidas),
+        "saldo": float(entradas - saidas),
+        "fim_mes": fim_mes,
+    }
+
+
 def _projecao(dados: DadosFinanceiros) -> list[dict[str, Any]]:
-    de, ate_base = inicio_historico(dados.referencia), fim_historico(dados.referencia)
-    entradas_dia = _perfil_dia_do_mes(dados.historico_recebidos, de, ate_base)
-    saidas_dia = _perfil_dia_do_mes(dados.historico_pagos, de, ate_base)
+    """Horizontes acumulados a partir de hoje: até o fim do mês, 60 e 90 dias."""
+    entradas_dia, saidas_dia = _perfis(dados)
 
     def linha(ate: date, dias: int, fim_mes: bool) -> dict[str, Any]:
-        entradas = _previsto(entradas_dia, dados.hoje, ate)
-        saidas = _previsto(saidas_dia, dados.hoje, ate)
-        return {
-            "dias": dias,
-            "ate": ate.isoformat(),
-            "entradas": _dinheiro(entradas),
-            "saidas": _dinheiro(saidas),
-            "saldo": _dinheiro(entradas - saidas),
-            "fim_mes": fim_mes,
-        }
+        return _linha_projecao(
+            _previsto(entradas_dia, dados.hoje, ate),
+            _previsto(saidas_dia, dados.hoje, ate),
+            dias,
+            ate,
+            fim_mes,
+        )
 
     ate_fim_mes = fim_do_mes(dados.hoje)
     linhas = [linha(ate_fim_mes, (ate_fim_mes - dados.hoje).days + 1, fim_mes=True)]
@@ -308,10 +342,69 @@ def _projecao(dados: DadosFinanceiros) -> list[dict[str, Any]]:
     return linhas
 
 
+def _projecao_diaria(dados: DadosFinanceiros) -> list[tuple[date, Decimal, Decimal]]:
+    """Entradas e saídas previstas de cada um dos 90 dias a partir de hoje."""
+    entradas_dia, saidas_dia = _perfis(dados)
+    dias = DIAS_PERIODO_PROJECAO * PERIODOS_PROJECAO
+    return [
+        (
+            dia,
+            _previsto(entradas_dia, dia, dia),
+            _previsto(saidas_dia, dia, dia),
+        )
+        for dia in (dados.hoje + timedelta(days=n) for n in range(dias))
+    ]
+
+
+def _projecao_periodos(
+    diaria: Sequence[tuple[date, Decimal, Decimal]],
+) -> list[dict[str, Any]]:
+    """Mês 1, 2 e 3 (30 dias cada): o saldo operacional de um período entra no seguinte."""
+    periodos: list[dict[str, Any]] = []
+    acumulado = ZERO
+    for n in range(PERIODOS_PROJECAO):
+        fatia = diaria[n * DIAS_PERIODO_PROJECAO : (n + 1) * DIAS_PERIODO_PROJECAO]
+        linha = _linha_projecao(
+            sum((e for _, e, _ in fatia), ZERO),
+            sum((x for _, _, x in fatia), ZERO),
+            len(fatia),
+            fatia[-1][0],
+        )
+        acumulado += Decimal(str(linha["saldo"]))
+        periodos.append(
+            {
+                **linha,
+                "periodo": n + 1,
+                "de": fatia[0][0].isoformat(),
+                "saldo_inicial": float(_centavos(acumulado - Decimal(str(linha["saldo"])))),
+                "saldo_acumulado": float(_centavos(acumulado)),
+            }
+        )
+    return periodos
+
+
+def _projecao_serie(diaria: Sequence[tuple[date, Decimal, Decimal]]) -> dict[str, Any]:
+    """Acumulado dia a dia (ponto 0 = antes de hoje) para o gráfico de linhas."""
+    entradas, saidas = [0.0], [0.0]
+    soma_e = soma_s = ZERO
+    for _, e, x in diaria:
+        soma_e += e
+        soma_s += x
+        entradas.append(float(_centavos(soma_e)))
+        saidas.append(float(_centavos(soma_s)))
+    return {
+        "inicio": diaria[0][0].isoformat(),
+        "dias": len(diaria),
+        "entradas": entradas,
+        "saidas": saidas,
+        "saldo": [round(e - x, 2) for e, x in zip(entradas, saidas, strict=True)],
+    }
+
+
 def _base_projecao(dados: DadosFinanceiros) -> dict[str, Any]:
     return {
-        "de": inicio_historico(dados.referencia).isoformat(),
-        "ate": fim_historico(dados.referencia).isoformat(),
+        "de": inicio_historico(dados.hoje).isoformat(),
+        "ate": fim_historico(dados.hoje).isoformat(),
         "meses": MESES_HISTORICO,
     }
 
@@ -559,6 +652,7 @@ def calcular_financeiro(
 ) -> dict[str, Any]:
     """Resumo financeiro do dia em JSON (o e-mail e o admin só exibem)."""
     recorrente, mensal_por_cliente = _recorrente(dados)
+    diaria = _projecao_diaria(dados)
     resumo: dict[str, Any] = {
         "tipo": "financeiro",
         "versao_regra": VERSAO_REGRA_FINANCEIRO,
@@ -567,6 +661,8 @@ def calcular_financeiro(
         "gerado_em": gerado_em.isoformat(),
         "caixa": _caixa(dados),
         "projecao": _projecao(dados),
+        "projecao_periodos": _projecao_periodos(diaria),
+        "projecao_serie": _projecao_serie(diaria),
         "projecao_base": _base_projecao(dados),
         "faturamento": _faturamento(dados),
         "recorrente": recorrente,
