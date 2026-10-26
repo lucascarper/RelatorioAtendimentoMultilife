@@ -19,6 +19,7 @@ htmlcov/
 .env.*
 !.env.example
 saida_emails/
+saida_planilhas/
 previa-email.html
 previa-email.txt
 
