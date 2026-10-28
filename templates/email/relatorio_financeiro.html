@@ -1,7 +1,7 @@
 {% extends "email/_base.html" %}
 {#
   Recebe apenas `a` (apresentação montada a partir de resumo_financeiro.metricas).
-  Sem lógica de cálculo aqui. Topo: manchete + 3 cartões; abaixo, uma seção por grupo.
+  Sem lógica de cálculo aqui. Estrutura: Indicadores principais, Projeção e gráfico, Fluxo de caixa (lista retrátil) e rateio.
 #}
 {% macro etiqueta(texto) -%}
 {%- if texto %} <span style="display:inline-block; background:#F2F4F8; color:#444B68; border-radius:999px; padding:1px 8px; font-size:11px; line-height:16px; font-weight:600; vertical-align:1px;">{{ texto }}</span>{% endif -%}
@@ -19,6 +19,41 @@
     {%- if subtitulo %}
     <div class="fonte" style="padding-top:5px; font-size:12px; line-height:16px; color:#626883;">{{ subtitulo }}</div>
     {%- endif %}
+  </td>
+</tr>
+{%- endmacro %}
+
+{% macro tabela_html(t) -%}
+    {%- if t.titulo %}
+    <div class="fonte" style="font-size:13px; line-height:18px; font-weight:700; color:#20295A; padding:4px 0 6px;">{{ t.titulo }}{{ etiqueta(t.etiqueta) }}</div>
+    {%- endif %}
+    {%- if t.linhas %}
+    <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px; line-height:18px; color:#20295A;">
+      <tr>
+        {%- for h in t.cabecalho %}
+        {%- set al = t.alinhar[loop.index0] if t.alinhar else ('left' if loop.first else 'right') %}
+        <th{% if loop.index0 in t.ocultar_no_celular %} class="oculta-mobile"{% endif %} align="{{ al }}" bgcolor="#EBF0F9" style="background:#EBF0F9; padding:8px 10px; font-size:12px; color:#2F4A80; font-weight:700; text-align:{{ al }};{% if loop.first %} border-radius:6px 0 0 0;{% elif loop.last %} border-radius:0 6px 0 0;{% endif %}">{{ h }}</th>
+        {%- endfor %}
+      </tr>
+      {%- for linha in t.linhas %}
+      <tr>
+        <td style="padding:8px 10px; color:#444B68;{% if linha.destaque %} font-weight:700; color:#20295A;{% endif %}">{{ linha.rotulo }}{% if linha.nota %}<br><span style="font-size:11px; color:#626883; font-weight:400;">{{ linha.nota }}</span>{% endif %}</td>
+        {%- for v in linha.valores %}
+        {%- set al = t.alinhar[loop.index] if t.alinhar else 'right' %}
+        <td class="{{ 'num' if al == 'right' else 'txt' }}{% if loop.index in t.ocultar_no_celular %} oculta-mobile{% endif %}" align="{{ al }}" style="padding:8px 10px; text-align:{{ al }}; color:{{ linha.cores[loop.index0] if linha.cores else '#20295A' }};{% if linha.destaque %} font-weight:700;{% endif %}">{{ v }}</td>
+        {%- endfor %}
+      </tr>
+      {%- endfor %}
+    </table>
+    {%- else %}
+    <div class="fonte" style="font-size:13px; line-height:18px; color:#626883; padding:2px 0 4px;">{{ t.vazio }}</div>
+    {%- endif %}
+{%- endmacro %}
+
+{% macro tabela(t, espaco=False) -%}
+<tr>
+  <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:0 32px{% if espaco %} 16px{% endif %};">
+    {{ tabela_html(t) }}
   </td>
 </tr>
 {%- endmacro %}
@@ -54,7 +89,8 @@
   </td>
 </tr>
 
-<!-- Resumo executivo: 3 cartões -->
+{{ titulo_secao("Indicadores principais", "Caixa do dia e do mês, pela data de pagamento, e faturamento do mês.") }}
+<!-- Cartões -->
 <tr>
   <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:18px 24px 0; font-size:0; text-align:center;">
     <!--[if mso]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><![endif]-->
@@ -90,37 +126,74 @@
   </td>
 </tr>
 
+
+<tr><td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:12px 0 0;"></td></tr>
+{{ tabela(a.indicadores) }}
+
+<!-- Projeção e gráfico -->
+{{ titulo_secao(a.projecao.titulo, a.projecao.subtitulo) }}
+{{ tabela(a.projecao.tabela) }}
+{%- if a.projecao.grafico_cid %}
+<tr>
+  <td bgcolor="#FFFFFF" class="px fonte" style="background:#FFFFFF; padding:14px 32px 0;">
+    <img src="cid:{{ a.projecao.grafico_cid }}" width="576" height="210" alt="{{ a.projecao.grafico_alt }}" style="width:100%; max-width:576px; height:auto; border:0;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:8px;">
+      <tr>
+        {%- for item in a.projecao.legenda %}
+        <td class="fonte" style="padding:0 16px 4px 0; font-size:12px; line-height:16px; color:#444B68; white-space:nowrap;">
+          <span style="display:inline-block; width:12px; height:4px; background:{{ item.cor }}; border-radius:2px; vertical-align:middle;">&nbsp;</span>
+          {{ item.rotulo }}: <strong style="color:#20295A;">{{ item.valor }}</strong>
+        </td>
+        {%- endfor %}
+      </tr>
+    </table>
+  </td>
+</tr>
+{%- endif %}
+{%- if a.projecao.nota %}
+<tr>
+  <td bgcolor="#FFFFFF" class="px fonte" style="background:#FFFFFF; padding:8px 32px 0; font-size:12px; line-height:17px; color:#626883;">{{ a.projecao.nota }}</td>
+</tr>
+{%- endif %}
+
+<!-- Fluxo de caixa -->
+{{ titulo_secao(a.fluxo.titulo, a.fluxo.subtitulo) }}
+{%- if a.fluxo.indisponivel %}
+<tr>
+  <td bgcolor="#FFFFFF" class="px fonte" style="background:#FFFFFF; padding:0 32px; font-size:13px; line-height:18px; color:#626883;">{{ a.fluxo.indisponivel }}</td>
+</tr>
+{%- else %}
+<tr>
+  <td bgcolor="#FFFFFF" class="px fonte" style="background:#FFFFFF; padding:0 32px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:10px;">
+      <tr>
+        {%- for item in a.fluxo.resumo %}
+        <td class="fonte" style="padding:0 18px 0 0; font-size:13px; line-height:18px; color:#444B68; white-space:nowrap;">
+          <span style="display:inline-block; width:10px; height:10px; background:{{ item.cor }}; border-radius:2px; vertical-align:middle;">&nbsp;</span>
+          {{ item.rotulo }}: <strong style="color:{{ item.cor }};">{{ item.valor }}</strong>
+        </td>
+        {%- endfor %}
+      </tr>
+    </table>
+    <!-- Lista retrátil: abre e fecha com um toque. Onde o cliente de e-mail não suporta <details>
+         (Gmail, Outlook), a lista aparece aberta. -->
+    <details class="fluxo">
+      <summary class="fluxo-botao fonte" style="display:block; cursor:pointer; padding:10px 16px; border:1px solid #2F4A80; border-radius:10px; background:#EBF0F9; color:#2F4A80; font-size:13px; line-height:18px; font-weight:700; text-align:center;">
+        <span class="fluxo-fechado">&#9662;&nbsp; {{ a.fluxo.botao }}</span><span class="fluxo-aberto" style="display:none;">&#9652;&nbsp; Recolher a lista</span>
+      </summary>
+      <div class="fonte" style="font-size:13px; line-height:18px; font-weight:700; color:#1F5FBF; padding:14px 0 6px;">Entradas</div>
+      {{ tabela_html(a.fluxo.entradas) }}
+      <div class="fonte" style="font-size:13px; line-height:18px; font-weight:700; color:#A3060B; padding:16px 0 6px;">Saídas</div>
+      {{ tabela_html(a.fluxo.saidas) }}
+    </details>
+  </td>
+</tr>
+{%- endif %}
+
 {%- for s in a.secoes %}
 {{ titulo_secao(s.titulo, s.subtitulo, s.etiqueta) }}
 {%- for t in s.tabelas %}
-<tr>
-  <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:0 32px{% if not loop.last %} 16px{% endif %};">
-    {%- if t.titulo %}
-    <div class="fonte" style="font-size:13px; line-height:18px; font-weight:700; color:#20295A; padding:4px 0 6px;">{{ t.titulo }}{{ etiqueta(t.etiqueta) }}</div>
-    {%- endif %}
-    {%- if t.linhas %}
-    <table role="presentation" class="tabela fonte" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px; line-height:18px; color:#20295A;">
-      <tr>
-        {%- for h in t.cabecalho %}
-        {%- set al = t.alinhar[loop.index0] if t.alinhar else ('left' if loop.first else 'right') %}
-        <th{% if loop.index0 in t.ocultar_no_celular %} class="oculta-mobile"{% endif %} align="{{ al }}" bgcolor="#EBF0F9" style="background:#EBF0F9; padding:8px 10px; font-size:12px; color:#2F4A80; font-weight:700; text-align:{{ al }};{% if loop.first %} border-radius:6px 0 0 0;{% elif loop.last %} border-radius:0 6px 0 0;{% endif %}">{{ h }}</th>
-        {%- endfor %}
-      </tr>
-      {%- for linha in t.linhas %}
-      <tr>
-        <td style="padding:8px 10px; color:#444B68;{% if linha.destaque %} font-weight:700; color:#20295A;{% endif %}">{{ linha.rotulo }}{% if linha.nota %}<br><span style="font-size:11px; color:#626883; font-weight:400;">{{ linha.nota }}</span>{% endif %}</td>
-        {%- for v in linha.valores %}
-        {%- set al = t.alinhar[loop.index] if t.alinhar else 'right' %}
-        <td class="{{ 'num' if al == 'right' else 'txt' }}{% if loop.index in t.ocultar_no_celular %} oculta-mobile{% endif %}" align="{{ al }}" style="padding:8px 10px; text-align:{{ al }}; color:{{ linha.cores[loop.index0] if linha.cores else '#20295A' }};{% if linha.destaque %} font-weight:700;{% endif %}">{{ v }}</td>
-        {%- endfor %}
-      </tr>
-      {%- endfor %}
-    </table>
-    {%- else %}
-    <div class="fonte" style="font-size:13px; line-height:18px; color:#626883; padding:2px 0 4px;">{{ t.vazio }}</div>
-    {%- endif %}
-  </td>
-</tr>
+{{ tabela(t, not loop.last) }}
 {%- endfor %}
 {%- endfor %}
 

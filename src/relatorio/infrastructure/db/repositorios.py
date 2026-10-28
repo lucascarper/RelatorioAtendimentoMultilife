@@ -8,7 +8,7 @@ from types import TracebackType
 from typing import Any, Self, cast
 
 from sqlalchemy import CursorResult, Engine, Result, delete, func, select, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -360,6 +360,26 @@ class ResumoRepositorioSql:
     def listar_periodo(self, inicio: date, fim: date) -> list[ResumoRegistro]:
         consulta = select(self._m).where(self._m.data.between(inicio, fim)).order_by(self._m.data)
         return [_resumo(m) for m in self._s.scalars(consulta).all()]
+
+    def listar_indicadores(self, inicio: date, fim: date) -> list[tuple[date, dict[str, Any]]]:
+        m = self._m.metricas
+        parte = func.jsonb_build_object(
+            "kpis",
+            m["kpis"],
+            "por_turno",
+            m["por_turno"],
+            "por_grupo",
+            m["por_grupo"],
+            "alertas",
+            func.jsonb_build_object("quantidade", m["alertas"]["quantidade"]),
+            type_=JSONB,
+        )
+        consulta = (
+            select(self._m.data, parte)
+            .where(self._m.data.between(inicio, fim))
+            .order_by(self._m.data)
+        )
+        return [(dia, dict(dados)) for dia, dados in self._s.execute(consulta).all()]
 
     def apagar_anteriores_a(self, limite: date) -> int:
         resultado = self._s.execute(delete(self._m).where(self._m.data < limite))

@@ -1,12 +1,12 @@
 {% extends "admin/base.html" %}
-{% block titulo %}Atendimento{% endblock %}
+{% block titulo %}Gestão do relatório{% endblock %}
 {% block conteudo %}
 {%- from "admin/_paginacao.html" import rodape %}
 {%- from "admin/_icones.html" import icone %}
+<p class="voltar"><a href="/admin/atendimento">&larr; Dashboard</a></p>
 <div class="pagina-cabecalho">
-  <h1>Atendimento</h1>
+  <h1>Gestão do relatório</h1>
   <div class="pagina-acoes">
-    <a href="/admin/monitor" class="btn btn-primario">{{ icone("ao-vivo") }}Acompanhar AO VIVO</a>
     <a href="/admin/agendas" class="btn btn-secundario">Configurar Agendas</a>
   </div>
 </div>

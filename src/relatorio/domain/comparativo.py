@@ -143,6 +143,13 @@ def _comparar_item(
     )
 
 
+def comparar_contagem(
+    chave: str, rotulo: str, atual: float | None, anterior: float | None, sentido: Sentido
+) -> ItemComparativo:
+    """Uma contagem fora dos KPIs (ex.: alertas do período), com as mesmas regras."""
+    return _comparar_item(_Indicador(chave, rotulo, Formato.NUMERO, sentido), atual, anterior)
+
+
 def comparar(atual: Kpis, anterior: Kpis | None, data_base: date) -> Comparativo:
     itens = tuple(
         _comparar_item(

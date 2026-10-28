@@ -134,6 +134,83 @@ def test_projecao_sem_historico_fica_zerada() -> None:
     assert all((p["entradas"], p["saidas"], p["saldo"]) == (0, 0, 0) for p in r["projecao"])
 
 
+def _historico_simples() -> dict[str, object]:
+    meses = ("03", "04", "05", "06", "07", "08")
+    return {
+        "historico_recebidos": [
+            titulo(i, "600.00", pagamento=d(f"2026-{m}-10")) for i, m in enumerate(meses)
+        ],
+        "historico_pagos": [
+            titulo(30 + i, "300.00", pagamento=d(f"2026-{m}-05")) for i, m in enumerate(meses)
+        ],
+    }
+
+
+def test_projecao_em_tres_periodos_com_saldo_acumulado() -> None:
+    r = calcular_financeiro(dados(**_historico_simples()), GERADO)  # hoje: 28/09
+    p1, p2, p3 = r["projecao_periodos"]
+    assert [(p["periodo"], p["dias"]) for p in (p1, p2, p3)] == [(1, 30), (2, 30), (3, 30)]
+    # 28/09 a 27/10: dia 10 de outubro (600) e dia 5 de outubro (300)
+    assert (p1["de"], p1["ate"]) == ("2026-09-28", "2026-10-27")
+    assert (p1["entradas"], p1["saidas"], p1["saldo"]) == (600.0, 300.0, 300.0)
+    assert (p2["de"], p2["ate"]) == ("2026-10-28", "2026-11-26")
+    assert (p2["entradas"], p2["saidas"]) == (600.0, 300.0)  # novembro
+    assert (p3["entradas"], p3["saidas"]) == (600.0, 300.0)  # dezembro
+    # o saldo final de um período é o inicial do seguinte
+    assert (p1["saldo_inicial"], p1["saldo_acumulado"]) == (0.0, 300.0)
+    assert (p2["saldo_inicial"], p2["saldo_acumulado"]) == (300.0, 600.0)
+    assert (p3["saldo_inicial"], p3["saldo_acumulado"]) == (600.0, 900.0)
+    # e o 90 dias das linhas antigas bate com o acumulado dos três períodos
+    assert r["projecao"][-1]["saldo"] == p3["saldo_acumulado"]
+
+
+def test_serie_do_grafico_acumula_dia_a_dia() -> None:
+    r = calcular_financeiro(dados(**_historico_simples()), GERADO)
+    serie = r["projecao_serie"]
+    assert serie["inicio"] == "2026-09-28" and serie["dias"] == 90
+    assert len(serie["entradas"]) == len(serie["saidas"]) == len(serie["saldo"]) == 91
+    assert serie["entradas"][0] == serie["saidas"][0] == serie["saldo"][0] == 0.0
+    assert serie["entradas"][-1] == 1800.0 and serie["saidas"][-1] == 900.0  # 3 meses
+    assert serie["saldo"][-1] == r["projecao_periodos"][-1]["saldo_acumulado"]
+    assert serie["entradas"] == sorted(serie["entradas"])  # nunca diminui
+
+
+def test_projecao_usa_o_historico_ate_o_mes_que_acabou_de_fechar() -> None:
+    # Dia 1º de outubro: o relatório é do dia 30/09 e a base são os 6 meses até setembro.
+    r = calcular_financeiro(
+        dados(
+            referencia=date(2026, 9, 30),
+            hoje=date(2026, 10, 1),
+            historico_recebidos=[
+                titulo(1, "1000.00", pagamento=d("2026-09-15")),  # o mês que fechou entra
+                titulo(2, "5000.00", pagamento=d("2026-03-15")),  # fora: antes do 6.º mês
+            ],
+        ),
+        GERADO,
+    )
+    assert r["projecao_base"] == {"de": "2026-04-01", "ate": "2026-09-30", "meses": 6}
+    assert r["projecao_periodos"][0]["entradas"] == 166.67  # média de 1.000 em 6 meses (dia 15)
+
+
+def test_saldo_projetado_fecha_com_os_valores_arredondados() -> None:
+    # 3 recebimentos de 0,335 e 3 pagamentos de 0,334 no mesmo dia: a média por mês dá
+    # fração de centavo; o saldo tem de ser exatamente entradas menos saídas já arredondadas.
+    meses = ("03", "04", "05", "06", "07", "08")
+    r = calcular_financeiro(
+        dados(
+            historico_recebidos=[
+                titulo(i, "0.335", pagamento=d(f"2026-{m}-10")) for i, m in enumerate(meses)
+            ],
+            historico_pagos=[
+                titulo(9 + i, "0.334", pagamento=d(f"2026-{m}-10")) for i, m in enumerate(meses)
+            ],
+        ),
+        GERADO,
+    )
+    for p in (*r["projecao"], *r["projecao_periodos"]):
+        assert p["saldo"] == pytest.approx(p["entradas"] - p["saidas"], abs=1e-9)
+
+
 def test_faturamento_por_competencia_e_categorias() -> None:
     r = calcular_financeiro(
         dados(

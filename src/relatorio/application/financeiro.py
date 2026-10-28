@@ -24,6 +24,7 @@ from relatorio.domain.financeiro import (
     DadosFinanceiros,
     Titulo,
     calcular_financeiro,
+    fim_historico,
     inicio_do_mes,
     inicio_historico,
     inicio_janela_emissao,
@@ -99,8 +100,13 @@ class ConsolidarFinanceiro:
         """Lê o SGG em janelas de até 31 dias: o mês corrente e os 6 meses de histórico."""
         mes = inicio_do_mes(referencia)
         # Uma leitura só para o caixa do mês e para a base da projeção (meses anteriores).
-        recebidos = self._sgg.receber_pagos(inicio_historico(referencia), referencia)
-        pagos = self._sgg.pagar_pagos(inicio_historico(referencia), referencia)
+        # A base da projeção são os 6 meses completos antes do mês de HOJE: no dia 1 isso
+        # inclui o mês que acabou de fechar (o mês da referência).
+        # Ao reprocessar uma data antiga, a janela cobre o mês da referência e a base inteira.
+        inicio = min(inicio_historico(hoje), mes)
+        fim = max(referencia, fim_historico(hoje))
+        recebidos = self._sgg.receber_pagos(inicio, fim)
+        pagos = self._sgg.pagar_pagos(inicio, fim)
         emitidos = self._sgg.receber_emitidos(inicio_janela_emissao(referencia), referencia)
         do_mes = [t for t in emitidos if t.emissao and mes <= t.emissao <= referencia]
         precos = {s: self._sgg.precos_servico(s) for s in servicos_para_margem(do_mes)}
@@ -109,8 +115,10 @@ class ConsolidarFinanceiro:
         return DadosFinanceiros(
             referencia=referencia,
             hoje=hoje,
-            recebidos_mes=[t for t in recebidos if t.pagamento and t.pagamento >= mes],
-            pagos_mes=[t for t in pagos if t.pagamento and t.pagamento >= mes],
+            recebidos_mes=[
+                t for t in recebidos if t.pagamento and mes <= t.pagamento <= referencia
+            ],
+            pagos_mes=[t for t in pagos if t.pagamento and mes <= t.pagamento <= referencia],
             emitidos=emitidos,
             # A projeção é pelo histórico: os títulos em aberto não são mais lidos.
             a_receber=[],

@@ -195,7 +195,7 @@ class Apresentacao:
     )
 
 
-def _delta(comparativo: Mapping[str, Any], chave: str) -> Delta | None:
+def montar_delta(comparativo: Mapping[str, Any], chave: str) -> Delta | None:
     if not comparativo.get("disponivel"):
         return None
     item = next((i for i in comparativo.get("itens", []) if i.get("chave") == chave), None)
@@ -219,13 +219,13 @@ def _kpis(m: Mapping[str, Any]) -> tuple[CartaoKpi, ...]:
             rotulo="Atendimentos realizados",
             valor=numero(k["atendimentos"]),
             contexto=f"de {numero(k['agendados'])} agendados",
-            delta=_delta(comp, "atendimentos"),
+            delta=montar_delta(comp, "atendimentos"),
         ),
         CartaoKpi(
             rotulo="Faltas",
             valor=numero(k["faltas"]),
             contexto=f"{percentual(k.get('taxa_faltas'))} dos agendados",
-            delta=_delta(comp, "taxa_faltas"),
+            delta=montar_delta(comp, "taxa_faltas"),
         ),
         CartaoKpi(
             rotulo="Espera média na recepção",
@@ -234,13 +234,13 @@ def _kpis(m: Mapping[str, Any]) -> tuple[CartaoKpi, ...]:
                 f"mediana {duracao(k.get('espera_mediana_s'))} · "
                 f"maior {duracao(k.get('espera_maxima_s'))}"
             ),
-            delta=_delta(comp, "espera_media_s"),
+            delta=montar_delta(comp, "espera_media_s"),
         ),
         CartaoKpi(
             rotulo="TMA geral",
             valor=duracao(k.get("tma_s")),
             contexto=f"{numero(k.get('atendimentos_medidos'))} atendimentos medidos",
-            delta=_delta(comp, "tma_s"),
+            delta=montar_delta(comp, "tma_s"),
         ),
     )
 
@@ -266,19 +266,19 @@ def _grupos_kpis(m: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
             rotulo="Atendimentos nos consultórios",
             valor=numero(k["atendimentos_consultorios"]),
             contexto=f"de {numero(cons.get('agendados'))} agendados",
-            delta=_delta(comp, "atendimentos_consultorios"),
+            delta=montar_delta(comp, "atendimentos_consultorios"),
         ),
         CartaoKpi(
             rotulo="Tempo de Espera - Consultório",
             valor=duracao(k.get("espera_consultorio_s")),
             contexto=espera(cons),
-            delta=_delta(comp, "espera_consultorio_s"),
+            delta=montar_delta(comp, "espera_consultorio_s"),
         ),
         CartaoKpi(
             rotulo="Tempo de Consulta",
             valor=duracao(k.get("tma_consultorios_s")),
             contexto=f"{numero(cons.get('atendimentos_medidos'))} atendimentos medidos",
-            delta=_delta(comp, "tma_consultorios_s"),
+            delta=montar_delta(comp, "tma_consultorios_s"),
         ),
         faltas,
     )
@@ -287,19 +287,19 @@ def _grupos_kpis(m: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
             rotulo="Atendimentos nos guichês",
             valor=numero(k["atendimentos_guiches"]),
             contexto=f"de {numero(guic.get('agendados'))} agendados",
-            delta=_delta(comp, "atendimentos_guiches"),
+            delta=montar_delta(comp, "atendimentos_guiches"),
         ),
         CartaoKpi(
             rotulo="Tempo de Espera - Recepção",
             valor=duracao(k.get("espera_recepcao_s")),
             contexto=espera(guic),
-            delta=_delta(comp, "espera_recepcao_s"),
+            delta=montar_delta(comp, "espera_recepcao_s"),
         ),
         CartaoKpi(
             rotulo="Tempo de Atendimento - Recepção",
             valor=duracao(k.get("tma_guiches_s")),
             contexto=f"{numero(guic.get('atendimentos_medidos'))} atendimentos medidos",
-            delta=_delta(comp, "tma_guiches_s"),
+            delta=montar_delta(comp, "tma_guiches_s"),
         ),
     )
     consolidado = (
@@ -307,7 +307,7 @@ def _grupos_kpis(m: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
             rotulo="Tempo Médio Total de Permanência",
             valor=duracao(k.get("permanencia_total_s")),
             contexto="da chegada na recepção até a saída do consultório",
-            delta=_delta(comp, "permanencia_total_s"),
+            delta=montar_delta(comp, "permanencia_total_s"),
         ),
     )
     return (
@@ -501,7 +501,7 @@ def _comparativo(m: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
             continue  # indicador sem dado nos dois dias (ex.: guichês ainda não marcados)
         if separado and item["chave"] in TOTAIS_SEPARADOS:
             continue  # com guichês, o comparativo mostra consultórios e recepção separados
-        delta = _delta(comp, item["chave"])
+        delta = montar_delta(comp, item["chave"])
         linhas.append(
             {
                 "rotulo": item["rotulo"],
@@ -621,7 +621,7 @@ def _manchete(m: Mapping[str, Any], alertas: Sequence[Alerta]) -> str:
         f"({percentual(k.get('taxa_faltas'))} dos agendados)."
     ]
     comp = m.get("comparativo", {})
-    espera = _delta(comp, "espera_media_s")
+    espera = montar_delta(comp, "espera_media_s")
     if k.get("espera_media_s") is not None:
         frase = f"Espera média de {duracao(k['espera_media_s'])}"
         if espera is not None and espera.texto != "estável":

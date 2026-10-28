@@ -1,12 +1,55 @@
+{#- Listas de tabela: uma linha por item, "rótulo: coluna valor; coluna valor". -#}
+{% macro linhas(t) -%}
+{%- if t.linhas %}
+{%- for linha in t.linhas %}
+- {{ linha.rotulo }}: {% for h in t.cabecalho[1:] %}{{ h }} {{ linha.valores[loop.index0] }}{% if not loop.last %}; {% endif %}{% endfor %}{% if linha.nota %} ({{ linha.nota }}){% endif %}
+{%- endfor %}
+{%- else %}
+{{ t.vazio }}
+{%- endif %}
+{%- endmacro -%}
 {{ a.assunto }}
 {% if a.amostra %}PRÉVIA COM DADOS FICTÍCIOS
 {% endif %}
 {{ a.manchete }}
 
+== Indicadores principais ==
 {% for c in a.cartoes -%}
 {{ c.rotulo }}: {{ c.valor }}{% if c.valor_2 %} {{ c.rotulo_valor }}; {{ c.valor_2 }} {{ c.rotulo_valor_2 }}{% endif %}
   {{ c.contexto }}{% if c.etiqueta %} ({{ c.etiqueta }}){% endif %}
 {% endfor %}
+{{- linhas(a.indicadores) }}
+
+== {{ a.projecao.titulo }} ==
+{{ a.projecao.subtitulo }}
+{{ linhas(a.projecao.tabela) }}
+{%- if a.projecao.legenda %}
+
+Acumulado em 90 dias:
+{%- for item in a.projecao.legenda %}
+- {{ item.rotulo }}: {{ item.valor }}
+{%- endfor %}
+{%- endif %}
+{%- if a.projecao.nota %}
+
+{{ a.projecao.nota }}
+{%- endif %}
+
+== {{ a.fluxo.titulo }} ==
+{{ a.fluxo.subtitulo }}
+{%- if a.fluxo.indisponivel %}
+{{ a.fluxo.indisponivel }}
+{%- else %}
+{%- for item in a.fluxo.resumo %}
+- {{ item.rotulo }}: {{ item.valor }}
+{%- endfor %}
+
+Entradas
+{{ linhas(a.fluxo.entradas) }}
+
+Saídas
+{{ linhas(a.fluxo.saidas) }}
+{%- endif %}
 {%- for s in a.secoes %}
 
 == {{ s.titulo }}{% if s.etiqueta %} ({{ s.etiqueta }}){% endif %} ==
@@ -15,13 +58,7 @@
 {% if t.titulo %}
 {{ t.titulo }}{% if t.etiqueta %} ({{ t.etiqueta }}){% endif %}
 {%- endif %}
-{%- if t.linhas %}
-{%- for linha in t.linhas %}
-- {{ linha.rotulo }}: {% for h in t.cabecalho[1:] %}{{ h }} {{ linha.valores[loop.index0] }}{% if not loop.last %}; {% endif %}{% endfor %}{% if linha.nota %} ({{ linha.nota }}){% endif %}
-{%- endfor %}
-{%- else %}
-{{ t.vazio }}
-{%- endif %}
+{{ linhas(t) }}
 {%- endfor %}
 {%- endfor %}
 

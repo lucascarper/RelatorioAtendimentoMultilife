@@ -29,7 +29,7 @@
       <p class="lateral-produto">Sistema de Relatórios</p>
       <nav class="menu" aria-label="Principal">
         {% for m in menu %}
-        <a href="{{ m.url }}" title="{{ m.rotulo }}" {% if modulo_ativo == m.chave %}aria-current="page"{% endif %}>{{ icone(m.chave) }}<span class="menu-rotulo">{{ m.rotulo }}</span></a>
+        <a href="{{ m.url }}" title="{{ m.rotulo }}" {% if m.chave == "ao-vivo" %}class="menu-ao-vivo" {% endif %}{% if modulo_ativo == m.chave %}aria-current="page"{% endif %}>{{ icone(m.chave) }}<span class="menu-rotulo">{{ m.rotulo }}</span></a>
         {% endfor %}
       </nav>
       <form method="post" action="/logout" class="lateral-rodape">

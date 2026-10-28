@@ -35,7 +35,7 @@ def pedir(c: TestClient, token: str, tipo: str, inicio: str, fim: str) -> str:
 
 def test_exportar_atendimento_do_pedido_ao_download(cliente: TestClient) -> None:  # noqa: F811
     token = entrar(cliente)
-    pagina = cliente.get("/admin/atendimento")
+    pagina = cliente.get("/admin/atendimento/gestao")
     assert "Exportar período" in pagina.text and 'name="inicio"' in pagina.text
     fragmento = pedir(cliente, token, "atendimento", DIA.isoformat(), DIA.isoformat())
     assert 'role="progressbar"' in fragmento and "agua-nivel" in fragmento
@@ -52,7 +52,10 @@ def test_exportar_atendimento_do_pedido_ao_download(cliente: TestClient) -> None
     livro = load_workbook(BytesIO(arquivo.content))
     assert livro.sheetnames[:2] == ["Sobre", "Resumo diário"]
     # Ao reabrir a página, a última exportação aparece pronta para baixar.
-    assert f"/admin/exportacoes/{id_exportacao}/arquivo" in cliente.get("/admin/atendimento").text
+    assert (
+        f"/admin/exportacoes/{id_exportacao}/arquivo"
+        in cliente.get("/admin/atendimento/gestao").text
+    )
 
 
 def test_periodo_invalido_volta_com_a_mensagem(cliente: TestClient) -> None:  # noqa: F811
@@ -68,7 +71,7 @@ def test_cada_relatorio_exige_seu_modulo(
     token = entrar(cliente)
     criar(cliente, token, modulos=("atendimento",))
     assert entrar_como(outro, "ana", "senha-da-ana-1") == 303
-    token_ana = csrf(outro, "/admin/atendimento")
+    token_ana = csrf(outro, "/admin/atendimento/gestao")
     for tipo in ("financeiro", "sesmt", "medicos"):
         resposta = outro.post(
             "/admin/exportacoes",
@@ -93,12 +96,12 @@ def test_cartoes_nos_modulos_e_medicos_em_configuracoes(cliente: TestClient) -> 
         pagina = cliente.get(url).text
         assert f'value="{tipo}"' in pagina and "Exportar planilha" in pagina, url
     assert "só das 20h às 5h" in cliente.get("/admin/sesmt").text
-    assert 'value="medicos"' not in cliente.get("/admin/atendimento").text
+    assert 'value="medicos"' not in cliente.get("/admin/atendimento/gestao").text
 
 
 def test_processar_periodo_pela_tela_sem_download(cliente: TestClient) -> None:  # noqa: F811
     token = entrar(cliente)
-    pagina = cliente.get("/admin/atendimento").text
+    pagina = cliente.get("/admin/atendimento/gestao").text
     assert "Processar período" in pagina and 'value="processar"' in pagina
     assert "Reler o dia no SGG antes" in pagina and "não reenvia e-mail" in pagina
     resposta = cliente.post(
@@ -119,7 +122,7 @@ def test_processar_periodo_pela_tela_sem_download(cliente: TestClient) -> None: 
     assert "Baixar planilha" not in andamento.text
     assert cliente.get(f"/admin/exportacoes/{id_exportacao.group(1)}/arquivo").status_code == 404
     # Ao reabrir a página, o último processamento aparece no seu cartão (e o de exportar não).
-    reaberta = cliente.get("/admin/atendimento").text
+    reaberta = cliente.get("/admin/atendimento/gestao").text
     assert "dia(s) processado(s)" in reaberta
     assert "Baixar planilha" not in reaberta
 
@@ -137,7 +140,7 @@ def test_escolha_de_agendas_na_exportacao_do_atendimento(
             ]
         )
         uow.commit()
-    pagina = cliente.get("/admin/atendimento").text
+    pagina = cliente.get("/admin/atendimento/gestao").text
     assert 'name="filtrar_agendas"' in pagina
     assert re.search(r'name="agenda" value="10" checked', pagina)  # do relatório: marcada
     assert re.search(r'name="agenda" value="11"(?! checked)', pagina)  # fora: desmarcada

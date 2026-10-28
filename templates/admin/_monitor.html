@@ -1,5 +1,6 @@
 {#- Fragmento do monitor: trocado a cada atualização (monitor.js). Sem lógica de cálculo. -#}
 {%- from "admin/_icones.html" import icone %}
+{%- from "admin/_cartao_kpi.html" import cartao_kpi %}
 <p class="monitor-data"><strong>{{ p.a.titulo_data }}</strong> · {{ p.a.unidades }}</p>
 <div class="monitor-status">
   <span class="badge badge-{{ p.coleta_estado }}">
@@ -39,15 +40,7 @@
   {%- if grupo.titulo %}<h3 class="grupo-titulo">{{ grupo.titulo }}</h3>{% endif %}
   <div class="kpi-grade">
     {%- for k in grupo.cartoes %}
-    <article class="card kpi">
-      <h3>{{ k.rotulo }}</h3>
-      <p class="valor">{{ k.valor }}</p>
-      <p class="nota">{{ k.contexto }}</p>
-      <p class="delta">
-        {%- if k.delta %}<strong class="delta-{{ k.delta.tom }}">{{ k.delta.seta }} {{ k.delta.texto }}</strong> <span class="nota">{{ k.delta.rotulo }}</span>
-        {%- else %}<span class="nota">sem base de comparação</span>{% endif -%}
-      </p>
-    </article>
+    {{ cartao_kpi(k) }}
     {%- endfor %}
   </div>
   {%- endfor %}

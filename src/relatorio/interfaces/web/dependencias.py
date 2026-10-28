@@ -46,10 +46,13 @@ URL_MODULO = {
     CONFIGURACOES: "/admin/configuracoes",
     EXECUCOES: "/admin/execucoes",
 }
-# Página (variável ``pagina`` dos templates) → módulo que fica marcado no menu.
+# Atalho do menu logo abaixo de Atendimento (mesmo módulo), com ícone em destaque.
+AO_VIVO = {"chave": "ao-vivo", "rotulo": "Atendimento ao VIVO", "url": "/admin/monitor"}
+# Página (variável ``pagina`` dos templates) → item que fica marcado no menu.
 PAGINA_MODULO = {
+    "dashboard": ATENDIMENTO,
     "atendimento": ATENDIMENTO,
-    "monitor": ATENDIMENTO,
+    "monitor": AO_VIVO["chave"],
     "agendas": ATENDIMENTO,
     "financeiro": FINANCEIRO,
     "sesmt": SESMT,
@@ -74,13 +77,15 @@ class ContextoWeb:
         self, request: Request, nome: str, contexto: dict[str, Any], status_code: int = 200
     ) -> HTMLResponse:
         acesso = self.acesso(request)
+        menu = []
+        for m in acesso.permitidos() if acesso else ():
+            menu.append({"chave": m.chave, "rotulo": m.rotulo, "url": URL_MODULO[m.chave]})
+            if m.chave == ATENDIMENTO:
+                menu.append(AO_VIVO)
         base = {
             "usuario": acesso.nome if acesso else None,
             "acesso": acesso,
-            "menu": [
-                {"chave": m.chave, "rotulo": m.rotulo, "url": URL_MODULO[m.chave]}
-                for m in (acesso.permitidos() if acesso else ())
-            ],
+            "menu": menu,
             "modulo_ativo": PAGINA_MODULO.get(str(contexto.get("pagina"))),
             "csrf": token_csrf(request),
             "mensagens": request.session.pop("mensagens", []),

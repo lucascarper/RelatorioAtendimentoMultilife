@@ -1,0 +1,12 @@
+{#- Cartão de indicador com a variação (monitor e dashboard). Recebe um CartaoKpi. -#}
+{% macro cartao_kpi(k) -%}
+<article class="card kpi">
+      <h3>{{ k.rotulo }}</h3>
+      <p class="valor">{{ k.valor }}</p>
+      <p class="nota">{{ k.contexto }}</p>
+      <p class="delta">
+        {%- if k.delta %}<strong class="delta-{{ k.delta.tom }}">{{ k.delta.seta }} {{ k.delta.texto }}</strong> <span class="nota">{{ k.delta.rotulo }}</span>
+        {%- else %}<span class="nota">sem base de comparação</span>{% endif -%}
+      </p>
+    </article>
+{%- endmacro %}

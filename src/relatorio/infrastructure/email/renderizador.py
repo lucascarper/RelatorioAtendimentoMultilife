@@ -16,8 +16,10 @@ from relatorio.domain.entidades import FUSO_BRASILIA
 from relatorio.infrastructure.email.apresentacao import montar_apresentacao
 from relatorio.infrastructure.email.apresentacao_financeira import montar_apresentacao_financeira
 from relatorio.infrastructure.email.apresentacao_sesmt import montar_apresentacao_sesmt
+from relatorio.infrastructure.email.grafico import grafico_projecao
 
 LOGO_CID = "logo-multilife"
+GRAFICO_CID = "grafico-projecao"
 
 
 class RenderizadorJinja:
@@ -62,15 +64,21 @@ class RenderizadorJinja:
         )
 
     def relatorio_financeiro(self, metricas: Mapping[str, Any]) -> ConteudoEmail:
-        apresentacao = montar_apresentacao_financeira(metricas, self._admin_url)
+        serie = metricas.get("projecao_serie")
+        apresentacao = montar_apresentacao_financeira(
+            metricas, self._admin_url, GRAFICO_CID if serie else ""
+        )
         contexto = {"a": apresentacao, "logo_cid": LOGO_CID}
         html = self._env.get_template("email/relatorio_financeiro.html").render(contexto)
         texto = self._env.get_template("email/relatorio_financeiro.txt").render(contexto)
+        imagens = self._imagens()
+        if serie:
+            imagens += (ImagemInline(cid=GRAFICO_CID, conteudo=grafico_projecao(serie)),)
         return ConteudoEmail(
             assunto=apresentacao.assunto,
             html=self._inline(html),
             texto=texto.strip() + "\n",
-            imagens=self._imagens(),
+            imagens=imagens,
         )
 
     def relatorio_sesmt(self, metricas: Mapping[str, Any]) -> ConteudoEmail:

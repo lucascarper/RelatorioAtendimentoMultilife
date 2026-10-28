@@ -893,3 +893,28 @@ input[type="checkbox"]:disabled, input[type="radio"]:disabled { opacity: .5; cur
 .form input[type="date"]::-webkit-calendar-picker-indicator:hover, .form input[type="time"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1; background: var(--acento-suave);
 }
+
+/* ---------------------------------------------------------------- dashboard do atendimento */
+/* Lateral é escura nos dois temas: vermelho claro para o ícone do atalho ao vivo (≥ 3:1). */
+:root { --lateral-vivo: #FF6B6B; }
+.menu a.menu-ao-vivo .icone { color: var(--lateral-vivo); }
+.faixa-coleta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 16px; font-size: 14px; color: var(--texto-2); }
+.faixa-coleta strong { color: var(--texto); }
+.periodo { padding: 16px 20px; }
+.periodo .nota { margin: 0 0 8px; }
+.dashboard-grade {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 20px; align-items: start;
+  grid-template-areas: "kpis turnos" "grafico grafico";
+}
+.dashboard-kpis { grid-area: kpis; grid-template-columns: repeat(2, 1fr); }
+.dashboard-turnos { grid-area: turnos; }
+.dashboard-turnos .faixa { display: block; font-size: 12px; white-space: nowrap; }
+.dashboard-grafico { grid-area: grafico; }
+.grafico-dias { position: relative; height: 300px; }
+/* Abaixo disso a tabela de turnos não cabe ao lado dos indicadores: vai para baixo do gráfico. */
+@media (max-width: 1300px) {
+  .dashboard-grade { grid-template-columns: minmax(0, 1fr); grid-template-areas: "kpis" "grafico" "turnos"; }
+  .dashboard-kpis { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 1100px) { .dashboard-kpis { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { .grafico-dias { height: 240px; } }

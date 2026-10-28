@@ -32,7 +32,7 @@ def _cadastrar(container: Container, quantos: int) -> None:  # noqa: F811
 def test_lista_curta_nao_tem_rodape(cliente: TestClient, container: Container) -> None:  # noqa: F811
     entrar(cliente)
     _cadastrar(container, 5)
-    assert 'class="paginacao"' not in cliente.get("/admin/atendimento").text
+    assert 'class="paginacao"' not in cliente.get("/admin/atendimento/gestao").text
 
 
 def test_lista_longa_pagina_e_escolhe_tamanho(
@@ -41,15 +41,15 @@ def test_lista_longa_pagina_e_escolhe_tamanho(
 ) -> None:
     entrar(cliente)
     _cadastrar(container, 30)
-    pagina = cliente.get("/admin/atendimento").text
+    pagina = cliente.get("/admin/atendimento/gestao").text
     assert "1–25 de 30" in pagina
     assert "pessoa24@" in pagina
     assert "pessoa25@" not in pagina
     assert 'name="destinatarios_n"' in pagina
-    segunda = cliente.get("/admin/atendimento?destinatarios_p=2").text
+    segunda = cliente.get("/admin/atendimento/gestao?destinatarios_p=2").text
     assert "26–30 de 30" in segunda
     assert "pessoa25@" in segunda
-    curta = cliente.get("/admin/atendimento?destinatarios_n=10").text
+    curta = cliente.get("/admin/atendimento/gestao?destinatarios_n=10").text
     assert "1–10 de 30" in curta
     assert "pessoa10@" not in curta
 
@@ -118,7 +118,9 @@ def test_parametros_estranhos_nao_entram_nos_links(
 ) -> None:
     entrar(cliente)
     _cadastrar(container, 30)
-    pagina = cliente.get("/admin/atendimento?foo=bar&outra_p=2&x_n=1e1&destinatarios_n=%2B10").text
+    pagina = cliente.get(
+        "/admin/atendimento/gestao?foo=bar&outra_p=2&x_n=1e1&destinatarios_n=%2B10"
+    ).text
     assert "foo=bar" not in pagina
     assert "x_n" not in pagina
     assert "outra_p=2" in pagina
@@ -135,12 +137,12 @@ def test_adicionar_mantem_pagina_e_tamanho(
         "/admin/destinatarios",
         data={"email": "novo@multilife.com.br", "nome": "", "csrf": csrf(cliente)},
         headers={
-            "referer": "http://testserver/admin/atendimento?destinatarios_n=10&destinatarios_p=2"
+            "referer": "http://testserver/admin/atendimento/gestao?destinatarios_n=10&destinatarios_p=2"
         },
         follow_redirects=False,
     )
     assert resposta.headers["location"] == (
-        "/admin/atendimento?destinatarios_n=10&destinatarios_p=2#destinatarios"
+        "/admin/atendimento/gestao?destinatarios_n=10&destinatarios_p=2#destinatarios"
     )
 
 

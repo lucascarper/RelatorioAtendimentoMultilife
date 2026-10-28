@@ -78,3 +78,15 @@ A projeção pela "foto" dos títulos em aberto ficava fora do plausível: o SGG
 - **Projeção:** de `hoje` até o fim do mês, hoje + 59 e hoje + 89, soma o perfil de cada dia. No último dia de um mês curto entra também o que costuma cair nos dias que ele não tem (30/09 recebe o "dia 31"; 28/02 recebe 29, 30 e 31), para não perder os vencimentos de fim de mês.
 - **E-mail:** a tabela continua com entradas, saídas e saldo por horizonte, e o subtítulo diz a base ("média do que entrou e saiu em cada dia do mês de abr/2026 a set/2026 (6 meses)"). Resumos antigos, gravados sem `projecao_base`, mantêm o texto de antes.
 - **Limites:** é uma média, então não vê sazonalidade nem contratos novos ou encerrados; um mês atípico na base pesa 1/6. A regra fica em `_perfil_dia_do_mes`/`_previsto` para trocar por outra se o financeiro pedir.
+
+## Revisão: três períodos, gráfico e fluxo retrátil (v1.5.0)
+
+Revisão do cálculo contra um modelo de projeção a 90 dias em meses seguidos (saldo inicial, entradas, saídas, saldo final que vira o inicial do mês seguinte, regime de caixa e desconto de inadimplência).
+
+- **Regime de caixa e inadimplência:** já estavam certos. A base é só o que de fato foi pago ou recebido, então atraso e calote de sempre já estão descontados, sem taxa extra.
+- **Três períodos de 30 dias (`projecao_periodos`):** os 90 dias a partir de hoje viram Mês 1, 2 e 3, cada um com entradas, saídas, saldo operacional e saldo acumulado. O acumulado de um período é o saldo inicial do seguinte. As linhas até o fim do mês, 60 e 90 dias (`projecao`) continuam no resumo para telas e resumos antigos.
+- **Saldo inicial:** o SGG não informa o saldo bancário, então o acumulado parte de zero e o e-mail avisa que é só a variação projetada. Se o financeiro quiser o caixa total, falta uma fonte (por exemplo, uma configuração com o saldo do dia).
+- **Correção, base no mês de hoje:** a base era contada a partir do mês da referência. No dia 1º (relatório do dia 30/09, hoje 01/10), o mês que acabou de fechar ficava fora e a projeção usava um mês velho a menos. Agora a base são os 6 meses completos antes do mês de `hoje`, e a leitura do SGG começa por esse mês.
+- **Correção, arredondamento:** o saldo era calculado sobre os valores sem arredondar, e o e-mail podia mostrar entradas menos saídas diferente do saldo por 1 centavo. Agora o saldo sai dos valores já arredondados.
+- **Gráfico (`projecao_serie`):** entradas, saídas e saldo acumulados dia a dia (91 pontos). E-mail não executa SVG nem JavaScript, então o gráfico vai como PNG inline (`infrastructure/email/grafico.py`, sem biblioteca de imagem, com fonte de pontos embutida para os rótulos).
+- **Estrutura do e-mail:** Indicadores principais, Projeção e gráfico, Fluxo de caixa (rateio e definições depois). O fluxo de caixa do dia é uma lista retrátil (`<details>`) com todas as entradas e todas as saídas; Gmail e Outlook não suportam o elemento e mostram a lista aberta.
