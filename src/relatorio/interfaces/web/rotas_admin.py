@@ -152,8 +152,9 @@ def dashboard(
         anterior = resumir_periodo(
             antes_de, antes_ate, uow.resumos.listar_indicadores(antes_de, antes_ate)
         )
-    texto, estado, dados_de = estado_coleta(
-        situacao_coleta(ctx), ctx.settings.coletor_habilitado, ctx.settings.coleta_intervalo_s
+    coleta = situacao_coleta(ctx)
+    texto, estado, _ = estado_coleta(
+        coleta, ctx.settings.coletor_habilitado, ctx.settings.coleta_intervalo_s
     )
     return ctx.render(
         request,
@@ -163,7 +164,8 @@ def dashboard(
             "p": montar_dashboard(atual, anterior),
             "coleta": texto,
             "coleta_estado": estado,
-            "dados_de": dados_de,
+            # Com data: o último ciclo pode ser de outro dia (fim de semana, feriado).
+            "ultimo_ciclo": coleta.ultima.inicio if coleta.ultima else None,
         },
     )
 

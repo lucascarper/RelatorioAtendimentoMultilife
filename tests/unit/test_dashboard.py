@@ -144,3 +144,12 @@ def test_periodo_anterior_tem_o_mesmo_numero_de_dias() -> None:
         date(2026, 2, 28),
         date(2026, 3, 2),
     )
+    # Mês inteiro: não invade o próprio mês (seriam 01/02–03/03).
+    assert periodo_anterior(date(2026, 3, 1), date(2026, 3, 31)) == (
+        date(2026, 2, 1),
+        date(2026, 2, 28),
+    )
+    assert periodo_anterior(date(2026, 10, 1), date(2026, 10, 31)) == (
+        date(2026, 9, 1),
+        date(2026, 9, 30),
+    )

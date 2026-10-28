@@ -19,7 +19,7 @@
 <p class="faixa-coleta" aria-label="Situação da coleta">
   <strong>Coleta do SGG</strong>
   <span class="badge badge-{{ coleta_estado }}">{{ icone({"ok": "ok", "erro": "erro"}.get(coleta_estado, "relogio")) }}{{ coleta }}</span>
-  {%- if dados_de != "-" %}<span>último ciclo às {{ dados_de }}</span>{% endif %}
+  {%- if ultimo_ciclo %}<span>último ciclo em {{ ultimo_ciclo | datahora_br }}</span>{% endif %}
 </p>
 
 <form method="get" action="/admin/atendimento" class="card form form-linha periodo" aria-label="Período">
