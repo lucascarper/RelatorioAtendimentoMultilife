@@ -4,6 +4,7 @@
   <script src="/static/admin/dashboard.js" defer></script>{% endblock %}
 {% block conteudo %}
 {%- from "admin/_icones.html" import icone %}
+{%- from "admin/_cartao_kpi.html" import cartao_kpi %}
 {%- set r = p.periodo %}
 <div class="pagina-cabecalho">
   <div>
@@ -17,17 +18,8 @@
 
 <p class="faixa-coleta" aria-label="Situação da coleta">
   <strong>Coleta do SGG</strong>
-  {%- if not coletor_habilitado %}
-  <span>eventos gravados pelo coletor do painel em tempo real</span>
-  {%- elif ultimo_sucesso %}
-  <span>último ciclo às {{ ultimo_sucesso.inicio | hora_br }} de {{ ultimo_sucesso.inicio | data_br }}</span>
-    {%- if falhas_seguidas %}<span class="badge badge-erro">{{ icone("erro") }}{{ falhas_seguidas }} falha(s) seguida(s)</span>
-    {%- elif coleta_atrasada %}<span class="badge badge-erro">{{ icone("erro") }}Coleta atrasada (worker parado?)</span>
-    {%- elif em_coleta %}<span class="badge badge-ok">{{ icone("ok") }}Coletando</span>
-    {%- else %}<span class="badge badge-neutro">Fora do horário de coleta</span>{% endif %}
-  {%- else %}
-  <span class="badge badge-erro">{{ icone("erro") }}Nenhum ciclo de coleta ainda</span>
-  {%- endif %}
+  <span class="badge badge-{{ coleta_estado }}">{{ icone({"ok": "ok", "erro": "erro"}.get(coleta_estado, "relogio")) }}{{ coleta }}</span>
+  {%- if dados_de != "-" %}<span>último ciclo às {{ dados_de }}</span>{% endif %}
 </p>
 
 <form method="get" action="/admin/atendimento" class="card form form-linha periodo" aria-label="Período">
@@ -55,15 +47,7 @@
 <div class="dashboard-grade">
   <div class="kpi-grade dashboard-kpis">
     {%- for k in p.cartoes %}
-    <article class="card kpi">
-      <h3>{{ k.rotulo }}</h3>
-      <p class="valor">{{ k.valor }}</p>
-      <p class="nota">{{ k.contexto }}</p>
-      <p class="delta">
-        {%- if k.delta %}<strong class="delta-{{ k.delta.tom }}">{{ k.delta.seta }} {{ k.delta.texto }}</strong> <span class="nota">{{ k.delta.rotulo }}</span>
-        {%- else %}<span class="nota">sem base de comparação</span>{% endif -%}
-      </p>
-    </article>
+    {{ cartao_kpi(k) }}
     {%- endfor %}
   </div>
 

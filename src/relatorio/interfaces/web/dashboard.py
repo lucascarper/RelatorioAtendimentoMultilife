@@ -56,8 +56,12 @@ def escolher_periodo(inicio: str, fim: str, hoje: date) -> tuple[date, date, str
 
 
 def periodo_anterior(inicio: date, fim: date) -> tuple[date, date]:
-    """O mesmo intervalo no mês anterior (1–27/out → 1–27/set)."""
-    return subtrair_meses(inicio, 1), subtrair_meses(fim, 1)
+    """O mesmo número de dias a partir do mesmo dia do mês anterior (1–27/out → 1–27/set).
+
+    Contar os dias, e não subtrair um mês do fim, evita que 29–31/03 vire só 28/02.
+    """
+    de = subtrair_meses(inicio, 1)
+    return de, de + (fim - inicio)
 
 
 def montar_dashboard(atual: ResumoPeriodo, anterior: ResumoPeriodo) -> PainelDashboard:

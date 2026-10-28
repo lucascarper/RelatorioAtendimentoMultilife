@@ -187,6 +187,10 @@ class ResumoRepository(Protocol):
         """Resumos de ``inicio`` a ``fim`` (inclusive), do mais antigo ao mais recente."""
         ...
 
+    def listar_indicadores(self, inicio: date, fim: date) -> list[tuple[date, dict[str, Any]]]:
+        """Como ``listar_periodo``, só com kpis, por_turno, por_grupo e alertas.quantidade."""
+        ...
+
     def apagar_anteriores_a(self, limite: date) -> int: ...
 
 

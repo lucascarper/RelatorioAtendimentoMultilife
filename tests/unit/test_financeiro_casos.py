@@ -76,6 +76,21 @@ def test_consolida_e_grava_o_resumo_do_dia_anterior(sistema_financeiro: Sistema)
     assert REF not in s.banco.resumos  # não mexe no resumo do relatório de atendimentos
 
 
+def test_reprocessar_data_antiga_le_o_mes_e_a_base_inteira(sistema_financeiro: Sistema) -> None:
+    s = sistema_financeiro
+    antiga = date(2026, 2, 20)  # hoje é 28/09: a base da projeção é março a agosto
+    s.financeiro.recebidos = [
+        titulo(1, "500.00", pagamento=antiga),
+        titulo(2, "999.00", pagamento=date(2026, 2, 25)),  # depois da referência, fora da base
+        titulo(3, "600.00", pagamento=date(2026, 8, 10)),  # na base, depois da referência
+    ]
+    s.consolidar_financeiro.executar(antiga)
+    m = s.banco.resumos_financeiros[antiga].metricas
+    assert (m["caixa"]["recebido_dia"], m["caixa"]["recebido_mes"]) == (500.0, 500.0)
+    # Só o dia 10 da base: 600 / 6 meses = 100, uma vez nos 30 dias a partir de 28/09.
+    assert m["projecao_periodos"][0]["entradas"] == 100.0
+
+
 def test_envia_so_para_a_lista_do_financeiro(sistema_financeiro: Sistema) -> None:
     s = sistema_financeiro
     with s.uow() as uow:

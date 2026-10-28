@@ -6,6 +6,7 @@ from datetime import date
 from typing import Any
 
 from relatorio.domain.dashboard import resumir_periodo
+from relatorio.interfaces.web.dashboard import periodo_anterior
 
 INICIO, FIM = date(2026, 10, 1), date(2026, 10, 4)
 
@@ -120,3 +121,26 @@ def test_periodo_vazio() -> None:
     assert p.ultimo_dia is None
     assert (p.kpis.atendimentos, p.kpis.taxa_faltas, p.kpis.tma_s) == (0, None, None)
     assert len(p.dias) == 4
+
+
+def test_tma_por_grupo_pondera_pelos_atendimentos_medidos() -> None:
+    def dia(tma_guiches: int, atendidos: int, medidos: int) -> dict[str, Any]:
+        m = resumo(10, 10, 0, 60, 60, 10, atendimentos_guiches=atendidos, tma_guiches_s=tma_guiches)
+        m["por_grupo"] = {"guiches": {"atendimentos_medidos": medidos}}
+        return m
+
+    p = resumir_periodo(
+        INICIO, FIM, [(date(2026, 10, 1), dia(100, 50, 1)), (date(2026, 10, 2), dia(300, 10, 10))]
+    )
+    assert p.kpis.tma_guiches_s == round((100 * 1 + 300 * 10) / 11)  # não (100*50 + 300*10)/60
+
+
+def test_periodo_anterior_tem_o_mesmo_numero_de_dias() -> None:
+    assert periodo_anterior(date(2026, 10, 1), date(2026, 10, 27)) == (
+        date(2026, 9, 1),
+        date(2026, 9, 27),
+    )
+    assert periodo_anterior(date(2026, 3, 29), date(2026, 3, 31)) == (
+        date(2026, 2, 28),
+        date(2026, 3, 2),
+    )

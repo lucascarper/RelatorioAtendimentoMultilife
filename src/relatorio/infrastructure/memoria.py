@@ -171,6 +171,9 @@ class _Resumos:
     def listar_periodo(self, inicio: date, fim: date) -> list[ResumoRegistro]:
         return sorted((r for r in self.r.values() if inicio <= r.data <= fim), key=lambda r: r.data)
 
+    def listar_indicadores(self, inicio: date, fim: date) -> list[tuple[date, dict[str, Any]]]:
+        return [(r.data, r.metricas) for r in self.listar_periodo(inicio, fim)]
+
     def apagar_anteriores_a(self, limite: date) -> int:
         antigos = [d for d in self.r if d < limite]
         for d in antigos:

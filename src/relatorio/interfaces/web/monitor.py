@@ -308,7 +308,7 @@ def _json_ao_vivo(m: Monitor) -> dict[str, Any]:
     return dados
 
 
-def _estado_coleta(
+def estado_coleta(
     coleta: SituacaoColeta, coletor_habilitado: bool, intervalo_coleta_s: int
 ) -> tuple[str, str, str]:
     """(texto, estado, horário dos dados) da coleta que alimenta o monitor."""
@@ -343,7 +343,7 @@ def montar_painel(
     grupos_kpis = tuple(
         {**g, "cartoes": tuple(ate_o_horario(k) for k in g["cartoes"])} for g in a.grupos_kpis
     )
-    texto, estado, dados_de = _estado_coleta(coleta, coletor_habilitado, intervalo_coleta_s)
+    texto, estado, dados_de = estado_coleta(coleta, coletor_habilitado, intervalo_coleta_s)
     return PainelMonitor(
         a=a,
         narrativa=narrativa(v, a),

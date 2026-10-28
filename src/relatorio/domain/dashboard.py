@@ -7,7 +7,7 @@ os tempos médios são médias ponderadas pelo volume de cada dia (nunca média 
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
@@ -56,37 +56,47 @@ def _taxa(parte: int, todo: int) -> float | None:
     return parte / todo if todo else None
 
 
-def _somar_kpis(diarios: list[Kpis]) -> Kpis:
-    # shortcut: a quantidade de esperas medidas não é gravada no resumo; as esperas e os
-    # tempos por grupo são ponderados pelos atendimentos do dia. Gravar as contagens se
-    # a diferença para o cálculo direto do período passar a importar.
-    def ponderar(chave: str, peso: str) -> int | None:
-        return _media_ponderada((getattr(k, chave), getattr(k, peso) or 0) for k in diarios)
+def _medidos(por_grupo: Mapping[str, Any], grupo: str, padrao: int | None) -> int:
+    """Atendimentos com tempo medido no grupo; resumo sem ``por_grupo`` usa os atendimentos."""
+    valor = (por_grupo.get(grupo) or {}).get("atendimentos_medidos")
+    return int(valor) if isinstance(valor, int | float) else padrao or 0
 
-    agendados = sum(k.agendados for k in diarios)
-    faltas = sum(k.faltas for k in diarios)
-    esperas = [k.espera_maxima_s for k in diarios if k.espera_maxima_s is not None]
+
+def _somar_kpis(diarios: list[tuple[Kpis, Mapping[str, Any]]]) -> Kpis:
+    """``diarios``: os KPIs de cada dia com o ``por_grupo`` do mesmo resumo."""
+
+    # shortcut: a quantidade de esperas medidas não é gravada no resumo; as esperas são
+    # ponderadas pelos atendimentos do dia. Gravar a contagem se a diferença passar a importar.
+    def ponderar(chave: str, peso: Callable[[Kpis, Mapping[str, Any]], int | None]) -> int | None:
+        return _media_ponderada((getattr(k, chave), peso(k, g) or 0) for k, g in diarios)
+
+    ks = [k for k, _ in diarios]
+    agendados = sum(k.agendados for k in ks)
+    faltas = sum(k.faltas for k in ks)
+    esperas = [k.espera_maxima_s for k in ks if k.espera_maxima_s is not None]
     partes = (
-        ponderar("espera_recepcao_s", "atendimentos_guiches"),
-        ponderar("tma_guiches_s", "atendimentos_guiches"),
-        ponderar("espera_consultorio_s", "atendimentos_consultorios"),
-        ponderar("tma_consultorios_s", "atendimentos_consultorios"),
+        ponderar("espera_recepcao_s", lambda k, _: k.atendimentos_guiches),
+        ponderar("tma_guiches_s", lambda k, g: _medidos(g, "guiches", k.atendimentos_guiches)),
+        ponderar("espera_consultorio_s", lambda k, _: k.atendimentos_consultorios),
+        ponderar(
+            "tma_consultorios_s", lambda k, g: _medidos(g, "agendas", k.atendimentos_consultorios)
+        ),
     )
     return Kpis(
         agendados=agendados,
-        cancelados=sum(k.cancelados for k in diarios),
-        atendimentos=sum(k.atendimentos for k in diarios),
+        cancelados=sum(k.cancelados for k in ks),
+        atendimentos=sum(k.atendimentos for k in ks),
         faltas=faltas,
         taxa_faltas=_taxa(faltas, agendados),
-        sem_baixa=sum(k.sem_baixa for k in diarios),
-        espera_media_s=ponderar("espera_media_s", "atendimentos"),
+        sem_baixa=sum(k.sem_baixa for k in ks),
+        espera_media_s=ponderar("espera_media_s", lambda k, _: k.atendimentos),
         espera_mediana_s=None,  # a mediana do período não sai das medianas dos dias
         espera_maxima_s=max(esperas) if esperas else None,
-        tma_s=ponderar("tma_s", "atendimentos_medidos"),
-        atendimentos_medidos=sum(k.atendimentos_medidos for k in diarios),
-        sem_turno=sum(k.sem_turno for k in diarios),
-        atendimentos_consultorios=_soma(k.atendimentos_consultorios for k in diarios),
-        atendimentos_guiches=_soma(k.atendimentos_guiches for k in diarios),
+        tma_s=ponderar("tma_s", lambda k, _: k.atendimentos_medidos),
+        atendimentos_medidos=sum(k.atendimentos_medidos for k in ks),
+        sem_turno=sum(k.sem_turno for k in ks),
+        atendimentos_consultorios=_soma(k.atendimentos_consultorios for k in ks),
+        atendimentos_guiches=_soma(k.atendimentos_guiches for k in ks),
         espera_consultorio_s=partes[2],
         espera_recepcao_s=partes[0],
         tma_consultorios_s=partes[3],
@@ -128,22 +138,23 @@ def resumir_periodo(
 ) -> ResumoPeriodo:
     """Soma os resumos diários (data, métricas gravadas) de ``inicio`` a ``fim``."""
     do_periodo = sorted((d, m) for d, m in resumos if inicio <= d <= fim)
-    kpis_por_dia = {d: Kpis.de_dict(m.get("kpis", {})) for d, m in do_periodo}
+    # O dashboard lê só parte do JSON: chave ausente pode vir como None.
+    kpis_por_dia = {d: Kpis.de_dict(m.get("kpis") or {}) for d, m in do_periodo}
     com_movimento = {d: k for d, k in kpis_por_dia.items() if k.agendados > 0}
     return ResumoPeriodo(
         inicio=inicio,
         fim=fim,
         dias_consolidados=len(do_periodo),
         ultimo_dia=do_periodo[-1][0] if do_periodo else None,
-        kpis=_somar_kpis(list(kpis_por_dia.values())),
-        alertas=sum(int(m.get("alertas", {}).get("quantidade", 0)) for _, m in do_periodo),
+        kpis=_somar_kpis([(kpis_por_dia[d], m.get("por_grupo") or {}) for d, m in do_periodo]),
+        alertas=sum(int((m.get("alertas") or {}).get("quantidade") or 0) for _, m in do_periodo),
         por_turno=tuple(
             _somar_turno(
                 turno,
                 [
                     m["por_turno"][turno.value]
                     for _, m in do_periodo
-                    if turno.value in m.get("por_turno", {})
+                    if turno.value in (m.get("por_turno") or {})
                 ],
             )
             for turno in Turno

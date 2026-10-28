@@ -42,7 +42,7 @@ from relatorio.interfaces.web.dependencias import (
     redirecionar,
     situacao_coleta,
 )
-from relatorio.interfaces.web.monitor import PainelMonitor, montar_painel
+from relatorio.interfaces.web.monitor import PainelMonitor, estado_coleta, montar_painel
 from relatorio.interfaces.web.paginacao import paginar, voltar_para
 
 log = structlog.get_logger(__name__)
@@ -145,27 +145,25 @@ def dashboard(
     de, ate, erro = escolher_periodo(inicio, fim, ctx.hoje())
     if erro:
         mensagem(request, erro, "erro")
-    antes_de, antes_ate = periodo_anterior(de, ate)
-    coleta = situacao_coleta(ctx)
     with ctx.container.uow() as uow:
-        atuais = uow.resumos.listar_periodo(de, ate)
-        anteriores = uow.resumos.listar_periodo(antes_de, antes_ate)
-        falhas_seguidas = uow.execucoes.falhas_consecutivas("coletar_ciclo")
-    painel = montar_dashboard(
-        resumir_periodo(de, ate, [(r.data, r.metricas) for r in atuais]),
-        resumir_periodo(antes_de, antes_ate, [(r.data, r.metricas) for r in anteriores]),
+        atual = resumir_periodo(de, ate, uow.resumos.listar_indicadores(de, ate))
+        # Compara só até o último dia consolidado: dia ainda sem resumo não pesa contra.
+        antes_de, antes_ate = periodo_anterior(de, atual.ultimo_dia or ate)
+        anterior = resumir_periodo(
+            antes_de, antes_ate, uow.resumos.listar_indicadores(antes_de, antes_ate)
+        )
+    texto, estado, dados_de = estado_coleta(
+        situacao_coleta(ctx), ctx.settings.coletor_habilitado, ctx.settings.coleta_intervalo_s
     )
     return ctx.render(
         request,
         "admin/dashboard.html",
         {
             "pagina": "dashboard",
-            "p": painel,
-            "ultimo_sucesso": coleta.ultima,
-            "coleta_atrasada": coleta.atrasada,
-            "em_coleta": coleta.em_coleta,
-            "falhas_seguidas": falhas_seguidas,
-            "coletor_habilitado": ctx.settings.coletor_habilitado,
+            "p": montar_dashboard(atual, anterior),
+            "coleta": texto,
+            "coleta_estado": estado,
+            "dados_de": dados_de,
         },
     )
 
