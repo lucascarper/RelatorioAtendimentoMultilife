@@ -128,7 +128,7 @@ def test_destinatario_autorizado_a_receber_a_planilha(
 ) -> None:
     token = entrar(cliente)
     cliente.post("/admin/destinatarios", data={"email": "rh@multilife.com.br", "csrf": token})
-    pagina = cliente.get("/admin/atendimento")
+    pagina = cliente.get("/admin/atendimento/gestao")
     assert "Planilha (LGPD)" in pagina.text and "Não recebe" in pagina.text
     with uow() as u:
         (destinatario,) = [d for d in u.destinatarios.listar() if d.email == "rh@multilife.com.br"]
@@ -163,11 +163,11 @@ def test_so_quem_tem_configuracoes_autoriza_a_planilha(
     cliente.post("/admin/destinatarios", data={"email": "rh@multilife.com.br", "csrf": token})
     criar(cliente, token, modulos=("atendimento",))
     assert entrar_como(outro, "ana", "senha-da-ana-1") == 303
-    pagina = outro.get("/admin/atendimento")
+    pagina = outro.get("/admin/atendimento/gestao")
     assert "Planilha (LGPD)" in pagina.text
     assert "/anexo" not in pagina.text  # vê a situação, mas sem a chave
     assert "Só quem tem o módulo Configurações altera" in pagina.text
-    token_ana = csrf(outro, "/admin/atendimento")
+    token_ana = csrf(outro, "/admin/atendimento/gestao")
     resposta = outro.post(
         "/admin/destinatarios/1/anexo",
         data={"recebe": "true"},

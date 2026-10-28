@@ -23,10 +23,12 @@ from relatorio.application.configuracao import (
 )
 from relatorio.application.ports import ErroIntegracao
 from relatorio.domain.acesso import CONFIGURACOES, Acesso
+from relatorio.domain.dashboard import resumir_periodo
 from relatorio.domain.metricas import RegrasMetricas
 from relatorio.domain.turnos import ConfiguracaoTurnos
 from relatorio.infrastructure.container import Container
 from relatorio.interfaces.demo import html_para_navegador
+from relatorio.interfaces.web.dashboard import escolher_periodo, montar_dashboard, periodo_anterior
 from relatorio.interfaces.web.dependencias import (
     URL_MODULO,
     ContextoWeb,
@@ -45,6 +47,7 @@ from relatorio.interfaces.web.paginacao import paginar, voltar_para
 
 log = structlog.get_logger(__name__)
 router = APIRouter(prefix="/admin")
+URL_GESTAO = "/admin/atendimento/gestao"
 
 JOB_REPROCESSAR = "reprocessar"
 EMAIL_VALIDO = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -135,7 +138,40 @@ def inicio(request: Request, ctx: Ctx, acesso: Usuario) -> Response:
 
 
 @router.get("/atendimento", response_class=HTMLResponse)
-def atendimento(request: Request, ctx: Ctx, acesso: UsuarioAtendimento) -> HTMLResponse:
+def dashboard(
+    request: Request, ctx: Ctx, _usuario: UsuarioAtendimento, inicio: str = "", fim: str = ""
+) -> HTMLResponse:
+    """Indicadores do período (padrão: o mês até ontem), só com dias já consolidados."""
+    de, ate, erro = escolher_periodo(inicio, fim, ctx.hoje())
+    if erro:
+        mensagem(request, erro, "erro")
+    antes_de, antes_ate = periodo_anterior(de, ate)
+    coleta = situacao_coleta(ctx)
+    with ctx.container.uow() as uow:
+        atuais = uow.resumos.listar_periodo(de, ate)
+        anteriores = uow.resumos.listar_periodo(antes_de, antes_ate)
+        falhas_seguidas = uow.execucoes.falhas_consecutivas("coletar_ciclo")
+    painel = montar_dashboard(
+        resumir_periodo(de, ate, [(r.data, r.metricas) for r in atuais]),
+        resumir_periodo(antes_de, antes_ate, [(r.data, r.metricas) for r in anteriores]),
+    )
+    return ctx.render(
+        request,
+        "admin/dashboard.html",
+        {
+            "pagina": "dashboard",
+            "p": painel,
+            "ultimo_sucesso": coleta.ultima,
+            "coleta_atrasada": coleta.atrasada,
+            "em_coleta": coleta.em_coleta,
+            "falhas_seguidas": falhas_seguidas,
+            "coletor_habilitado": ctx.settings.coletor_habilitado,
+        },
+    )
+
+
+@router.get("/atendimento/gestao", response_class=HTMLResponse)
+def gestao(request: Request, ctx: Ctx, acesso: UsuarioAtendimento) -> HTMLResponse:
     coleta = situacao_coleta(ctx)
     with ctx.container.uow() as uow:
         resumos = uow.resumos.listar_recentes(14)
@@ -236,7 +272,7 @@ def reprocessar(
 ) -> RedirectResponse:
     if dia > ctx.hoje():
         mensagem(request, "Não é possível reprocessar uma data futura.", "erro")
-        return redirecionar("/admin/atendimento")
+        return redirecionar(URL_GESTAO)
     # Reconciliar com o SGG (limitado a SGG_MAX_RPM) e enviar por SMTP pode levar
     # minutos: roda depois da resposta, para o proxy da Railway não derrubar a requisição.
     tarefas.add_task(reprocessar_em_segundo_plano, ctx.container, dia, reconciliar, enviar)
@@ -246,7 +282,7 @@ def reprocessar(
         f"Reprocessamento de {dia:%d/%m/%Y} iniciado. O resultado aparece em Execuções"
         " (Reprocessamento pelo admin) assim que terminar.",
     )
-    return redirecionar("/admin/atendimento")
+    return redirecionar(URL_GESTAO)
 
 
 def reprocessar_em_segundo_plano(
@@ -283,7 +319,7 @@ def resumir_reprocessamento(detalhe: dict[str, object]) -> dict[str, object]:
 @router.get("/destinatarios")
 def destinatarios() -> RedirectResponse:
     """Os destinatários agora ficam dentro do módulo Atendimento (links antigos)."""
-    return redirecionar("/admin/atendimento#destinatarios")
+    return redirecionar(f"{URL_GESTAO}#destinatarios")
 
 
 @router.post("/destinatarios")
@@ -303,7 +339,7 @@ def adicionar_destinatario(
             uow.destinatarios.adicionar(email, nome.strip()[:120] or None)
             uow.commit()
         mensagem(request, f"{email} cadastrado e ativo.")
-    return redirecionar(voltar_para(request, "/admin/atendimento#destinatarios"))
+    return redirecionar(voltar_para(request, f"{URL_GESTAO}#destinatarios"))
 
 
 def _linha_destinatario(

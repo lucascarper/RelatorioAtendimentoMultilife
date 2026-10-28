@@ -78,6 +78,7 @@ class TestModulosDoMenu:
         pagina = cliente.get("/admin/atendimento")
         assert itens_do_menu(pagina.text) == [
             "Atendimento",
+            "Atendimento ao VIVO",
             "Financeiro",
             "SESMT",
             "Configurações",
@@ -86,21 +87,25 @@ class TestModulosDoMenu:
         assert "Sistema de Relatórios" in pagina.text
         assert re.search(r'href="/admin/atendimento"[^>]*aria-current="page"', pagina.text)
 
-    def test_atendimento_reune_painel_destinatarios_e_atalhos(self, cliente: TestClient) -> None:  # noqa: F811
+    def test_atendimento_dashboard_gestao_e_atalho_ao_vivo(self, cliente: TestClient) -> None:  # noqa: F811
         entrar(cliente)
-        pagina = cliente.get("/admin/atendimento").text
-        assert "Reprocessar ou reenviar uma data" in pagina
-        assert 'id="destinatarios"' in pagina and "Cadastrar" in pagina
-        assert 'href="/admin/monitor" class="btn btn-primario"' in pagina
-        assert "Acompanhar AO VIVO" in pagina
-        assert 'href="/admin/agendas" class="btn btn-secundario"' in pagina
-        assert "Configurar Agendas" in pagina
-        # As telas de apoio voltam para o módulo, e o menu continua em Atendimento.
+        dashboard = cliente.get("/admin/atendimento").text
+        assert 'href="/admin/atendimento/gestao" class="btn btn-secundario"' in dashboard
+        assert "Configurar Agendas" not in dashboard and "Acompanhar AO VIVO" not in dashboard
+        gestao = cliente.get("/admin/atendimento/gestao").text
+        assert "Reprocessar ou reenviar uma data" in gestao
+        assert 'id="destinatarios"' in gestao and "Cadastrar" in gestao
+        assert "&larr; Dashboard" in gestao
+        assert 'href="/admin/agendas" class="btn btn-secundario"' in gestao
+        assert "Acompanhar AO VIVO" not in gestao  # virou item do menu
+        assert re.search(r'href="/admin/atendimento"[^>]*aria-current="page"', gestao)
+        # O monitor marca o atalho do menu; as agendas voltam para a gestão.
         monitor = cliente.get("/admin/monitor").text
-        assert 'href="/admin/atendimento"' in monitor
-        assert re.search(r'href="/admin/atendimento"[^>]*aria-current="page"', monitor)
+        assert 'class="menu-ao-vivo"' in monitor
+        assert re.search(r'href="/admin/monitor"[^>]*aria-current="page"', monitor)
+        assert not re.search(r'href="/admin/atendimento"[^>]*aria-current="page"', monitor)
         agendas = cliente.get("/admin/agendas").text
-        assert "&larr; Atendimento" in agendas
+        assert "&larr; Gestão do relatório" in agendas
         assert re.search(r'href="/admin/atendimento"[^>]*aria-current="page"', agendas)
 
     def test_inicio_leva_ao_primeiro_modulo_e_links_antigos_continuam(
@@ -111,7 +116,7 @@ class TestModulosDoMenu:
         inicio = cliente.get("/admin", follow_redirects=False)
         assert (inicio.status_code, inicio.headers["location"]) == (303, "/admin/atendimento")
         antigo = cliente.get("/admin/destinatarios", follow_redirects=False)
-        assert antigo.headers["location"] == "/admin/atendimento#destinatarios"
+        assert antigo.headers["location"] == "/admin/atendimento/gestao#destinatarios"
 
     def test_configuracoes_tem_as_abas_regras_e_usuarios(self, cliente: TestClient) -> None:  # noqa: F811
         entrar(cliente)
@@ -228,6 +233,7 @@ class TestLoginEPermissoes:
             "/admin/execucoes",
             "/admin/configuracoes",
             URL,
+            "/admin/atendimento/gestao",
             "/admin/monitor",
             "/admin/agendas",
         ):

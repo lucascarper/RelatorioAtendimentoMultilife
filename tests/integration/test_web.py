@@ -156,7 +156,8 @@ class TestPaginas:
     @pytest.mark.parametrize(
         ("url", "texto"),
         [
-            ("/admin", "Reprocessar ou reenviar uma data"),
+            ("/admin", "Gestão do relatório"),
+            ("/admin/atendimento/gestao", "Reprocessar ou reenviar uma data"),
             ("/admin/destinatarios", "Cadastrar"),
             ("/admin/agendas", "Agendas (consultórios e guichês)"),
             ("/admin/configuracoes", "Início da tarde (corte)"),
@@ -284,7 +285,7 @@ class TestReprocessamento:
         assert previa.headers["Content-Security-Policy"].startswith("default-src 'none'")
         assert cliente.get("/admin/relatorios/2020-01-01").status_code == 404
 
-        painel = cliente.get("/admin").text
+        painel = cliente.get("/admin/atendimento/gestao").text
         assert "</svg>Enviado" in painel
 
     def test_data_futura_recusada(self, cliente: TestClient) -> None:
@@ -293,6 +294,68 @@ class TestReprocessamento:
             "/admin/relatorios/reprocessar", data={"data": "2030-01-01", "csrf": token}
         )
         assert "data futura" in resposta.text
+
+
+class TestDashboard:
+    @staticmethod
+    def metricas(atendimentos: int, faltas: int) -> dict[str, object]:
+        agendados = atendimentos + faltas
+        return {
+            "kpis": {
+                "agendados": agendados,
+                "atendimentos": atendimentos,
+                "faltas": faltas,
+                "espera_media_s": 600,
+                "tma_s": 900,
+                "atendimentos_medidos": atendimentos,
+            },
+            "por_turno": {},
+            "alertas": {"quantidade": 1},
+        }
+
+    def test_mes_ate_ontem_comparado_com_o_mes_anterior(
+        self, cliente: TestClient, uow: FabricaUoW, relogio: RelogioFixo
+    ) -> None:
+        with uow() as u:
+            for dia, atendimentos in ((DIA, 8), (DIA.replace(month=8, day=10), 4)):
+                u.resumos.salvar_metricas(
+                    dia, self.metricas(atendimentos, 2), "1.3.0", relogio.instante
+                )
+            u.resumos.salvar_metricas(  # fora do intervalo do mês anterior (1–23/08)
+                DIA.replace(month=8, day=30), self.metricas(50, 0), "1.3.0", relogio.instante
+            )
+            u.commit()
+        entrar(cliente)
+        pagina = cliente.get("/admin/atendimento").text
+        assert "01/09/2026 a 23/09/2026" in pagina  # hoje é 24/09: até ontem
+        assert "dados consolidados até 23/09/2026" in pagina
+        assert "comparado com 01/08 a 23/08" in pagina
+        assert "▲ +100,0%" in pagina  # 8 atendimentos contra 4
+        assert 'id="dados-grafico"' in pagina and "/static/admin/chart.umd.min.js" in pagina
+        assert "Sem dados consolidados" not in pagina
+
+    def test_periodo_vazio_e_periodo_escolhido(self, cliente: TestClient) -> None:
+        entrar(cliente)
+        assert "Sem dados consolidados neste período" in cliente.get("/admin/atendimento").text
+        pagina = cliente.get("/admin/atendimento?inicio=2026-09-10&fim=2026-09-20").text
+        assert "10/09/2026 a 20/09/2026" in pagina
+
+    @pytest.mark.parametrize(
+        ("consulta", "erro"),
+        [
+            ("inicio=2026-08-01&fim=2026-09-20", "no máximo 31 dias"),
+            ("inicio=2026-09-20&fim=2026-09-10", "igual ou posterior à data inicial"),
+            ("inicio=2026-09-20&fim=2026-09-30", "não pode ser no futuro"),
+            ("inicio=x&fim=", "Informe a data inicial e a data final"),
+        ],
+    )
+    def test_periodo_invalido_volta_ao_padrao(
+        self, cliente: TestClient, consulta: str, erro: str
+    ) -> None:
+        entrar(cliente)
+        pagina = cliente.get(f"/admin/atendimento?{consulta}").text
+        assert erro in pagina
+        assert "01/09/2026 a 23/09/2026" in pagina
 
 
 class TestMonitor:

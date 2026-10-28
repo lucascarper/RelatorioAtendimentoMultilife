@@ -1,0 +1,119 @@
+{% extends "admin/base.html" %}
+{% block titulo %}Atendimento{% endblock %}
+{% block scripts %}<script src="/static/admin/chart.umd.min.js" defer></script>
+  <script src="/static/admin/dashboard.js" defer></script>{% endblock %}
+{% block conteudo %}
+{%- from "admin/_icones.html" import icone %}
+{%- set r = p.periodo %}
+<div class="pagina-cabecalho">
+  <div>
+    <h1>Atendimento</h1>
+    <p class="nota">{{ r.inicio | data_br }} a {{ r.fim | data_br }}{% if r.ultimo_dia %} · dados consolidados até {{ r.ultimo_dia | data_br }}{% endif %}</p>
+  </div>
+  <div class="pagina-acoes">
+    <a href="/admin/atendimento/gestao" class="btn btn-secundario">Gestão do relatório</a>
+  </div>
+</div>
+
+<p class="faixa-coleta" aria-label="Situação da coleta">
+  <strong>Coleta do SGG</strong>
+  {%- if not coletor_habilitado %}
+  <span>eventos gravados pelo coletor do painel em tempo real</span>
+  {%- elif ultimo_sucesso %}
+  <span>último ciclo às {{ ultimo_sucesso.inicio | hora_br }} de {{ ultimo_sucesso.inicio | data_br }}</span>
+    {%- if falhas_seguidas %}<span class="badge badge-erro">{{ icone("erro") }}{{ falhas_seguidas }} falha(s) seguida(s)</span>
+    {%- elif coleta_atrasada %}<span class="badge badge-erro">{{ icone("erro") }}Coleta atrasada (worker parado?)</span>
+    {%- elif em_coleta %}<span class="badge badge-ok">{{ icone("ok") }}Coletando</span>
+    {%- else %}<span class="badge badge-neutro">Fora do horário de coleta</span>{% endif %}
+  {%- else %}
+  <span class="badge badge-erro">{{ icone("erro") }}Nenhum ciclo de coleta ainda</span>
+  {%- endif %}
+</p>
+
+<form method="get" action="/admin/atendimento" class="card form form-linha periodo" aria-label="Período">
+  <label>Data inicial
+    <input type="date" name="inicio" value="{{ r.inicio.isoformat() }}" max="{{ data_hoje.isoformat() }}" required>
+  </label>
+  <label>Data final
+    <input type="date" name="fim" value="{{ r.fim.isoformat() }}" max="{{ data_hoje.isoformat() }}" required>
+  </label>
+  <button type="submit" class="btn btn-primario">Aplicar</button>
+  <a href="/admin/atendimento" class="btn btn-secundario">Mês atual</a>
+  <span class="nota">Até 31 dias. Só entram dias já consolidados (às 23:00).</span>
+</form>
+
+{% if r.vazio %}
+<section class="card vazio">
+  <h2>Sem dados consolidados neste período</h2>
+  <p class="nota">Cada dia é consolidado às 23:00. Escolha outro período ou volte amanhã.</p>
+</section>
+{% else %}
+<div class="secao-titulo">
+  <h2>Indicadores do período</h2>
+  <span class="nota">{{ p.comparacao }}</span>
+</div>
+<div class="dashboard-grade">
+  <div class="kpi-grade dashboard-kpis">
+    {%- for k in p.cartoes %}
+    <article class="card kpi">
+      <h3>{{ k.rotulo }}</h3>
+      <p class="valor">{{ k.valor }}</p>
+      <p class="nota">{{ k.contexto }}</p>
+      <p class="delta">
+        {%- if k.delta %}<strong class="delta-{{ k.delta.tom }}">{{ k.delta.seta }} {{ k.delta.texto }}</strong> <span class="nota">{{ k.delta.rotulo }}</span>
+        {%- else %}<span class="nota">sem base de comparação</span>{% endif -%}
+      </p>
+    </article>
+    {%- endfor %}
+  </div>
+
+  <section class="card dashboard-turnos" aria-labelledby="t-turnos">
+    <h2 id="t-turnos">Por turno</h2>
+    <div class="rolagem">
+    <table class="tabela tabela-compacta">
+      <thead>
+        <tr><th>Turno</th><th class="num">Atendimentos</th><th class="num">Faltas</th><th class="num">Espera média</th><th class="num">TMA</th></tr>
+      </thead>
+      <tbody>
+      {%- for t in r.por_turno %}
+        <tr>
+          <td><strong>{{ t.rotulo }}</strong>{% if t.faixa %}<span class="nota faixa">{{ t.faixa }}</span>{% endif %}</td>
+          <td class="num">{{ t.atendimentos | numero }}</td>
+          <td class="num">{{ t.faltas | numero }} <span class="nota">({{ t.taxa_faltas | percentual }})</span></td>
+          <td class="num">{{ t.espera_media_s | duracao }}</td>
+          <td class="num">{{ t.tma_s | duracao }}</td>
+        </tr>
+      {%- endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section class="card dashboard-grafico" aria-labelledby="t-grafico">
+    <h2 id="t-grafico">Atendimentos e faltas por dia</h2>
+    <p class="nota">Dias sem movimento ou ainda não consolidados ficam sem barra.</p>
+    <div class="grafico-dias">
+      <canvas id="grafico-dias" role="img" aria-label="Gráfico de barras com os atendimentos e as faltas de cada dia de {{ r.inicio | data_br }} a {{ r.fim | data_br }}. Os números estão na tabela abaixo."></canvas>
+    </div>
+    <script type="application/json" id="dados-grafico">{{ p.grafico | tojson }}</script>
+    <details class="tabela-alternativa">
+      <summary>Ver os números em tabela</summary>
+      <div class="rolagem">
+      <table class="tabela tabela-compacta">
+        <thead><tr><th>Dia</th><th class="num">Atendimentos</th><th class="num">Faltas</th></tr></thead>
+        <tbody>
+        {%- for d in r.dias %}
+          <tr>
+            <td>{{ d.data | data_br }} <span class="nota">{{ (d.data | dia_semana)[:3] }}</span></td>
+            {%- if d.atendimentos is none %}<td colspan="2" class="nota">Sem movimento ou não consolidado</td>
+            {%- else %}<td class="num">{{ d.atendimentos | numero }}</td><td class="num">{{ d.faltas | numero }}</td>{% endif %}
+          </tr>
+        {%- endfor %}
+        </tbody>
+      </table>
+      </div>
+    </details>
+  </section>
+</div>
+{% endif %}
+{% endblock %}
