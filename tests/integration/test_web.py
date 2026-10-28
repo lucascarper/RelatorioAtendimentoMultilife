@@ -388,7 +388,7 @@ class TestMonitor:
         pagina = cliente.get("/admin/monitor")
         assert pagina.status_code == 200
         assert re.search(
-            r'aria-current="page">[^<]*(<[^>]+>[^<]*)*Atendimento</span></a>', pagina.text
+            r'aria-current="page">[^<]*(<[^>]+>[^<]*)*Atendimento ao VIVO</span></a>', pagina.text
         )
         assert "/static/admin/monitor.js" in pagina.text
         assert "1 pessoa na recepção agora; a maior espera é de 20 min." in pagina.text
