@@ -1,0 +1,27 @@
+{#- Gráfico diário dos dashboards: canvas (desenhado por dashboard.js com o JSON ao lado) e
+    a mesma informação em tabela, para quem não enxerga o gráfico. Recebe a configuração
+    montada por ``interfaces/web/dashboard.grafico``. -#}
+{% macro grafico(g) -%}
+<div class="grafico-dias">
+  <canvas id="{{ g.id }}" data-grafico role="img" aria-label="{{ g.titulo }}: {{ g.nota }} Os números estão na tabela abaixo."></canvas>
+</div>
+<script type="application/json" id="dados-{{ g.id }}">{{ g | tojson }}</script>
+<details class="tabela-alternativa">
+  <summary>Ver os números em tabela</summary>
+  <div class="rolagem">
+  <table class="tabela tabela-compacta">
+    <thead><tr><th>Dia</th>{% for s in g.series %}<th class="num">{{ s.rotulo }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {%- for rotulo in g.rotulos %}{% set i = loop.index0 %}
+      <tr>
+        <td>{{ rotulo }}</td>
+        {%- for s in g.series %}{% set v = s.dados[i] %}
+        <td class="num">{% if v is none %}<span class="nota">—</span>{% elif g.formato == "moeda" %}{{ v | moeda }}{% else %}{{ v | numero }}{% endif %}</td>
+        {%- endfor %}
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  </div>
+</details>
+{%- endmacro %}

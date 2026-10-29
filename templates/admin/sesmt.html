@@ -1,9 +1,10 @@
 {% extends "admin/base.html" %}
-{% block titulo %}Relatório do SESMT{% endblock %}
+{% block titulo %}Gestão do relatório do SESMT{% endblock %}
 {% block conteudo %}
 {%- from "admin/_paginacao.html" import rodape %}
 {%- from "admin/_icones.html" import icone %}
-<div class="pagina-cabecalho"><h1>Relatório do SESMT</h1></div>
+<p class="voltar"><a href="/admin/sesmt">&larr; Dashboard</a></p>
+<div class="pagina-cabecalho"><h1>Gestão do relatório do SESMT</h1></div>
 <p class="subtitulo-pagina">Relatório de gestão diário: documentos e contratos a vencer, vencidos e eventos do eSocial.</p>
 
 {% if not habilitado %}

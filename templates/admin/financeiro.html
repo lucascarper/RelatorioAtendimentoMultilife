@@ -1,9 +1,10 @@
 {% extends "admin/base.html" %}
-{% block titulo %}Relatório financeiro{% endblock %}
+{% block titulo %}Gestão do relatório financeiro{% endblock %}
 {% block conteudo %}
 {%- from "admin/_paginacao.html" import rodape %}
 {%- from "admin/_icones.html" import icone %}
-<h1>Relatório financeiro</h1>
+<p class="voltar"><a href="/admin/financeiro">&larr; Dashboard</a></p>
+<h1>Gestão do relatório financeiro</h1>
 
 {% if not habilitado %}
 <div class="mensagem mensagem-aviso">{{ icone("aviso") }}<span>O envio automático está desligado (<code>FINANCEIRO_HABILITADO=false</code>). Gere a prévia abaixo, confira os números com o financeiro e só então ligue a variável no worker na Railway.</span></div>

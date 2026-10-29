@@ -15,8 +15,10 @@ from relatorio.application.sesmt import (
     formatar_nomes_grupos,
     ler_nomes_grupos,
 )
+from relatorio.domain.dashboard_sesmt import CAMPOS, resumir_sesmt
 from relatorio.infrastructure.container import Container
 from relatorio.interfaces.demo import html_para_navegador
+from relatorio.interfaces.web.dashboard import carregar_periodos, escolher_periodo, montar_sesmt
 from relatorio.interfaces.web.dependencias import Csrf, Ctx, UsuarioSesmt, mensagem, redirecionar
 from relatorio.interfaces.web.paginacao import paginar, voltar_para
 from relatorio.interfaces.web.rotas_admin import EMAIL_VALIDO
@@ -26,6 +28,7 @@ router = APIRouter(prefix="/admin/sesmt")
 
 JOB_REPROCESSAR_SESMT = "reprocessar_sesmt"
 URL = "/admin/sesmt"
+URL_GESTAO = f"{URL}/gestao"
 CSP_PREVIA = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; frame-ancestors 'self'"
 
 
@@ -35,6 +38,34 @@ def _email_valido(email: str) -> bool:
 
 
 @router.get("", response_class=HTMLResponse)
+def dashboard(
+    request: Request, ctx: Ctx, _usuario: UsuarioSesmt, inicio: str = "", fim: str = ""
+) -> HTMLResponse:
+    """Indicadores do período (padrão: o mês até ontem), só com dias que têm resumo."""
+    de, ate, erro = escolher_periodo(inicio, fim, ctx.hoje())
+    if erro:
+        mensagem(request, erro, "erro")
+    with ctx.container.uow() as uow:
+        repositorio = uow.resumos_sesmt
+        atual, anterior = carregar_periodos(repositorio, de, ate, CAMPOS, resumir_sesmt)
+        recentes = repositorio.listar_recentes(1)
+    return ctx.render(
+        request,
+        "admin/dashboard_relatorio.html",
+        {
+            "pagina": "dashboard_sesmt",
+            "titulo": "SESMT",
+            "p": montar_sesmt(atual, anterior),
+            "url": URL,
+            "url_gestao": URL_GESTAO,
+            "nota_periodo": "Até 31 dias. O resumo de cada dia é gerado às 02:00 do dia seguinte.",
+            "habilitado": ctx.settings.sesmt_habilitado,
+            "ultimo_resumo": recentes[0] if recentes else None,
+        },
+    )
+
+
+@router.get("/gestao", response_class=HTMLResponse)
 def sesmt(request: Request, ctx: Ctx, _usuario: UsuarioSesmt) -> HTMLResponse:
     with ctx.container.uow() as uow:
         resumos = uow.resumos_sesmt.listar_recentes(14)
@@ -81,7 +112,7 @@ def reprocessar_sesmt(
 ) -> RedirectResponse:
     if dia >= ctx.hoje():
         mensagem(request, "O relatório do SESMT é do dia anterior: escolha até ontem.", "erro")
-        return redirecionar(URL)
+        return redirecionar(URL_GESTAO)
     tarefas.add_task(reprocessar_em_segundo_plano, ctx.container, dia, enviar)
     log.info("sesmt_reprocessamento_agendado", referencia=dia.isoformat(), enviar=enviar)
     mensagem(
@@ -89,7 +120,7 @@ def reprocessar_sesmt(
         f"Coleta do SESMT de {dia:%d/%m/%Y} iniciada. São cerca de 1.700 consultas ao SGG e leva"
         " mais de uma hora. O resultado aparece nesta página e em Execuções.",
     )
-    return redirecionar(URL)
+    return redirecionar(URL_GESTAO)
 
 
 def reprocessar_em_segundo_plano(container: Container, dia: date, enviar: bool) -> None:
@@ -127,7 +158,7 @@ def adicionar_destinatario_sesmt(
             uow.destinatarios_sesmt.adicionar(email, nome.strip()[:120] or None)
             uow.commit()
         mensagem(request, f"{email} cadastrado na lista do relatório do SESMT.")
-    return redirecionar(voltar_para(request, f"{URL}#destinatarios"))
+    return redirecionar(voltar_para(request, f"{URL_GESTAO}#destinatarios"))
 
 
 @router.post("/destinatarios/{id_destinatario}/ativo", response_class=HTMLResponse)
@@ -170,4 +201,4 @@ def salvar_nomes_grupos(
         "Nomes dos grupos salvos. Valem a partir da próxima coleta"
         " (reprocesse uma data para ver agora).",
     )
-    return redirecionar(URL)
+    return redirecionar(URL_GESTAO)

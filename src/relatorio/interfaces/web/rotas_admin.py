@@ -23,12 +23,16 @@ from relatorio.application.configuracao import (
 )
 from relatorio.application.ports import ErroIntegracao
 from relatorio.domain.acesso import CONFIGURACOES, Acesso
-from relatorio.domain.dashboard import resumir_periodo
+from relatorio.domain.dashboard import CAMPOS, resumir_periodo
 from relatorio.domain.metricas import RegrasMetricas
 from relatorio.domain.turnos import ConfiguracaoTurnos
 from relatorio.infrastructure.container import Container
 from relatorio.interfaces.demo import html_para_navegador
-from relatorio.interfaces.web.dashboard import escolher_periodo, montar_dashboard, periodo_anterior
+from relatorio.interfaces.web.dashboard import (
+    carregar_periodos,
+    escolher_periodo,
+    montar_dashboard,
+)
 from relatorio.interfaces.web.dependencias import (
     URL_MODULO,
     ContextoWeb,
@@ -146,12 +150,7 @@ def dashboard(
     if erro:
         mensagem(request, erro, "erro")
     with ctx.container.uow() as uow:
-        atual = resumir_periodo(de, ate, uow.resumos.listar_indicadores(de, ate))
-        # Compara só até o último dia consolidado: dia ainda sem resumo não pesa contra.
-        antes_de, antes_ate = periodo_anterior(de, atual.ultimo_dia or ate)
-        anterior = resumir_periodo(
-            antes_de, antes_ate, uow.resumos.listar_indicadores(antes_de, antes_ate)
-        )
+        atual, anterior = carregar_periodos(uow.resumos, de, ate, CAMPOS, resumir_periodo)
     coleta = situacao_coleta(ctx)
     texto, estado, _ = estado_coleta(
         coleta, ctx.settings.coletor_habilitado, ctx.settings.coleta_intervalo_s

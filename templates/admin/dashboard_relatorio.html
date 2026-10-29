@@ -1,0 +1,79 @@
+{#- Dashboard do financeiro e do SESMT: o mesmo layout, com os cartões e gráficos de cada um
+    (montados em interfaces/web/dashboard.py). -#}
+{% extends "admin/base.html" %}
+{% block titulo %}{{ titulo }}{% endblock %}
+{% block scripts %}<script src="/static/admin/chart.umd.min.js" defer></script>
+  <script src="/static/admin/dashboard.js" defer></script>{% endblock %}
+{% block conteudo %}
+{%- from "admin/_icones.html" import icone %}
+{%- from "admin/_cartao_kpi.html" import cartao_kpi %}
+{%- from "admin/_grafico.html" import grafico %}
+<div class="pagina-cabecalho">
+  <div>
+    <h1>{{ titulo }}</h1>
+    <p class="nota">{{ p.inicio | data_br }} a {{ p.fim | data_br }}{% if p.ultimo_dia %} · resumos até {{ p.ultimo_dia | data_br }}{% endif %}</p>
+  </div>
+  <div class="pagina-acoes">
+    <a href="{{ url_gestao }}" class="btn btn-secundario">Gestão do relatório</a>
+  </div>
+</div>
+
+<p class="faixa-coleta" aria-label="Situação do relatório">
+  <strong>Envio automático</strong>
+  {%- if habilitado %}<span class="badge badge-ok">{{ icone("ok") }}Ligado</span>
+  {%- else %}<span class="badge badge-neutro">{{ icone("aviso") }}Desligado</span>{% endif %}
+  {%- if ultimo_resumo %}<span>último resumo gerado em {{ ultimo_resumo.gerado_em | datahora_br }}</span>{% endif %}
+</p>
+
+{% with inicio=p.inicio, fim=p.fim, nota=nota_periodo %}{% include "admin/_periodo.html" %}{% endwith %}
+
+{% if p.vazio %}
+<section class="card vazio">
+  <h2>Sem resumos neste período</h2>
+  <p class="nota">Escolha outro período, ou gere os dias pela gestão do relatório.</p>
+</section>
+{% else %}
+{%- for g in p.grupos %}
+<div class="secao-titulo">
+  <h2>{{ g.titulo }}</h2>
+  <span class="nota">{{ g.comparacao }}</span>
+</div>
+<div class="kpi-grade kpi-grade-relatorio{% if g.cartoes | length == 3 %} kpi-grade-3{% endif %}">
+  {%- for k in g.cartoes %}
+  {{ cartao_kpi(k) }}
+  {%- endfor %}
+</div>
+{%- endfor %}
+
+<div class="dashboard-graficos">
+  {%- for g in p.graficos %}
+  <section class="card" aria-labelledby="t-{{ g.id }}">
+    <h2 id="t-{{ g.id }}">{{ g.titulo }}</h2>
+    <p class="nota">{{ g.nota }}</p>
+    {{ grafico(g) }}
+  </section>
+  {%- endfor %}
+</div>
+
+{%- if p.tabela %}
+<section class="card" aria-labelledby="t-tabela">
+  <h2 id="t-tabela">{{ p.tabela.titulo }}</h2>
+  <p class="nota">{{ p.tabela.nota }}</p>
+  {%- if p.tabela.linhas %}
+  <div class="rolagem">
+  <table class="tabela tabela-compacta">
+    <thead><tr>{% for c in p.tabela.cabecalho %}<th{% if not loop.first %} class="num"{% endif %}>{{ c }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {%- for linha in p.tabela.linhas %}
+      <tr>{% for v in linha %}<td{% if not loop.first %} class="num"{% endif %}>{{ v }}</td>{% endfor %}</tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  </div>
+  {%- else %}
+  <p class="nota">{{ p.tabela.vazio }}</p>
+  {%- endif %}
+</section>
+{%- endif %}
+{% endif %}
+{% endblock %}

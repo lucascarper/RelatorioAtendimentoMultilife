@@ -150,7 +150,7 @@ def test_destinatario_autorizado_a_receber_a_planilha(
     with uow() as u:
         assert not next(d for d in u.destinatarios.listar() if d.id == destinatario.id).recebe_anexo
     # As listas do financeiro e do SESMT não têm a coluna nem a opção.
-    assert "Planilha (LGPD)" not in cliente.get("/admin/sesmt").text
+    assert "Planilha (LGPD)" not in cliente.get("/admin/sesmt/gestao").text
     with uow() as u, pytest.raises(ValueError, match="atendimentos"):
         u.destinatarios_sesmt.definir_anexo(1, True)
 

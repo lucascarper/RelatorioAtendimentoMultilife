@@ -15,8 +15,14 @@ from relatorio.application.financeiro import (
     formatar_nomes_centros,
     ler_nomes_centros,
 )
+from relatorio.domain.dashboard_financeiro import CAMPOS, resumir_financeiro
 from relatorio.infrastructure.container import Container
 from relatorio.interfaces.demo import html_para_navegador
+from relatorio.interfaces.web.dashboard import (
+    carregar_periodos,
+    escolher_periodo,
+    montar_financeiro,
+)
 from relatorio.interfaces.web.dependencias import (
     Csrf,
     Ctx,
@@ -32,6 +38,7 @@ router = APIRouter(prefix="/admin/financeiro")
 
 JOB_REPROCESSAR_FINANCEIRO = "reprocessar_financeiro"
 URL = "/admin/financeiro"
+URL_GESTAO = f"{URL}/gestao"
 CSP_PREVIA = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; frame-ancestors 'self'"
 
 
@@ -41,6 +48,34 @@ def _email_valido(email: str) -> bool:
 
 
 @router.get("", response_class=HTMLResponse)
+def dashboard(
+    request: Request, ctx: Ctx, _usuario: UsuarioFinanceiro, inicio: str = "", fim: str = ""
+) -> HTMLResponse:
+    """Indicadores do período (padrão: o mês até ontem), só com dias que têm resumo."""
+    de, ate, erro = escolher_periodo(inicio, fim, ctx.hoje())
+    if erro:
+        mensagem(request, erro, "erro")
+    with ctx.container.uow() as uow:
+        repositorio = uow.resumos_financeiros
+        atual, anterior = carregar_periodos(repositorio, de, ate, CAMPOS, resumir_financeiro)
+        recentes = repositorio.listar_recentes(1)
+    return ctx.render(
+        request,
+        "admin/dashboard_relatorio.html",
+        {
+            "pagina": "dashboard_financeiro",
+            "titulo": "Financeiro",
+            "p": montar_financeiro(atual, anterior),
+            "url": URL,
+            "url_gestao": URL_GESTAO,
+            "nota_periodo": "Até 31 dias. O resumo de cada dia é gerado na madrugada seguinte.",
+            "habilitado": ctx.settings.financeiro_habilitado,
+            "ultimo_resumo": recentes[0] if recentes else None,
+        },
+    )
+
+
+@router.get("/gestao", response_class=HTMLResponse)
 def financeiro(request: Request, ctx: Ctx, _usuario: UsuarioFinanceiro) -> HTMLResponse:
     with ctx.container.uow() as uow:
         resumos = uow.resumos_financeiros.listar_recentes(14)
@@ -95,7 +130,7 @@ def reprocessar_financeiro(
 ) -> RedirectResponse:
     if dia >= ctx.hoje():
         mensagem(request, "O relatório financeiro é do dia anterior: escolha até ontem.", "erro")
-        return redirecionar(URL)
+        return redirecionar(URL_GESTAO)
     tarefas.add_task(reprocessar_em_segundo_plano, ctx.container, dia, enviar)
     log.info("financeiro_reprocessamento_agendado", referencia=dia.isoformat(), enviar=enviar)
     mensagem(
@@ -103,7 +138,7 @@ def reprocessar_financeiro(
         f"Coleta financeira de {dia:%d/%m/%Y} iniciada (cerca de 1 minuto). O resultado aparece"
         " nesta página e em Execuções.",
     )
-    return redirecionar(URL)
+    return redirecionar(URL_GESTAO)
 
 
 def reprocessar_em_segundo_plano(container: Container, dia: date, enviar: bool) -> None:
@@ -141,7 +176,7 @@ def adicionar_destinatario_financeiro(
             uow.destinatarios_financeiro.adicionar(email, nome.strip()[:120] or None)
             uow.commit()
         mensagem(request, f"{email} cadastrado na lista do relatório financeiro.")
-    return redirecionar(voltar_para(request, f"{URL}#destinatarios"))
+    return redirecionar(voltar_para(request, f"{URL_GESTAO}#destinatarios"))
 
 
 @router.post("/destinatarios/{id_destinatario}/ativo", response_class=HTMLResponse)
@@ -184,4 +219,4 @@ def salvar_nomes_centros(
         "Nomes dos centros de custo salvos. Valem a partir da próxima coleta"
         " (reprocesse uma data para ver agora).",
     )
-    return redirecionar(URL)
+    return redirecionar(URL_GESTAO)

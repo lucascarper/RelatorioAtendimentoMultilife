@@ -1,0 +1,12 @@
+{#- Formulário do período dos dashboards. Recebe: url, inicio, fim e nota. -#}
+<form method="get" action="{{ url }}" class="card form form-linha periodo" aria-label="Período">
+  <label>Data inicial
+    <input type="date" name="inicio" value="{{ inicio.isoformat() }}" max="{{ data_hoje.isoformat() }}" required>
+  </label>
+  <label>Data final
+    <input type="date" name="fim" value="{{ fim.isoformat() }}" max="{{ data_hoje.isoformat() }}" required>
+  </label>
+  <button type="submit" class="btn btn-primario">Aplicar</button>
+  <a href="{{ url }}" class="btn btn-secundario">Mês atual</a>
+  <span class="nota">{{ nota }}</span>
+</form>

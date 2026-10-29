@@ -171,14 +171,28 @@ class _Resumos:
     def listar_periodo(self, inicio: date, fim: date) -> list[ResumoRegistro]:
         return sorted((r for r in self.r.values() if inicio <= r.data <= fim), key=lambda r: r.data)
 
-    def listar_indicadores(self, inicio: date, fim: date) -> list[tuple[date, dict[str, Any]]]:
-        return [(r.data, r.metricas) for r in self.listar_periodo(inicio, fim)]
+    def listar_indicadores(
+        self, inicio: date, fim: date, caminhos: Sequence[tuple[str, ...]]
+    ) -> list[tuple[date, dict[str, Any]]]:
+        return [(r.data, _recortar(r.metricas, caminhos)) for r in self.listar_periodo(inicio, fim)]
 
     def apagar_anteriores_a(self, limite: date) -> int:
         antigos = [d for d in self.r if d < limite]
         for d in antigos:
             del self.r[d]
         return len(antigos)
+
+
+def _recortar(dados: Any, caminhos: Sequence[tuple[str, ...]]) -> dict[str, Any]:
+    """Como o ``jsonb_build_object`` do repositório SQL: só os caminhos, None se faltar."""
+    ramos: dict[str, list[tuple[str, ...]]] = {}
+    for caminho in caminhos:
+        ramos.setdefault(caminho[0], []).append(caminho[1:])
+    recorte: dict[str, Any] = {}
+    for chave, restos in ramos.items():
+        valor = dados.get(chave) if isinstance(dados, dict) else None
+        recorte[chave] = valor if () in restos else _recortar(valor, restos)
+    return recorte
 
 
 class _Destinatarios:
