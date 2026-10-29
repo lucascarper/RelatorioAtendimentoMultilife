@@ -187,8 +187,11 @@ class ResumoRepository(Protocol):
         """Resumos de ``inicio`` a ``fim`` (inclusive), do mais antigo ao mais recente."""
         ...
 
-    def listar_indicadores(self, inicio: date, fim: date) -> list[tuple[date, dict[str, Any]]]:
-        """Como ``listar_periodo``, só com kpis, por_turno, por_grupo e alertas.quantidade."""
+    def listar_indicadores(
+        self, inicio: date, fim: date, caminhos: Sequence[tuple[str, ...]]
+    ) -> list[tuple[date, dict[str, Any]]]:
+        """Como ``listar_periodo``, mas só os ``caminhos`` do JSON (ex.: ``("caixa",)``,
+        ``("alertas", "quantidade")``), sem carregar as listas grandes do resumo."""
         ...
 
     def apagar_anteriores_a(self, limite: date) -> int: ...

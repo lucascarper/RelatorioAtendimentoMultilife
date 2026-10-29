@@ -918,3 +918,10 @@ input[type="checkbox"]:disabled, input[type="radio"]:disabled { opacity: .5; cur
 }
 @media (max-width: 1100px) { .dashboard-kpis { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px) { .grafico-dias { height: 240px; } }
+/* Financeiro e SESMT: grupos de 3 cartões e gráficos lado a lado em tela larga. */
+.kpi-grade-3 { grid-template-columns: repeat(3, 1fr); }
+.dashboard-graficos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap: 0 20px; }
+.dashboard-graficos > .card { min-width: 0; }
+@media (max-width: 1100px) { .kpi-grade-3 { grid-template-columns: repeat(2, 1fr); } }
+/* Valores em reais são longos: uma linha só, com a fonte encolhendo um pouco em telas menores. */
+.kpi-grade-relatorio .kpi .valor { white-space: nowrap; font-size: clamp(22px, 2.1vw, 32px); }

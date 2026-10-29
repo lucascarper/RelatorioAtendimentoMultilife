@@ -84,8 +84,8 @@ def _agendas(uow: object, n: int) -> None:
 @pytest.mark.parametrize(
     ("url", "preencher", "chave"),
     [
-        ("/admin/financeiro", _financeiro, "destinatarios"),
-        ("/admin/sesmt", _sesmt, "destinatarios"),
+        ("/admin/financeiro/gestao", _financeiro, "destinatarios"),
+        ("/admin/sesmt/gestao", _sesmt, "destinatarios"),
         ("/admin/configuracoes/usuarios", _usuarios, "usuarios"),
         ("/admin/configuracoes/medicos", _medicos, "medicos"),
         ("/admin/agendas", _agendas, "agendas"),

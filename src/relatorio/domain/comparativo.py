@@ -114,7 +114,8 @@ def _comparar_item(
         if em_pontos:
             variacao = atual - anterior
         elif anterior != 0:
-            variacao = (atual - anterior) / anterior
+            # abs: com base negativa (saldo), sair de -100 para 50 é alta, não queda.
+            variacao = (atual - anterior) / abs(anterior)
 
     direcao: str | None = None
     avaliacao: str | None = None
@@ -143,10 +144,10 @@ def _comparar_item(
     )
 
 
-def comparar_contagem(
+def comparar_valor(
     chave: str, rotulo: str, atual: float | None, anterior: float | None, sentido: Sentido
 ) -> ItemComparativo:
-    """Uma contagem fora dos KPIs (ex.: alertas do período), com as mesmas regras."""
+    """Um valor fora dos KPIs (alertas, caixa, pendências), com as mesmas regras."""
     return _comparar_item(_Indicador(chave, rotulo, Formato.NUMERO, sentido), atual, anterior)
 
 

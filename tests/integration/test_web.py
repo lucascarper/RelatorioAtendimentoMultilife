@@ -331,7 +331,10 @@ class TestDashboard:
         assert "dados consolidados até 23/09/2026" in pagina
         assert "comparado com 01/08 a 23/08" in pagina
         assert "▲ +100,0%" in pagina  # 8 atendimentos contra 4
-        assert 'id="dados-grafico"' in pagina and "/static/admin/chart.umd.min.js" in pagina
+        assert (
+            'id="dados-grafico-atendimento"' in pagina
+            and "/static/admin/chart.umd.min.js" in pagina
+        )
         assert "Sem dados consolidados" not in pagina
 
     def test_periodo_vazio_e_periodo_escolhido(self, cliente: TestClient) -> None:
@@ -356,6 +359,74 @@ class TestDashboard:
         pagina = cliente.get(f"/admin/atendimento?{consulta}").text
         assert erro in pagina
         assert "01/09/2026 a 23/09/2026" in pagina
+
+
+class TestDashboardsFinanceiroESesmt:
+    """Hoje é 24/09 (relógio dos testes): o padrão é 01/09 a 23/09, contra 01/08 a 23/08."""
+
+    def salvar(self, uow: FabricaUoW, repositorio: str, dias: dict[str, dict[str, object]]) -> None:
+        from datetime import date  # noqa: PLC0415
+
+        gerado = hora("05:45")
+        with uow() as u:
+            for dia, metricas in dias.items():
+                getattr(u, repositorio).salvar_metricas(
+                    date.fromisoformat(dia), metricas, "1.0.0", gerado
+                )
+            u.commit()
+
+    def test_financeiro(self, cliente: TestClient, uow: FabricaUoW) -> None:
+        def dia(recebido: float, mrr: float) -> dict[str, object]:
+            return {
+                "caixa": {"recebido_dia": recebido, "pago_dia": 100.0},
+                "faturamento": {"dia": 50.0, "titulos_dia": 1, "categorias": ["fora do recorte"]},
+                "recorrente": {"mrr": mrr, "clientes_mrr": 3, "contratos_ativos": 7},
+                "contratos_a_vencer": [{"mensalidade": 80.0}],
+            }
+
+        entrar(cliente)
+        assert "Sem resumos neste período" in cliente.get("/admin/financeiro").text
+        self.salvar(
+            uow,
+            "resumos_financeiros",
+            {"2026-09-23": dia(300.0, 1100.0), "2026-08-23": dia(150.0, 1000.0)},
+        )
+        pagina = cliente.get("/admin/financeiro").text
+        assert "01/09/2026 a 23/09/2026" in pagina
+        assert "comparado com 01/08 a 23/08" in pagina and "Em 23/09" in pagina
+        assert "R$ 300,00" in pagina and "▲ +100,0%" in pagina
+        assert "R$ 80,00 em mensalidades" in pagina
+        assert 'id="dados-grafico-caixa"' in pagina and "Saldo acumulado" in pagina
+        assert 'href="/admin/financeiro/gestao" class="btn btn-secundario"' in pagina
+        assert "Desligado" in pagina  # FINANCEIRO_HABILITADO=false nos testes
+        assert re.search(r'href="/admin/financeiro"[^>]*aria-current="page"', pagina)
+        erro = cliente.get("/admin/financeiro?inicio=2026-08-01&fim=2026-09-20").text
+        assert "no máximo 31 dias" in erro
+
+    def test_sesmt(self, cliente: TestClient, uow: FabricaUoW) -> None:
+        def dia(sem_recibo: int, vencidos: int) -> dict[str, object]:
+            return {
+                "esocial": {
+                    "total": 4 + sem_recibo,
+                    "com_recibo": 4,
+                    "sem_recibo": sem_recibo,
+                    "empresas": 2,
+                    "por_evento": {"S-2220": 3, "S-2240": 1 + sem_recibo},
+                    "eventos": ["fora do recorte"],
+                },
+                "a_vencer": {"total": 5, "vencendo": 2, "contratos": 1, "documentos": 4},
+                "vencidos": {"total": vencidos, "contratos": 0, "documentos": vencidos},
+            }
+
+        entrar(cliente)
+        self.salvar(uow, "resumos_sesmt", {"2026-09-23": dia(1, 3), "2026-08-23": dia(2, 3)})
+        pagina = cliente.get("/admin/sesmt").text
+        assert "Eventos do eSocial por tipo" in pagina and "S-2240" in pagina
+        assert "1 contratos · 4 documentos" in pagina
+        assert 'id="dados-grafico-esocial"' in pagina and 'id="dados-grafico-pendencias"' in pagina
+        assert "■ estável" in pagina  # vencidos: 3 contra 3
+        assert re.search(r'href="/admin/sesmt"[^>]*aria-current="page"', pagina)
+        assert "Planilha (LGPD)" not in pagina and "Exportar planilha" not in pagina
 
 
 class TestMonitor:
@@ -425,9 +496,9 @@ class TestFinanceiro:
         )
 
         token = entrar(cliente)
-        pagina = cliente.get("/admin/financeiro")
+        pagina = cliente.get("/admin/financeiro/gestao")
         assert pagina.status_code == 200
-        assert "Relatório financeiro" in pagina.text
+        assert "Gestão do relatório financeiro" in pagina.text and "&larr; Dashboard" in pagina.text
         assert "FINANCEIRO_HABILITADO=false" in pagina.text
         assert re.search(r'href="/admin/financeiro"[^>]*aria-current="page"', pagina.text)
 
@@ -469,7 +540,10 @@ class TestFinanceiro:
         previa = cliente.get("/admin/financeiro/relatorios/2026-09-27")
         assert previa.status_code == 200
         assert "Relatório financeiro diário" in previa.text
-        assert "/admin/financeiro/relatorios/2026-09-27" in cliente.get("/admin/financeiro").text
+        assert (
+            "/admin/financeiro/relatorios/2026-09-27"
+            in cliente.get("/admin/financeiro/gestao").text
+        )
 
 
 class TestSesmt:
@@ -482,9 +556,9 @@ class TestSesmt:
         from relatorio.domain.sesmt import DadosSesmt, calcular_sesmt  # noqa: PLC0415
 
         token = entrar(cliente)
-        pagina = cliente.get("/admin/sesmt")
+        pagina = cliente.get("/admin/sesmt/gestao")
         assert pagina.status_code == 200
-        assert "Relatório do SESMT" in pagina.text
+        assert "Gestão do relatório do SESMT" in pagina.text and "&larr; Dashboard" in pagina.text
         assert "SESMT_HABILITADO=false" in pagina.text
         assert re.search(r'href="/admin/sesmt"[^>]*aria-current="page"', pagina.text)
         assert "1=GESTÃO PREMIUM" in pagina.text  # padrão dos grupos do SGG
@@ -525,4 +599,4 @@ class TestSesmt:
         previa = cliente.get("/admin/sesmt/relatorios/2026-09-29")
         assert previa.status_code == 200
         assert "Relatório de gestão SESMT" in previa.text
-        assert "/admin/sesmt/relatorios/2026-09-29" in cliente.get("/admin/sesmt").text
+        assert "/admin/sesmt/relatorios/2026-09-29" in cliente.get("/admin/sesmt/gestao").text

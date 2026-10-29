@@ -16,6 +16,17 @@ from relatorio.domain.entidades import Turno
 from relatorio.domain.exportacao import dias
 from relatorio.domain.metricas import Kpis, ResumoTurno
 
+# O que o dashboard lê de cada resumo (o resto do JSON fica no banco).
+CAMPOS = (("kpis",), ("por_turno",), ("por_grupo",), ("alertas", "quantidade"))
+
+
+def numero_em(dados: Any, *caminho: str) -> float | None:
+    """Número em ``dados[c1][c2]…``; None se faltar um nível ou não for número."""
+    valor = dados
+    for chave in caminho:
+        valor = valor.get(chave) if isinstance(valor, Mapping) else None
+    return float(valor) if isinstance(valor, int | float) and not isinstance(valor, bool) else None
+
 
 @dataclass(frozen=True, slots=True)
 class DiaGrafico:

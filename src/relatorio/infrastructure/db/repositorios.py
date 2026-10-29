@@ -296,6 +296,20 @@ class EventoRepositorioSql:
         return _afetadas(resultado)
 
 
+def _recorte_json(coluna: Any, caminhos: Sequence[tuple[str, ...]]) -> Any:
+    """``jsonb_build_object`` só com os caminhos pedidos, no mesmo aninhamento do JSON."""
+    ramos: dict[str, list[tuple[str, ...]]] = {}
+    for caminho in caminhos:
+        ramos.setdefault(caminho[0], []).append(caminho[1:])
+    argumentos: list[Any] = []
+    for chave, restos in ramos.items():
+        argumentos += [
+            chave,
+            coluna[chave] if () in restos else _recorte_json(coluna[chave], restos),
+        ]
+    return func.jsonb_build_object(*argumentos, type_=JSONB)
+
+
 class ResumoRepositorioSql:
     def __init__(self, sessao: Session, modelo: ModeloResumo = ResumoDiarioModel) -> None:
         self._s = sessao
@@ -361,21 +375,11 @@ class ResumoRepositorioSql:
         consulta = select(self._m).where(self._m.data.between(inicio, fim)).order_by(self._m.data)
         return [_resumo(m) for m in self._s.scalars(consulta).all()]
 
-    def listar_indicadores(self, inicio: date, fim: date) -> list[tuple[date, dict[str, Any]]]:
-        m = self._m.metricas
-        parte = func.jsonb_build_object(
-            "kpis",
-            m["kpis"],
-            "por_turno",
-            m["por_turno"],
-            "por_grupo",
-            m["por_grupo"],
-            "alertas",
-            func.jsonb_build_object("quantidade", m["alertas"]["quantidade"]),
-            type_=JSONB,
-        )
+    def listar_indicadores(
+        self, inicio: date, fim: date, caminhos: Sequence[tuple[str, ...]]
+    ) -> list[tuple[date, dict[str, Any]]]:
         consulta = (
-            select(self._m.data, parte)
+            select(self._m.data, _recorte_json(self._m.metricas, caminhos))
             .where(self._m.data.between(inicio, fim))
             .order_by(self._m.data)
         )

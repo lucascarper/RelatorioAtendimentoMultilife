@@ -202,8 +202,14 @@ def montar_delta(comparativo: Mapping[str, Any], chave: str) -> Delta | None:
     if item is None or item.get("direcao") is None:
         return None
     base = date.fromisoformat(comparativo["data_base"])
-    rotulo = f"vs {DIAS_CURTOS[base.weekday()]} {base:%d/%m}"
-    direcao = item["direcao"]
+    return delta_do_item(item, f"vs {DIAS_CURTOS[base.weekday()]} {base:%d/%m}")
+
+
+def delta_do_item(item: Mapping[str, Any], rotulo: str) -> Delta | None:
+    """Seta, texto e cor de um item do comparativo (JSON), com o rótulo da base."""
+    direcao = item.get("direcao")
+    if direcao is None:
+        return None
     seta = {"alta": "▲", "baixa": "▼"}.get(direcao, "■")
     texto = "estável" if direcao == "estavel" else _variacao(item)
     cor = COR_AVALIACAO.get(item.get("avaliacao") or "neutra", TINTA_MUDA)

@@ -5,6 +5,7 @@
 {% block conteudo %}
 {%- from "admin/_icones.html" import icone %}
 {%- from "admin/_cartao_kpi.html" import cartao_kpi %}
+{%- from "admin/_grafico.html" import grafico %}
 {%- set r = p.periodo %}
 <div class="pagina-cabecalho">
   <div>
@@ -22,17 +23,7 @@
   {%- if ultimo_ciclo %}<span>último ciclo em {{ ultimo_ciclo | datahora_br }}</span>{% endif %}
 </p>
 
-<form method="get" action="/admin/atendimento" class="card form form-linha periodo" aria-label="Período">
-  <label>Data inicial
-    <input type="date" name="inicio" value="{{ r.inicio.isoformat() }}" max="{{ data_hoje.isoformat() }}" required>
-  </label>
-  <label>Data final
-    <input type="date" name="fim" value="{{ r.fim.isoformat() }}" max="{{ data_hoje.isoformat() }}" required>
-  </label>
-  <button type="submit" class="btn btn-primario">Aplicar</button>
-  <a href="/admin/atendimento" class="btn btn-secundario">Mês atual</a>
-  <span class="nota">Até 31 dias. Só entram dias já consolidados (às 23:00).</span>
-</form>
+{% with url="/admin/atendimento", inicio=r.inicio, fim=r.fim, nota="Até 31 dias. Só entram dias já consolidados (às 23:00)." %}{% include "admin/_periodo.html" %}{% endwith %}
 
 {% if r.vazio %}
 <section class="card vazio">
@@ -73,30 +64,10 @@
     </div>
   </section>
 
-  <section class="card dashboard-grafico" aria-labelledby="t-grafico">
-    <h2 id="t-grafico">Atendimentos e faltas por dia</h2>
-    <p class="nota">Dias sem movimento ou ainda não consolidados ficam sem barra.</p>
-    <div class="grafico-dias">
-      <canvas id="grafico-dias" role="img" aria-label="Gráfico de barras com os atendimentos e as faltas de cada dia de {{ r.inicio | data_br }} a {{ r.fim | data_br }}. Os números estão na tabela abaixo."></canvas>
-    </div>
-    <script type="application/json" id="dados-grafico">{{ p.grafico | tojson }}</script>
-    <details class="tabela-alternativa">
-      <summary>Ver os números em tabela</summary>
-      <div class="rolagem">
-      <table class="tabela tabela-compacta">
-        <thead><tr><th>Dia</th><th class="num">Atendimentos</th><th class="num">Faltas</th></tr></thead>
-        <tbody>
-        {%- for d in r.dias %}
-          <tr>
-            <td>{{ d.data | data_br }} <span class="nota">{{ (d.data | dia_semana)[:3] }}</span></td>
-            {%- if d.atendimentos is none %}<td colspan="2" class="nota">Sem movimento ou não consolidado</td>
-            {%- else %}<td class="num">{{ d.atendimentos | numero }}</td><td class="num">{{ d.faltas | numero }}</td>{% endif %}
-          </tr>
-        {%- endfor %}
-        </tbody>
-      </table>
-      </div>
-    </details>
+  <section class="card dashboard-grafico" aria-labelledby="t-{{ p.grafico.id }}">
+    <h2 id="t-{{ p.grafico.id }}">{{ p.grafico.titulo }}</h2>
+    <p class="nota">{{ p.grafico.nota }}</p>
+    {{ grafico(p.grafico) }}
   </section>
 </div>
 {% endif %}
