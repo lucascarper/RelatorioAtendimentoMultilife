@@ -16,6 +16,7 @@ from sqlalchemy import (
     CheckConstraint,
     Date,
     DateTime,
+    ForeignKey,
     Identity,
     Index,
     Integer,
@@ -200,13 +201,28 @@ class UsuarioModel(Base):
     """Usuários do painel e as chaves dos módulos a que têm acesso."""
 
     __tablename__ = "usuario"
-    __table_args__ = (UniqueConstraint("usuario", name="uq_usuario_usuario"),)
+    __table_args__ = (
+        UniqueConstraint("usuario", name="uq_usuario_usuario"),
+        UniqueConstraint("email", name="uq_usuario_email"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
     nome: Mapped[str] = mapped_column(String(120))
     usuario: Mapped[str] = mapped_column(String(40))
     senha_hash: Mapped[str] = mapped_column(String(100))
     permissoes: Mapped[list[str]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
+    criado_em: Mapped[datetime] = mapped_column(server_default=func.now())
+    email: Mapped[str | None] = mapped_column(String(254))
+
+
+class TokenSenhaModel(Base):
+    """Link de definição de senha: só o SHA-256 do token, de uso único e com validade."""
+
+    __tablename__ = "token_senha"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    id_usuario: Mapped[int] = mapped_column(ForeignKey("usuario.id", ondelete="CASCADE"))
+    expira_em: Mapped[datetime]
     criado_em: Mapped[datetime] = mapped_column(server_default=func.now())
 
 

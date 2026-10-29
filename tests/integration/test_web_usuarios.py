@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterator
+from datetime import datetime, timedelta
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from relatorio.application.ports import FabricaUoW, UsuarioDuplicado
+from relatorio.application.ports import EmailDuplicado, FabricaUoW, UsuarioDuplicado
+from relatorio.domain.entidades import FUSO_BRASILIA
 from relatorio.infrastructure.container import Container
 from relatorio.interfaces.web.app import create_app
 from relatorio.interfaces.web.seguranca import gerar_hash_senha
@@ -545,3 +547,120 @@ class TestRepositorioSql:
             assert u.usuarios.obter(ana.id) is not None
             assert u.usuarios.excluir(ana.id) and not u.usuarios.excluir(ana.id)
             u.commit()
+
+
+class TestSenhaPorEmail:
+    """Esqueci minha senha e "Enviar acesso" contra o PostgreSQL (o e-mail vira arquivo)."""
+
+    @staticmethod
+    def link(container: Container) -> str:  # noqa: F811
+        pasta = container.settings.email_saida_dir
+        [html] = list(pasta.glob("*.html"))
+        achado = re.search(r'href="http://testserver(/redefinir-senha/[\w-]+)"', html.read_text())
+        assert achado, "e-mail sem link"
+        for arquivo in pasta.iterdir():  # o próximo e-mail fica sozinho na pasta
+            arquivo.unlink()
+        return achado.group(1)
+
+    @staticmethod
+    def redefinir(c: TestClient, caminho: str, senha: str) -> int:
+        resposta = c.post(
+            caminho,
+            data={"senha": senha, "confirmacao": senha, "csrf": csrf(c)},
+            follow_redirects=False,
+        )
+        return resposta.status_code
+
+    def test_esqueci_minha_senha(
+        self,
+        cliente: TestClient,  # noqa: F811
+        outro: TestClient,
+        container: Container,  # noqa: F811
+    ) -> None:
+        token = entrar(cliente)
+        cliente.post(
+            URL,
+            data={
+                "nome": "Ana",
+                "usuario": "ana",
+                "senha": "senha-da-ana-1",
+                "email": "Ana@Multilife.com",
+                "csrf": token,
+            },
+        )
+        sem_cadastro = outro.post(
+            "/esqueci-senha", data={"email": "x@multilife.com", "csrf": csrf(outro)}
+        )
+        assert sem_cadastro.status_code == 404 and "Não existe perfil" in sem_cadastro.text
+        pedido = outro.post(
+            "/esqueci-senha", data={"email": "ana@multilife.com", "csrf": csrf(outro)}
+        )
+        assert pedido.status_code == 200 and "Enviamos um link" in pedido.text
+        caminho = self.link(container)
+        assert "<strong>ana</strong>" in outro.get(caminho).text
+        assert self.redefinir(outro, caminho, "senha-nova-123") == 303
+        assert self.redefinir(outro, caminho, "outra-senha-456") == 404  # uso único
+        assert entrar_como(outro, "ana", "senha-da-ana-1") == 401
+        assert entrar_como(outro, "ana", "senha-nova-123") == 303
+
+    def test_enviar_acesso(
+        self,
+        cliente: TestClient,  # noqa: F811
+        outro: TestClient,
+        container: Container,  # noqa: F811
+        uow: FabricaUoW,
+    ) -> None:
+        token = entrar(cliente)
+        criar(cliente, token)
+        with uow() as u:
+            [ana] = u.usuarios.listar()
+        sem_email = cliente.post(f"{URL}/{ana.id}/enviar-acesso", data={"csrf": token})
+        assert "Cadastre o e-mail de ana" in sem_email.text
+        cliente.post(
+            f"{URL}/{ana.id}",
+            data={
+                "nome": "Ana Silva",
+                "usuario": "ana",
+                "email": "ana@multilife.com",
+                "modulos": ["financeiro"],
+                "csrf": token,
+            },
+        )
+        enviado = cliente.post(f"{URL}/{ana.id}/enviar-acesso", data={"csrf": token})
+        assert "Acesso de ana enviado para ana@multilife.com" in enviado.text
+        assert self.redefinir(outro, self.link(container), "senha-nova-123") == 303
+        assert entrar_como(outro, "ana", "senha-nova-123") == 303
+
+
+class TestRepositorioSqlSenha:
+    def test_email_unico_e_tokens(self, uow: FabricaUoW) -> None:
+        agora = datetime(2026, 10, 29, 10, tzinfo=FUSO_BRASILIA)
+        with uow() as u:
+            ana = u.usuarios.criar("Ana", "ana", "h", [], "Ana@X.com")
+            bia = u.usuarios.criar("Bia", "bia", "h", [])
+            u.commit()
+        with uow() as u:
+            achada = u.usuarios.obter_por_email(" ANA@x.com")
+            assert achada is not None and achada.id == ana.id and achada.email == "ana@x.com"
+            with pytest.raises(EmailDuplicado):
+                u.usuarios.atualizar(bia.id, "Bia", "bia", [], email="ana@x.com")
+            with pytest.raises(UsuarioDuplicado):  # o login duplicado continua igual
+                u.usuarios.criar("Outra", "ANA", "h", [], "outra@x.com")
+            u.tokens_senha.criar("a1", ana.id, agora + timedelta(hours=1))
+            u.tokens_senha.criar("a2", ana.id, agora + timedelta(hours=1))
+            u.tokens_senha.criar("b1", bia.id, agora + timedelta(hours=1))
+            u.commit()
+        with uow() as u:
+            assert u.tokens_senha.valido("a1", agora) == ana.id
+            assert u.tokens_senha.valido("a1", agora + timedelta(hours=1)) is None
+            assert u.tokens_senha.consumir("a1", agora) == ana.id
+            u.usuarios.definir_senha(ana.id, "novo")
+            u.commit()
+        with uow() as u:
+            assert u.tokens_senha.consumir("a1", agora) is None  # uso único
+            assert u.tokens_senha.valido("a2", agora) is None  # os outros links da Ana caem
+            assert u.usuarios.obter(ana.id).senha_hash == "novo"  # type: ignore[union-attr]
+            u.usuarios.excluir(bia.id)
+            u.commit()
+        with uow() as u:
+            assert u.tokens_senha.valido("b1", agora) is None  # ON DELETE CASCADE

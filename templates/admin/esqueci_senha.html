@@ -1,0 +1,23 @@
+{% extends "admin/base.html" %}
+{% block titulo %}Esqueci minha senha{% endblock %}
+{% block conteudo %}
+<section class="login">
+  <img src="/static/brand/logo-multilife-admin.png" alt="MultiLife, Saúde e Segurança do Trabalho" class="login-logo">
+  <h1>Esqueci minha senha</h1>
+  {% if enviado %}
+  <div class="mensagem mensagem-ok" role="status">Enviamos um link para <strong>{{ email }}</strong>. Abra o e-mail e cadastre a nova senha. O link vale por {{ validade }}.</div>
+  <p class="login-rodape"><a href="/login">Voltar para o login</a></p>
+  {% else %}
+  <p class="sub">Informe o e-mail do seu cadastro. Enviaremos um link para você cadastrar uma nova senha.</p>
+  {% if erro %}<div class="mensagem mensagem-erro" role="alert">{{ erro }}</div>{% endif %}
+  <form method="post" action="/esqueci-senha" class="form">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>E-mail
+      <input name="email" type="email" value="{{ email }}" maxlength="254" autocomplete="email" required autofocus>
+    </label>
+    <button type="submit" class="btn btn-primario btn-bloco">Enviar link</button>
+  </form>
+  <p class="login-rodape"><a href="/login">Voltar para o login</a></p>
+  {% endif %}
+</section>
+{% endblock %}

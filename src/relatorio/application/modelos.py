@@ -53,6 +53,7 @@ class UsuarioSistema:
     senha_hash: str = field(repr=False)
     permissoes: tuple[str, ...]
     criado_em: datetime
+    email: str | None = None
 
 
 class StatusExportacao(StrEnum):

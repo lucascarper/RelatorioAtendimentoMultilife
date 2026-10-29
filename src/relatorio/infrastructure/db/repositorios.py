@@ -23,7 +23,7 @@ from relatorio.application.modelos import (
     StatusJob,
     UsuarioSistema,
 )
-from relatorio.application.ports import UsuarioDuplicado
+from relatorio.application.ports import EmailDuplicado, UsuarioDuplicado
 from relatorio.domain.entidades import Agenda, Evento, OrigemEvento, Situacao, Snapshot
 from relatorio.domain.exames import ExameClinico, Medico
 from relatorio.infrastructure.db.modelos import (
@@ -43,6 +43,7 @@ from relatorio.infrastructure.db.modelos import (
     ResumoDiarioModel,
     ResumoFinanceiroModel,
     ResumoSesmtModel,
+    TokenSenhaModel,
     UsuarioModel,
 )
 
@@ -118,7 +119,14 @@ def _usuario(m: UsuarioModel) -> UsuarioSistema:
         senha_hash=m.senha_hash,
         permissoes=tuple(m.permissoes or ()),
         criado_em=m.criado_em,
+        email=m.email,
     )
+
+
+def _duplicado(erro: IntegrityError, usuario: str) -> Exception:
+    if "uq_usuario_email" in str(erro.orig):
+        return EmailDuplicado(usuario)
+    return UsuarioDuplicado(usuario)
 
 
 def _destinatario(m: Any) -> Destinatario:  # DestinatarioModel ou …FinanceiroModel
@@ -462,21 +470,33 @@ class UsuarioRepositorioSql:
         ).first()
         return _usuario(modelo) if modelo else None
 
+    def obter_por_email(self, email: str) -> UsuarioSistema | None:
+        modelo = self._s.scalars(
+            select(UsuarioModel).where(UsuarioModel.email == email.strip().lower())
+        ).first()
+        return _usuario(modelo) if modelo else None
+
     def criar(
-        self, nome: str, usuario: str, senha_hash: str, permissoes: Sequence[str]
+        self,
+        nome: str,
+        usuario: str,
+        senha_hash: str,
+        permissoes: Sequence[str],
+        email: str | None = None,
     ) -> UsuarioSistema:
         modelo = UsuarioModel(
             nome=nome,
             usuario=usuario.strip().lower(),
             senha_hash=senha_hash,
             permissoes=list(permissoes),
+            email=email.strip().lower() if email else None,
         )
         try:
             with self._s.begin_nested():  # savepoint: a falha não invalida a sessão
                 self._s.add(modelo)
                 self._s.flush()
         except IntegrityError as erro:
-            raise UsuarioDuplicado(usuario) from erro
+            raise _duplicado(erro, usuario) from erro
         self._s.refresh(modelo)
         return _usuario(modelo)
 
@@ -487,6 +507,7 @@ class UsuarioRepositorioSql:
         usuario: str,
         permissoes: Sequence[str],
         senha_hash: str | None = None,
+        email: str | None = None,
     ) -> None:
         modelo = self._s.get(UsuarioModel, id_usuario)
         if modelo is None:
@@ -496,15 +517,52 @@ class UsuarioRepositorioSql:
                 modelo.nome = nome
                 modelo.usuario = usuario.strip().lower()
                 modelo.permissoes = list(permissoes)
+                modelo.email = email.strip().lower() if email else None
                 if senha_hash is not None:
                     modelo.senha_hash = senha_hash
                 self._s.flush()
         except IntegrityError as erro:
-            raise UsuarioDuplicado(usuario) from erro
+            raise _duplicado(erro, usuario) from erro
+
+    def definir_senha(self, id_usuario: int, senha_hash: str) -> None:
+        self._s.execute(
+            update(UsuarioModel).where(UsuarioModel.id == id_usuario).values(senha_hash=senha_hash)
+        )
 
     def excluir(self, id_usuario: int) -> bool:
         resultado = self._s.execute(delete(UsuarioModel).where(UsuarioModel.id == id_usuario))
         return _afetadas(resultado) > 0
+
+
+class TokenSenhaRepositorioSql:
+    def __init__(self, sessao: Session) -> None:
+        self._s = sessao
+
+    def criar(self, token_hash: str, id_usuario: int, expira_em: datetime) -> None:
+        self._s.add(
+            TokenSenhaModel(token_hash=token_hash, id_usuario=id_usuario, expira_em=expira_em)
+        )
+        self._s.flush()
+
+    def valido(self, token_hash: str, agora: datetime) -> int | None:
+        return self._s.scalars(
+            select(TokenSenhaModel.id_usuario).where(
+                TokenSenhaModel.token_hash == token_hash, TokenSenhaModel.expira_em > agora
+            )
+        ).first()
+
+    def consumir(self, token_hash: str, agora: datetime) -> int | None:
+        # DELETE ... RETURNING: dois envios do mesmo link não passam os dois.
+        id_usuario = self._s.scalars(
+            delete(TokenSenhaModel)
+            .where(TokenSenhaModel.token_hash == token_hash, TokenSenhaModel.expira_em > agora)
+            .returning(TokenSenhaModel.id_usuario)
+        ).first()
+        if id_usuario is not None:
+            self._s.execute(delete(TokenSenhaModel).where(TokenSenhaModel.id_usuario == id_usuario))
+        # Aproveita para limpar os links vencidos de todos (a tabela fica sempre pequena).
+        self._s.execute(delete(TokenSenhaModel).where(TokenSenhaModel.expira_em <= agora))
+        return id_usuario
 
 
 def _medico(m: MedicoRelatorioModel) -> Medico:
@@ -946,6 +1004,7 @@ class UnidadeDeTrabalhoSql:
             sessao, DestinatarioSesmtModel, "uq_destinatario_sesmt_email"
         )
         self.usuarios = UsuarioRepositorioSql(sessao)
+        self.tokens_senha = TokenSenhaRepositorioSql(sessao)
         self.medicos = MedicoRepositorioSql(sessao)
         self.exames = ExameRepositorioSql(sessao)
         self.exportacoes = ExportacaoRepositorioSql(sessao)
