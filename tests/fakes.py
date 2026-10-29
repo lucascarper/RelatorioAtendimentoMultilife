@@ -229,3 +229,8 @@ class RenderizadorFake:
 
     def alerta(self, titulo: str, mensagem: str, detalhes: Mapping[str, str]) -> ConteudoEmail:
         return ConteudoEmail(assunto=f"[Alerta] {titulo}", html=mensagem, texto=mensagem)
+
+    def acesso(
+        self, nome: str, usuario: str, link: str, validade: str, *, convite: bool
+    ) -> ConteudoEmail:
+        return ConteudoEmail(assunto="acesso", html=link, texto=f"{usuario} {link} {validade}")

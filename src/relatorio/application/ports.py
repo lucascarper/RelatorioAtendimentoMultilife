@@ -116,6 +116,10 @@ class RenderizadorEmail(Protocol):
 
     def alerta(self, titulo: str, mensagem: str, detalhes: Mapping[str, str]) -> ConteudoEmail: ...
 
+    def acesso(
+        self, nome: str, usuario: str, link: str, validade: str, *, convite: bool
+    ) -> ConteudoEmail: ...
+
 
 class Relogio(Protocol):
     def agora(self) -> datetime:
@@ -218,6 +222,10 @@ class UsuarioDuplicado(Exception):
     """Já existe um usuário com esse login."""
 
 
+class EmailDuplicado(Exception):
+    """Já existe um usuário com esse e-mail."""
+
+
 class UsuarioRepository(Protocol):
     def listar(self) -> list[UsuarioSistema]: ...
 
@@ -225,10 +233,17 @@ class UsuarioRepository(Protocol):
 
     def obter_por_usuario(self, usuario: str) -> UsuarioSistema | None: ...
 
+    def obter_por_email(self, email: str) -> UsuarioSistema | None: ...
+
     def criar(
-        self, nome: str, usuario: str, senha_hash: str, permissoes: Sequence[str]
+        self,
+        nome: str,
+        usuario: str,
+        senha_hash: str,
+        permissoes: Sequence[str],
+        email: str | None = None,
     ) -> UsuarioSistema:
-        """Lança ``UsuarioDuplicado`` se o login já existe (sem diferenciar maiúsculas)."""
+        """Lança ``UsuarioDuplicado`` ou ``EmailDuplicado`` (sem diferenciar maiúsculas)."""
         ...
 
     def atualizar(
@@ -238,11 +253,34 @@ class UsuarioRepository(Protocol):
         usuario: str,
         permissoes: Sequence[str],
         senha_hash: str | None = None,
+        *,
+        email: str | None,
     ) -> None:
-        """``senha_hash`` None mantém a senha atual. Lança ``UsuarioDuplicado``."""
+        """``senha_hash`` None mantém a senha. ``email`` é obrigatório de propósito: None tira
+        o e-mail, e quem chama precisa dizer isso (não existe "manter").
+
+        Lança ``UsuarioDuplicado`` ou ``EmailDuplicado``."""
         ...
 
+    def definir_senha(self, id_usuario: int, senha_hash: str) -> None: ...
+
     def excluir(self, id_usuario: int) -> bool: ...
+
+
+class TokenSenhaRepository(Protocol):
+    """Links de definição de senha. Guarda só o hash do token."""
+
+    def criar(self, token_hash: str, id_usuario: int, expira_em: datetime, agora: datetime) -> None:
+        """Grava o link e apaga os vencidos (``agora``), para a tabela não crescer."""
+        ...
+
+    def valido(self, token_hash: str, agora: datetime) -> int | None:
+        """O id do usuário, se o token existe e não venceu."""
+        ...
+
+    def consumir(self, token_hash: str, agora: datetime) -> int | None:
+        """Como ``valido``, mas apaga o token e os outros links do mesmo usuário."""
+        ...
 
 
 class MedicoRepository(Protocol):
@@ -377,6 +415,9 @@ class UnidadeDeTrabalho(Protocol):
 
     @property
     def usuarios(self) -> UsuarioRepository: ...
+
+    @property
+    def tokens_senha(self) -> TokenSenhaRepository: ...
 
     @property
     def resumos_sesmt(self) -> ResumoRepository: ...

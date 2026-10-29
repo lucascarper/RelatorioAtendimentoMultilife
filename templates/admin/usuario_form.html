@@ -19,6 +19,10 @@
         <input name="usuario" value="{{ valores.usuario }}" maxlength="40" required autocapitalize="none" spellcheck="false">
         <small>Letras minúsculas, números, ponto, hífen ou sublinhado.</small>
       </label>
+      <label>E-mail
+        <input name="email" type="email" value="{{ valores.email }}" maxlength="254" autocapitalize="none" spellcheck="false">
+        <small>Opcional. Usado para enviar o acesso e recuperar a senha.</small>
+      </label>
       <label>Senha
         <input name="senha" type="password" autocomplete="new-password" minlength="{{ senha_minima }}" maxlength="72" {% if not id_usuario %}required{% endif %}>
         <small>{% if id_usuario %}Deixe em branco para manter a senha atual.{% else %}Mínimo de {{ senha_minima }} caracteres.{% endif %}</small>

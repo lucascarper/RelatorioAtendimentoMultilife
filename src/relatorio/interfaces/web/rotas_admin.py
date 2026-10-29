@@ -3,7 +3,6 @@ agendas, configurações e histórico de execuções. Todas exigem login."""
 
 from __future__ import annotations
 
-import re
 from dataclasses import replace
 from datetime import date, time, timedelta
 from typing import Annotated
@@ -22,7 +21,7 @@ from relatorio.application.configuracao import (
     CHAVE_UNIDADES,
 )
 from relatorio.application.ports import ErroIntegracao
-from relatorio.domain.acesso import CONFIGURACOES, Acesso
+from relatorio.domain.acesso import CONFIGURACOES, Acesso, email_valido
 from relatorio.domain.dashboard import CAMPOS, resumir_periodo
 from relatorio.domain.metricas import RegrasMetricas
 from relatorio.domain.turnos import ConfiguracaoTurnos
@@ -54,7 +53,6 @@ router = APIRouter(prefix="/admin")
 URL_GESTAO = "/admin/atendimento/gestao"
 
 JOB_REPROCESSAR = "reprocessar"
-EMAIL_VALIDO = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 JOBS = {
     "coletar_ciclo": "Coleta do SGG (a cada poucos segundos)",
     "varrer_dia": "Varredura do dia (a cada 5 min)",
@@ -331,7 +329,7 @@ def adicionar_destinatario(
     nome: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     email = email.strip().lower()
-    if not EMAIL_VALIDO.match(email) or len(email) > 254:
+    if not email_valido(email):
         mensagem(request, "Informe um e-mail válido.", "erro")
     else:
         with ctx.container.uow() as uow:
@@ -537,7 +535,7 @@ def salvar_configuracoes(
             atipico_min=timedelta(minutes=atipico_min),
             atipico_max=timedelta(minutes=atipico_max),
         )
-        if email_tecnico and not EMAIL_VALIDO.match(email_tecnico):
+        if email_tecnico and not email_valido(email_tecnico):
             raise ValueError("E-mail técnico inválido")
     except ValueError as erro:
         mensagem(request, str(erro), "erro")

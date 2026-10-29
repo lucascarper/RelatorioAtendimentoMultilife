@@ -26,7 +26,7 @@ TABELAS = (
     "agenda, agendamento_snapshot, agendamento_evento, resumo_diario, destinatario, "
     "resumo_financeiro, destinatario_financeiro, resumo_sesmt, destinatario_sesmt, usuario, "
     "medico_relatorio, exame_clinico, coleta_exames, exportacao, execucao_job, configuracao, "
-    "coletor_cursor"
+    "coletor_cursor, token_senha"
 )
 
 

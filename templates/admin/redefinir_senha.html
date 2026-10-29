@@ -1,0 +1,27 @@
+{% extends "admin/base.html" %}
+{% block titulo %}Definir senha{% endblock %}
+{% block conteudo %}
+<section class="login">
+  <img src="/static/brand/logo-multilife-admin.png" alt="MultiLife, Saúde e Segurança do Trabalho" class="login-logo">
+  <h1>Definir senha</h1>
+  {% if alvo %}
+  <p class="sub">Olá, {{ alvo.nome }}. Seu usuário é <strong>{{ alvo.usuario }}</strong>. Cadastre a senha que você vai usar para entrar.</p>
+  {% if erro %}<div class="mensagem mensagem-erro" role="alert">{{ erro }}</div>{% endif %}
+  <form method="post" action="/redefinir-senha/{{ token }}" class="form">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="text" name="usuario" value="{{ alvo.usuario }}" autocomplete="username" hidden>
+    <label>Nova senha
+      <input name="senha" type="password" autocomplete="new-password" minlength="{{ senha_minima }}" maxlength="72" required autofocus>
+      <small>Mínimo de {{ senha_minima }} caracteres.</small>
+    </label>
+    <label>Confirme a nova senha
+      <input name="confirmacao" type="password" autocomplete="new-password" minlength="{{ senha_minima }}" maxlength="72" required>
+    </label>
+    <button type="submit" class="btn btn-primario btn-bloco">Salvar senha</button>
+  </form>
+  {% else %}
+  <div class="mensagem mensagem-erro" role="alert">Este link é inválido, já foi usado ou venceu.</div>
+  <p class="login-rodape"><a href="/esqueci-senha">Pedir um novo link</a> · <a href="/login">Voltar para o login</a></p>
+  {% endif %}
+</section>
+{% endblock %}

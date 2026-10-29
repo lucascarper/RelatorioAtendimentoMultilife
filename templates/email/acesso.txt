@@ -1,0 +1,12 @@
+Olá, {{ nome }}.
+
+{% if convite %}Você tem acesso ao Sistema de Relatórios da MultiLife. Para entrar, defina a sua senha pelo link abaixo.{% else %}Recebemos um pedido para redefinir a sua senha do Sistema de Relatórios. Use o link abaixo para cadastrar a nova senha.{% endif %}
+
+Seu usuário: {{ usuario }}
+Definir minha senha: {{ link }}
+
+O link vale por {{ validade }} e só pode ser usado uma vez.
+{% if not convite %}Se você não pediu, ignore este e-mail: a sua senha atual continua valendo.
+{% endif %}
+--
+Sistema de Relatórios · MultiLife

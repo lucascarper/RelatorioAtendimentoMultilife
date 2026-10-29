@@ -15,6 +15,7 @@ from relatorio.application.financeiro import (
     formatar_nomes_centros,
     ler_nomes_centros,
 )
+from relatorio.domain.acesso import email_valido
 from relatorio.domain.dashboard_financeiro import CAMPOS, resumir_financeiro
 from relatorio.infrastructure.container import Container
 from relatorio.interfaces.demo import html_para_navegador
@@ -31,7 +32,6 @@ from relatorio.interfaces.web.dependencias import (
     redirecionar,
 )
 from relatorio.interfaces.web.paginacao import paginar, voltar_para
-from relatorio.interfaces.web.rotas_admin import EMAIL_VALIDO
 
 log = structlog.get_logger(__name__)
 router = APIRouter(prefix="/admin/financeiro")
@@ -40,11 +40,6 @@ JOB_REPROCESSAR_FINANCEIRO = "reprocessar_financeiro"
 URL = "/admin/financeiro"
 URL_GESTAO = f"{URL}/gestao"
 CSP_PREVIA = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; frame-ancestors 'self'"
-
-
-def _email_valido(email: str) -> bool:
-    # Mesma regra do cadastro de destinatários do relatório de atendimentos.
-    return bool(EMAIL_VALIDO.match(email)) and len(email) <= 254
 
 
 @router.get("", response_class=HTMLResponse)
@@ -169,7 +164,7 @@ def adicionar_destinatario_financeiro(
     nome: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     email = email.strip().lower()
-    if not _email_valido(email):
+    if not email_valido(email):
         mensagem(request, "Informe um e-mail válido.", "erro")
     else:
         with ctx.container.uow() as uow:

@@ -32,6 +32,7 @@ from relatorio.interfaces.web import (
     rotas_financeiro,
     rotas_medicos,
     rotas_publicas,
+    rotas_senha,
     rotas_sesmt,
     rotas_usuarios,
 )
@@ -148,6 +149,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
 
     app.mount("/static", StaticFiles(directory=str(settings.static_dir)), name="static")
     app.include_router(rotas_publicas.router)
+    app.include_router(rotas_senha.router)
     app.include_router(rotas_admin.router)
     app.include_router(rotas_financeiro.router)
     app.include_router(rotas_sesmt.router)

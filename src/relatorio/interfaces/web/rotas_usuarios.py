@@ -12,12 +12,14 @@ import structlog
 from fastapi import APIRouter, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, Response
 
-from relatorio.application.ports import UsuarioDuplicado
+from relatorio.application.ports import EmailDuplicado, ErroIntegracao, UsuarioDuplicado
+from relatorio.application.recuperacao_senha import VALIDADE_CONVITE
 from relatorio.domain.acesso import (
     CONFIGURACOES,
     MODULOS,
     ROTULO_MODULO,
     SENHA_MIN,
+    email_valido,
     modulos_validos,
     validar_nome,
     validar_senha,
@@ -31,6 +33,7 @@ from relatorio.interfaces.web.dependencias import (
     redirecionar,
 )
 from relatorio.interfaces.web.paginacao import paginar, voltar_para
+from relatorio.interfaces.web.rotas_senha import enviar_link
 from relatorio.interfaces.web.seguranca import (
     CHAVE_MARCA,
     CHAVE_USUARIO,
@@ -42,6 +45,10 @@ log = structlog.get_logger(__name__)
 router = APIRouter(prefix="/admin/configuracoes/usuarios")
 
 URL = "/admin/configuracoes/usuarios"
+DUPLICADO = {
+    UsuarioDuplicado: "Já existe um usuário com esse login.",
+    EmailDuplicado: "Já existe um usuário com esse e-mail.",
+}
 
 
 @router.get("", response_class=HTMLResponse)
@@ -89,8 +96,19 @@ def _formulario(
 @router.get("/novo", response_class=HTMLResponse)
 def novo(request: Request, ctx: Ctx, _acesso: UsuarioConfiguracoes) -> HTMLResponse:
     return _formulario(
-        request, ctx, id_usuario=None, valores={"nome": "", "usuario": "", "modulos": set()}
+        request,
+        ctx,
+        id_usuario=None,
+        valores={"nome": "", "usuario": "", "email": "", "modulos": set()},
     )
+
+
+def _validar_email(email: str) -> str | None:
+    """E-mail é opcional; sem ele não dá para enviar o acesso nem recuperar a senha."""
+    email = email.strip().lower()
+    if email and not email_valido(email):
+        raise ValueError("Informe um e-mail válido (ou deixe o campo em branco).")
+    return email or None
 
 
 def _validar(
@@ -114,28 +132,32 @@ def criar(
     nome: Annotated[str, Form()] = "",
     usuario: Annotated[str, Form()] = "",
     senha: Annotated[str, Form()] = "",
+    email: Annotated[str, Form()] = "",
     modulos: Annotated[list[str] | None, Form()] = None,
 ) -> Response:
-    valores = {"nome": nome, "usuario": usuario, "modulos": set(modulos or ())}
+    valores = {"nome": nome, "usuario": usuario, "email": email, "modulos": set(modulos or ())}
     try:
         nome_ok, usuario_ok, senha_ok, permissoes = _validar(
             ctx, nome, usuario, senha, modulos, nova=True
         )
+        email_ok = _validar_email(email)
         assert senha_ok is not None  # noqa: S101 — nova=True sempre valida a senha
         with ctx.container.uow() as uow:
-            uow.usuarios.criar(nome_ok, usuario_ok, gerar_hash_senha(senha_ok), permissoes)
+            uow.usuarios.criar(
+                nome_ok, usuario_ok, gerar_hash_senha(senha_ok), permissoes, email_ok
+            )
             uow.commit()
     except ValueError as erro:
         return _formulario(
             request, ctx, id_usuario=None, valores=valores, erro=str(erro), status_code=422
         )
-    except UsuarioDuplicado:
+    except (UsuarioDuplicado, EmailDuplicado) as erro:
         return _formulario(
             request,
             ctx,
             id_usuario=None,
             valores=valores,
-            erro="Já existe um usuário com esse login.",
+            erro=DUPLICADO[type(erro)],
             status_code=422,
         )
     log.info("usuario_criado", usuario=usuario_ok, modulos=permissoes, por=acesso.login)
@@ -151,7 +173,12 @@ def editar(
         atual = uow.usuarios.obter(id_usuario)
     if atual is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Usuário não encontrado")
-    valores = {"nome": atual.nome, "usuario": atual.usuario, "modulos": set(atual.permissoes)}
+    valores = {
+        "nome": atual.nome,
+        "usuario": atual.usuario,
+        "email": atual.email or "",
+        "modulos": set(atual.permissoes),
+    }
     return _formulario(request, ctx, id_usuario=id_usuario, valores=valores)
 
 
@@ -165,35 +192,39 @@ def atualizar(
     nome: Annotated[str, Form()] = "",
     usuario: Annotated[str, Form()] = "",
     senha: Annotated[str, Form()] = "",
+    email: Annotated[str, Form()] = "",
     modulos: Annotated[list[str] | None, Form()] = None,
 ) -> Response:
     with ctx.container.uow() as uow:
         atual = uow.usuarios.obter(id_usuario)
     if atual is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Usuário não encontrado")
-    valores = {"nome": nome, "usuario": usuario, "modulos": set(modulos or ())}
+    valores = {"nome": nome, "usuario": usuario, "email": email, "modulos": set(modulos or ())}
     eu = not acesso.administrador and acesso.login == atual.usuario
     try:
         nome_ok, usuario_ok, senha_ok, permissoes = _validar(
             ctx, nome, usuario, senha, modulos, nova=False
         )
+        email_ok = _validar_email(email)
         if eu and CONFIGURACOES not in permissoes:
             raise ValueError("Você não pode tirar o seu próprio acesso a Configurações.")
         novo_hash = gerar_hash_senha(senha_ok) if senha_ok else None
         with ctx.container.uow() as uow:
-            uow.usuarios.atualizar(id_usuario, nome_ok, usuario_ok, permissoes, novo_hash)
+            uow.usuarios.atualizar(
+                id_usuario, nome_ok, usuario_ok, permissoes, novo_hash, email=email_ok
+            )
             uow.commit()
     except ValueError as erro:
         return _formulario(
             request, ctx, id_usuario=id_usuario, valores=valores, erro=str(erro), status_code=422
         )
-    except UsuarioDuplicado:
+    except (UsuarioDuplicado, EmailDuplicado) as erro:
         return _formulario(
             request,
             ctx,
             id_usuario=id_usuario,
             valores=valores,
-            erro="Já existe um usuário com esse login.",
+            erro=DUPLICADO[type(erro)],
             status_code=422,
         )
     if eu:  # mudou o próprio login ou a própria senha: a sessão acompanha
@@ -209,6 +240,31 @@ def atualizar(
     )
     mensagem(request, f"Usuário {usuario_ok} atualizado.")
     return redirecionar(URL)
+
+
+@router.post("/{id_usuario}/enviar-acesso", response_model=None)
+def enviar_acesso(
+    id_usuario: int, request: Request, ctx: Ctx, acesso: UsuarioConfiguracoes, _csrf: Csrf
+) -> Response:
+    """Manda ao e-mail do usuário o login e um link para ele definir a senha."""
+    with ctx.container.uow() as uow:
+        atual = uow.usuarios.obter(id_usuario)
+    if atual is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Usuário não encontrado")
+    if not atual.email:
+        mensagem(request, f"Cadastre o e-mail de {atual.usuario} antes de enviar o acesso.", "erro")
+    else:
+        try:
+            enviar_link(ctx, request, atual, VALIDADE_CONVITE, convite=True)
+        except (ErroIntegracao, OSError) as erro:
+            log.error("acesso_falha_email", usuario=atual.usuario, erro=str(erro))
+            mensagem(request, "Não foi possível enviar o e-mail agora. Tente de novo.", "erro")
+        else:
+            log.info("acesso_enviado", usuario=atual.usuario, por=acesso.login)
+            mensagem(request, f"Acesso de {atual.usuario} enviado para {atual.email}.")
+    if request.headers.get("HX-Request"):
+        return Response(status_code=200, headers={"HX-Redirect": voltar_para(request, URL)})
+    return redirecionar(voltar_para(request, URL))
 
 
 @router.post("/{id_usuario}/excluir", response_model=None)

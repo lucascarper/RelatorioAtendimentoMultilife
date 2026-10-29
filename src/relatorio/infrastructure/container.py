@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from relatorio.application.montagem import CasosDeUso, montar_casos_de_uso
 from relatorio.application.ports import EnviadorEmail, FabricaUoW, UnidadeDeTrabalho
+from relatorio.application.recuperacao_senha import RecuperacaoSenha
 from relatorio.config import Settings
 from relatorio.infrastructure.db.repositorios import UnidadeDeTrabalhoSql, criar_fabrica_sessao
 from relatorio.infrastructure.email.envio import EnviadorArquivo, EnviadorSmtp
@@ -82,6 +83,10 @@ class Container:
     def renderizador(self) -> RenderizadorJinja:
         s = self.settings
         return RenderizadorJinja(s.templates_dir, s.static_dir, s.admin_url)
+
+    @cached_property
+    def recuperacao_senha(self) -> RecuperacaoSenha:
+        return RecuperacaoSenha(self.uow, self.relogio, self.email, self.renderizador)
 
     @cached_property
     def casos(self) -> CasosDeUso:

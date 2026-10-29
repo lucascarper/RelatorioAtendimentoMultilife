@@ -23,7 +23,7 @@ from relatorio.application.modelos import (
     StatusJob,
     UsuarioSistema,
 )
-from relatorio.application.ports import UsuarioDuplicado
+from relatorio.application.ports import EmailDuplicado, UsuarioDuplicado
 from relatorio.domain.entidades import FUSO_BRASILIA, Agenda, Evento, Snapshot
 from relatorio.domain.exames import ExameClinico, Medico
 
@@ -40,6 +40,7 @@ class BancoEmMemoria:
     resumos_sesmt: dict[date, ResumoRegistro] = field(default_factory=dict)
     destinatarios_sesmt: dict[int, Destinatario] = field(default_factory=dict)
     usuarios: dict[int, UsuarioSistema] = field(default_factory=dict)
+    tokens_senha: dict[str, tuple[int, datetime]] = field(default_factory=dict)
     medicos: dict[str, Medico] = field(default_factory=dict)
     exames: dict[int, ExameClinico] = field(default_factory=dict)
     coletas_exames: dict[date, ColetaExames] = field(default_factory=dict)
@@ -239,11 +240,27 @@ class _Usuarios:
         alvo = usuario.strip().lower()
         return next((x for x in self.u.values() if x.usuario == alvo), None)
 
-    def criar(
-        self, nome: str, usuario: str, senha_hash: str, permissoes: Sequence[str]
-    ) -> UsuarioSistema:
-        if self.obter_por_usuario(usuario) is not None:
+    def obter_por_email(self, email: str) -> UsuarioSistema | None:
+        alvo = email.strip().lower()
+        return next((x for x in self.u.values() if x.email == alvo), None)
+
+    def _conferir(self, usuario: str, email: str | None, *, ignorar: int | None = None) -> None:
+        outro = self.obter_por_usuario(usuario)
+        if outro is not None and outro.id != ignorar:
             raise UsuarioDuplicado(usuario)
+        outro = self.obter_por_email(email) if email else None
+        if outro is not None and outro.id != ignorar:
+            raise EmailDuplicado(usuario)
+
+    def criar(
+        self,
+        nome: str,
+        usuario: str,
+        senha_hash: str,
+        permissoes: Sequence[str],
+        email: str | None = None,
+    ) -> UsuarioSistema:
+        self._conferir(usuario, email)
         novo = UsuarioSistema(
             id=max(self.u, default=0) + 1,
             nome=nome,
@@ -251,6 +268,7 @@ class _Usuarios:
             senha_hash=senha_hash,
             permissoes=tuple(permissoes),
             criado_em=datetime.now(tz=FUSO_BRASILIA),
+            email=email.strip().lower() if email else None,
         )
         self.u[novo.id] = novo
         return novo
@@ -262,10 +280,10 @@ class _Usuarios:
         usuario: str,
         permissoes: Sequence[str],
         senha_hash: str | None = None,
+        *,
+        email: str | None,
     ) -> None:
-        outro = self.obter_por_usuario(usuario)
-        if outro is not None and outro.id != id_usuario:
-            raise UsuarioDuplicado(usuario)
+        self._conferir(usuario, email, ignorar=id_usuario)
         atual = self.u[id_usuario]
         self.u[id_usuario] = replace(
             atual,
@@ -273,10 +291,40 @@ class _Usuarios:
             usuario=usuario.strip().lower(),
             permissoes=tuple(permissoes),
             senha_hash=atual.senha_hash if senha_hash is None else senha_hash,
+            email=email.strip().lower() if email else None,
         )
+
+    def definir_senha(self, id_usuario: int, senha_hash: str) -> None:
+        self.u[id_usuario] = replace(self.u[id_usuario], senha_hash=senha_hash)
 
     def excluir(self, id_usuario: int) -> bool:
         return self.u.pop(id_usuario, None) is not None
+
+
+class _TokensSenha:
+    def __init__(self, banco: BancoEmMemoria) -> None:
+        self.b = banco
+
+    def criar(self, token_hash: str, id_usuario: int, expira_em: datetime, agora: datetime) -> None:
+        vencidos = [k for k, (_, expira) in self.b.tokens_senha.items() if expira <= agora]
+        for chave in vencidos:
+            del self.b.tokens_senha[chave]
+        self.b.tokens_senha[token_hash] = (id_usuario, expira_em)
+
+    def valido(self, token_hash: str, agora: datetime) -> int | None:
+        achado = self.b.tokens_senha.get(token_hash)
+        # Mesma regra do SQL: usuário excluído leva os links junto (ON DELETE CASCADE).
+        if achado is None or achado[1] <= agora or achado[0] not in self.b.usuarios:
+            return None
+        return achado[0]
+
+    def consumir(self, token_hash: str, agora: datetime) -> int | None:
+        id_usuario = self.valido(token_hash, agora)
+        if id_usuario is not None:
+            for chave, (dono, _) in list(self.b.tokens_senha.items()):
+                if dono == id_usuario:
+                    del self.b.tokens_senha[chave]
+        return id_usuario
 
 
 class _Medicos:
@@ -530,6 +578,7 @@ class UoWEmMemoria:
         self.resumos_sesmt = _Resumos(banco.resumos_sesmt)
         self.destinatarios_sesmt = _Destinatarios(banco.destinatarios_sesmt)
         self.usuarios = _Usuarios(banco.usuarios)
+        self.tokens_senha = _TokensSenha(banco)
         self.medicos = _Medicos(banco)
         self.exames = _Exames(banco)
         self.exportacoes = _Exportacoes(banco)

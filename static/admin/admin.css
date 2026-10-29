@@ -380,6 +380,8 @@ a.badge { text-decoration: none; }
 .login .sub { color: var(--texto-2); font-size: 14px; margin: 6px 0 24px; }
 .login .form label:last-of-type { margin-bottom: 20px; }
 .login-logo { margin-bottom: 28px; }
+.login .mensagem { margin: 16px 0; }
+.login-rodape { margin: 20px 0 0; text-align: center; font-size: 14px; }
 
 /* No escuro, o logotipo (azul e vermelho sobre transparente) fica sobre uma placa clara. */
 @media (prefers-color-scheme: dark) {
