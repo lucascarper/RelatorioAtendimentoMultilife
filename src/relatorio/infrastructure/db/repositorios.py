@@ -507,7 +507,8 @@ class UsuarioRepositorioSql:
         usuario: str,
         permissoes: Sequence[str],
         senha_hash: str | None = None,
-        email: str | None = None,
+        *,
+        email: str | None,
     ) -> None:
         modelo = self._s.get(UsuarioModel, id_usuario)
         if modelo is None:
@@ -538,7 +539,8 @@ class TokenSenhaRepositorioSql:
     def __init__(self, sessao: Session) -> None:
         self._s = sessao
 
-    def criar(self, token_hash: str, id_usuario: int, expira_em: datetime) -> None:
+    def criar(self, token_hash: str, id_usuario: int, expira_em: datetime, agora: datetime) -> None:
+        self._s.execute(delete(TokenSenhaModel).where(TokenSenhaModel.expira_em <= agora))
         self._s.add(
             TokenSenhaModel(token_hash=token_hash, id_usuario=id_usuario, expira_em=expira_em)
         )
@@ -560,8 +562,6 @@ class TokenSenhaRepositorioSql:
         ).first()
         if id_usuario is not None:
             self._s.execute(delete(TokenSenhaModel).where(TokenSenhaModel.id_usuario == id_usuario))
-        # Aproveita para limpar os links vencidos de todos (a tabela fica sempre pequena).
-        self._s.execute(delete(TokenSenhaModel).where(TokenSenhaModel.expira_em <= agora))
         return id_usuario
 
 

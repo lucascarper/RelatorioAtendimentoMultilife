@@ -116,6 +116,10 @@ class RenderizadorEmail(Protocol):
 
     def alerta(self, titulo: str, mensagem: str, detalhes: Mapping[str, str]) -> ConteudoEmail: ...
 
+    def acesso(
+        self, nome: str, usuario: str, link: str, validade: str, *, convite: bool
+    ) -> ConteudoEmail: ...
+
 
 class Relogio(Protocol):
     def agora(self) -> datetime:
@@ -249,9 +253,11 @@ class UsuarioRepository(Protocol):
         usuario: str,
         permissoes: Sequence[str],
         senha_hash: str | None = None,
-        email: str | None = None,
+        *,
+        email: str | None,
     ) -> None:
-        """``senha_hash`` None mantém a senha; ``email`` None tira o e-mail.
+        """``senha_hash`` None mantém a senha. ``email`` é obrigatório de propósito: None tira
+        o e-mail, e quem chama precisa dizer isso (não existe "manter").
 
         Lança ``UsuarioDuplicado`` ou ``EmailDuplicado``."""
         ...
@@ -264,7 +270,9 @@ class UsuarioRepository(Protocol):
 class TokenSenhaRepository(Protocol):
     """Links de definição de senha. Guarda só o hash do token."""
 
-    def criar(self, token_hash: str, id_usuario: int, expira_em: datetime) -> None: ...
+    def criar(self, token_hash: str, id_usuario: int, expira_em: datetime, agora: datetime) -> None:
+        """Grava o link e apaga os vencidos (``agora``), para a tabela não crescer."""
+        ...
 
     def valido(self, token_hash: str, agora: datetime) -> int | None:
         """O id do usuário, se o token existe e não venceu."""

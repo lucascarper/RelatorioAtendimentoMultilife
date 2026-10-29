@@ -181,6 +181,24 @@ class TestEsqueciSenha:
         assert pedir(cliente, "ana@multilife.com").startswith("429")
         assert email.enviados == []
 
+    def test_envios_nao_gastam_o_limite_do_ip(
+        self, cliente: TestClient, email: EmailFake, banco: BancoEmMemoria
+    ) -> None:
+        # Várias pessoas atrás do mesmo IP: cada envio conta só para o e-mail dela.
+        UoWEmMemoria(banco).usuarios.criar("Bia", "bia", "h", [], "bia@multilife.com")
+        for endereco in ("ana", "bia") * 2:
+            assert pedir(cliente, f"{endereco}@multilife.com").startswith("200")
+        assert len(email.enviados) == 4
+
+    def test_limite_por_email_protege_a_caixa_de_quem_recebe(
+        self, cliente: TestClient, email: EmailFake
+    ) -> None:
+        for _ in range(5):
+            assert pedir(cliente, "ana@multilife.com").startswith("200")
+        resposta = pedir(cliente, "ana@multilife.com")
+        assert resposta.startswith("429") and "Já enviamos vários links" in resposta
+        assert len(email.enviados) == 5
+
     def test_falha_no_envio(self, cliente: TestClient, email: EmailFake) -> None:
         email.falhar = True
         assert pedir(cliente, "ana@multilife.com").startswith("503")
@@ -261,8 +279,10 @@ def test_repositorio_em_memoria_email_e_tokens() -> None:
     with pytest.raises(EmailDuplicado):
         u.usuarios.atualizar(bia.id, "Bia", "bia", [], email="ANA@x.com")
     agora = hora("10:00")
-    u.tokens_senha.criar("t1", ana.id, hora("11:00"))
+    u.tokens_senha.criar("t1", ana.id, hora("11:00"), agora)
     assert u.tokens_senha.valido("t1", agora) == ana.id
     assert u.tokens_senha.valido("t1", hora("11:00")) is None  # venceu
+    u.tokens_senha.criar("t2", ana.id, hora("13:00"), hora("12:00"))
+    assert list(banco.tokens_senha) == ["t2"]  # criar apaga os vencidos
     u.usuarios.excluir(ana.id)
-    assert u.tokens_senha.consumir("t1", agora) is None  # usuário excluído leva o link
+    assert u.tokens_senha.consumir("t2", agora) is None  # usuário excluído leva o link

@@ -13,11 +13,13 @@ from fastapi import APIRouter, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, Response
 
 from relatorio.application.ports import EmailDuplicado, ErroIntegracao, UsuarioDuplicado
+from relatorio.application.recuperacao_senha import VALIDADE_CONVITE
 from relatorio.domain.acesso import (
     CONFIGURACOES,
     MODULOS,
     ROTULO_MODULO,
     SENHA_MIN,
+    email_valido,
     modulos_validos,
     validar_nome,
     validar_senha,
@@ -31,8 +33,7 @@ from relatorio.interfaces.web.dependencias import (
     redirecionar,
 )
 from relatorio.interfaces.web.paginacao import paginar, voltar_para
-from relatorio.interfaces.web.rotas_admin import EMAIL_VALIDO
-from relatorio.interfaces.web.rotas_senha import VALIDADE_CONVITE, enviar_link
+from relatorio.interfaces.web.rotas_senha import enviar_link
 from relatorio.interfaces.web.seguranca import (
     CHAVE_MARCA,
     CHAVE_USUARIO,
@@ -105,7 +106,7 @@ def novo(request: Request, ctx: Ctx, _acesso: UsuarioConfiguracoes) -> HTMLRespo
 def _validar_email(email: str) -> str | None:
     """E-mail é opcional; sem ele não dá para enviar o acesso nem recuperar a senha."""
     email = email.strip().lower()
-    if email and (not EMAIL_VALIDO.match(email) or len(email) > 254):
+    if email and not email_valido(email):
         raise ValueError("Informe um e-mail válido (ou deixe o campo em branco).")
     return email or None
 
@@ -209,7 +210,9 @@ def atualizar(
             raise ValueError("Você não pode tirar o seu próprio acesso a Configurações.")
         novo_hash = gerar_hash_senha(senha_ok) if senha_ok else None
         with ctx.container.uow() as uow:
-            uow.usuarios.atualizar(id_usuario, nome_ok, usuario_ok, permissoes, novo_hash, email_ok)
+            uow.usuarios.atualizar(
+                id_usuario, nome_ok, usuario_ok, permissoes, novo_hash, email=email_ok
+            )
             uow.commit()
     except ValueError as erro:
         return _formulario(

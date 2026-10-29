@@ -244,12 +244,12 @@ class _Usuarios:
         alvo = email.strip().lower()
         return next((x for x in self.u.values() if x.email == alvo), None)
 
-    def _conferir(self, id_usuario: int, usuario: str, email: str | None) -> None:
+    def _conferir(self, usuario: str, email: str | None, *, ignorar: int | None = None) -> None:
         outro = self.obter_por_usuario(usuario)
-        if outro is not None and outro.id != id_usuario:
+        if outro is not None and outro.id != ignorar:
             raise UsuarioDuplicado(usuario)
         outro = self.obter_por_email(email) if email else None
-        if outro is not None and outro.id != id_usuario:
+        if outro is not None and outro.id != ignorar:
             raise EmailDuplicado(usuario)
 
     def criar(
@@ -260,7 +260,7 @@ class _Usuarios:
         permissoes: Sequence[str],
         email: str | None = None,
     ) -> UsuarioSistema:
-        self._conferir(0, usuario, email)
+        self._conferir(usuario, email)
         novo = UsuarioSistema(
             id=max(self.u, default=0) + 1,
             nome=nome,
@@ -280,9 +280,10 @@ class _Usuarios:
         usuario: str,
         permissoes: Sequence[str],
         senha_hash: str | None = None,
-        email: str | None = None,
+        *,
+        email: str | None,
     ) -> None:
-        self._conferir(id_usuario, usuario, email)
+        self._conferir(usuario, email, ignorar=id_usuario)
         atual = self.u[id_usuario]
         self.u[id_usuario] = replace(
             atual,
@@ -304,7 +305,10 @@ class _TokensSenha:
     def __init__(self, banco: BancoEmMemoria) -> None:
         self.b = banco
 
-    def criar(self, token_hash: str, id_usuario: int, expira_em: datetime) -> None:
+    def criar(self, token_hash: str, id_usuario: int, expira_em: datetime, agora: datetime) -> None:
+        vencidos = [k for k, (_, expira) in self.b.tokens_senha.items() if expira <= agora]
+        for chave in vencidos:
+            del self.b.tokens_senha[chave]
         self.b.tokens_senha[token_hash] = (id_usuario, expira_em)
 
     def valido(self, token_hash: str, agora: datetime) -> int | None:

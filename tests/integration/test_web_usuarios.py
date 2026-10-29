@@ -532,8 +532,8 @@ class TestRepositorioSql:
                 u.usuarios.criar("Outra", "ANA", "x", [])
             bia = u.usuarios.criar("Bia", "bia", "h", [])  # a sessão segue utilizável
             with pytest.raises(UsuarioDuplicado):
-                u.usuarios.atualizar(bia.id, "Bia", "ana", [])
-            u.usuarios.atualizar(bia.id, "Beatriz", "bia.s", ["execucoes"], senha_hash="novo")
+                u.usuarios.atualizar(bia.id, "Bia", "ana", [], email=None)
+            u.usuarios.atualizar(bia.id, "Beatriz", "bia.s", ["execucoes"], "novo", email=None)
             u.commit()
         with uow() as u:
             lido = u.usuarios.obter_por_usuario("BIA.S")
@@ -646,9 +646,9 @@ class TestRepositorioSqlSenha:
                 u.usuarios.atualizar(bia.id, "Bia", "bia", [], email="ana@x.com")
             with pytest.raises(UsuarioDuplicado):  # o login duplicado continua igual
                 u.usuarios.criar("Outra", "ANA", "h", [], "outra@x.com")
-            u.tokens_senha.criar("a1", ana.id, agora + timedelta(hours=1))
-            u.tokens_senha.criar("a2", ana.id, agora + timedelta(hours=1))
-            u.tokens_senha.criar("b1", bia.id, agora + timedelta(hours=1))
+            u.tokens_senha.criar("a1", ana.id, agora + timedelta(hours=1), agora)
+            u.tokens_senha.criar("a2", ana.id, agora + timedelta(hours=1), agora)
+            u.tokens_senha.criar("b1", bia.id, agora + timedelta(hours=1), agora)
             u.commit()
         with uow() as u:
             assert u.tokens_senha.valido("a1", agora) == ana.id

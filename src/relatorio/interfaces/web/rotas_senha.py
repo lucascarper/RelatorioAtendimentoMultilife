@@ -1,13 +1,12 @@
-"""Esqueci minha senha e o link de definição de senha (ADR 0019).
+"""Telas do "Esqueci minha senha" e do link de definição de senha (ADR 0019).
 
-O link leva um token aleatório de uso único; o banco guarda só o SHA-256 dele. O mesmo
+A regra do token (geração, hash, validade, uso único) está em
+``application/recuperacao_senha.py``; aqui ficam só as rotas e o endereço do link. O mesmo
 link serve ao "Enviar acesso" da tela de usuários, com validade maior.
 """
 
 from __future__ import annotations
 
-import hashlib
-import secrets
 from datetime import timedelta
 from typing import Annotated
 from urllib.parse import urljoin
@@ -18,7 +17,8 @@ from fastapi.responses import HTMLResponse, Response
 
 from relatorio.application.modelos import UsuarioSistema
 from relatorio.application.ports import ErroIntegracao
-from relatorio.domain.acesso import SENHA_MIN, validar_senha
+from relatorio.application.recuperacao_senha import VALIDADE_ESQUECI, texto_validade
+from relatorio.domain.acesso import SENHA_MIN, email_valido, validar_senha
 from relatorio.interfaces.web.dependencias import (
     ContextoWeb,
     Csrf,
@@ -26,23 +26,10 @@ from relatorio.interfaces.web.dependencias import (
     mensagem,
     redirecionar,
 )
-from relatorio.interfaces.web.rotas_admin import EMAIL_VALIDO
 from relatorio.interfaces.web.seguranca import gerar_hash_senha
 
 log = structlog.get_logger(__name__)
 router = APIRouter(include_in_schema=False)
-
-VALIDADE_ESQUECI = timedelta(hours=1)
-VALIDADE_CONVITE = timedelta(hours=24)  # quem recebe o acesso pode demorar a ver o e-mail
-
-
-def _hash_token(token: str) -> str:
-    return hashlib.sha256(token.encode()).hexdigest()
-
-
-def _texto_validade(validade: timedelta) -> str:
-    horas = int(validade.total_seconds() // 3600)
-    return "1 hora" if horas == 1 else f"{horas} horas"
 
 
 def enviar_link(
@@ -53,20 +40,12 @@ def enviar_link(
     *,
     convite: bool,
 ) -> None:
-    """Cria o link de uso único e manda ao e-mail do usuário (lança ``ErroIntegracao``)."""
-    if not usuario.email:
-        raise ValueError("usuário sem e-mail")
-    token = secrets.token_urlsafe(32)
-    with ctx.container.uow() as uow:
-        expira = ctx.container.relogio.agora() + validade
-        uow.tokens_senha.criar(_hash_token(token), usuario.id, expira)
-        uow.commit()
+    """Manda o link ao e-mail do usuário (lança o erro do envio, se houver)."""
     # ADMIN_URL vale mais que o Host da requisição (que o cliente controla).
-    link = urljoin(ctx.settings.admin_url or str(request.base_url), f"/redefinir-senha/{token}")
-    conteudo = ctx.container.renderizador.acesso(
-        usuario.nome, usuario.usuario, link, _texto_validade(validade), convite=convite
+    base = ctx.settings.admin_url or str(request.base_url)
+    ctx.container.recuperacao_senha.enviar_link(
+        usuario, lambda token: urljoin(base, f"/redefinir-senha/{token}"), validade, convite=convite
     )
-    ctx.container.email.enviar([usuario.email], conteudo)
 
 
 def _pagina_esqueci(
@@ -78,7 +57,12 @@ def _pagina_esqueci(
     enviado: bool = False,
     status_code: int = 200,
 ) -> HTMLResponse:
-    contexto = {"email": email, "erro": erro, "enviado": enviado, "validade": "1 hora"}
+    contexto = {
+        "email": email,
+        "erro": erro,
+        "enviado": enviado,
+        "validade": texto_validade(VALIDADE_ESQUECI),
+    }
     return ctx.render(request, "admin/esqueci_senha.html", contexto, status_code=status_code)
 
 
@@ -92,22 +76,31 @@ def pedir_link(
     request: Request, ctx: Ctx, _csrf: Csrf, email: Annotated[str, Form()] = ""
 ) -> HTMLResponse:
     ip = request.client.host if request.client else "?"
-    chave = f"esqueci|{ip}"
     email = email.strip().lower()
-    if ctx.tentativas.bloqueado(chave):
+    # Dois limites (5 a cada 15 min, como o login). Por IP: só e-mail inválido ou sem perfil
+    # conta, então vários colegas atrás do mesmo IP pedem o seu link sem se atrapalhar. Por
+    # e-mail: cada envio conta, para ninguém lotar a caixa de outra pessoa.
+    chave_ip = f"esqueci|{ip}"
+    if ctx.tentativas.bloqueado(chave_ip):
         log.warning("esqueci_senha_bloqueado", ip=ip)
-        erro = "Muitos pedidos seguidos. Aguarde 15 minutos e tente de novo."
+        erro = "Muitas tentativas. Aguarde 15 minutos e tente de novo."
         return _pagina_esqueci(request, ctx, email=email, erro=erro, status_code=429)
-    ctx.tentativas.registrar_falha(chave)  # todo pedido conta: 5 a cada 15 min por IP
-    if not EMAIL_VALIDO.match(email) or len(email) > 254:
+    if not email_valido(email):
+        ctx.tentativas.registrar_falha(chave_ip)
         erro = "Informe um e-mail válido."
         return _pagina_esqueci(request, ctx, email=email, erro=erro, status_code=422)
     with ctx.container.uow() as uow:
         usuario = uow.usuarios.obter_por_email(email)
     if usuario is None:
+        ctx.tentativas.registrar_falha(chave_ip)
         # Pedido do negócio: dizer que o e-mail não tem perfil (revela quem tem; ADR 0019).
         erro = "Não existe perfil cadastrado com esse e-mail."
         return _pagina_esqueci(request, ctx, email=email, erro=erro, status_code=404)
+    chave_email = f"esqueci-email|{email}"  # só e-mails com perfil: a memória não cresce à toa
+    if ctx.tentativas.bloqueado(chave_email):
+        erro = "Já enviamos vários links para esse e-mail. Aguarde 15 minutos e tente de novo."
+        return _pagina_esqueci(request, ctx, email=email, erro=erro, status_code=429)
+    ctx.tentativas.registrar_falha(chave_email)
     try:
         enviar_link(ctx, request, usuario, VALIDADE_ESQUECI, convite=False)
     except (ErroIntegracao, OSError) as falha:  # OSError: conexão SMTP recusada
@@ -134,15 +127,11 @@ def _pagina_redefinir(
     )
 
 
-def _dono_do_link(ctx: ContextoWeb, token: str) -> UsuarioSistema | None:
-    with ctx.container.uow() as uow:
-        id_usuario = uow.tokens_senha.valido(_hash_token(token), ctx.container.relogio.agora())
-        return uow.usuarios.obter(id_usuario) if id_usuario is not None else None
-
-
 @router.get("/redefinir-senha/{token}", response_class=HTMLResponse)
 def pagina_redefinir(token: str, request: Request, ctx: Ctx) -> HTMLResponse:
-    return _pagina_redefinir(request, ctx, token, _dono_do_link(ctx, token))
+    return _pagina_redefinir(
+        request, ctx, token, ctx.container.recuperacao_senha.dono_do_link(token)
+    )
 
 
 @router.post("/redefinir-senha/{token}", response_class=HTMLResponse, response_model=None)
@@ -154,7 +143,8 @@ def redefinir(
     senha: Annotated[str, Form()] = "",
     confirmacao: Annotated[str, Form()] = "",
 ) -> Response:
-    usuario = _dono_do_link(ctx, token)
+    recuperacao = ctx.container.recuperacao_senha
+    usuario = recuperacao.dono_do_link(token)
     if usuario is None:
         return _pagina_redefinir(request, ctx, token, None)
     try:
@@ -163,15 +153,8 @@ def redefinir(
             raise ValueError("A confirmação não confere com a senha.")
     except ValueError as erro:
         return _pagina_redefinir(request, ctx, token, usuario, str(erro), status_code=422)
-    novo_hash = gerar_hash_senha(senha_ok)
-    with ctx.container.uow() as uow:
-        id_usuario = uow.tokens_senha.consumir(_hash_token(token), ctx.container.relogio.agora())
-        if id_usuario is None:  # o link foi usado (ou venceu) enquanto a senha era digitada
-            return _pagina_redefinir(request, ctx, token, None)
-        uow.usuarios.definir_senha(id_usuario, novo_hash)
-        uow.commit()
-    ip = request.client.host if request.client else "?"
-    ctx.tentativas.limpar(f"{ip}|{usuario.usuario}")  # libera o login, se estava bloqueado
-    log.info("senha_redefinida", usuario=usuario.usuario, ip=ip)
+    if not recuperacao.redefinir(token, gerar_hash_senha(senha_ok)):
+        return _pagina_redefinir(request, ctx, token, None)  # usado ou vencido ao digitar
+    log.info("senha_redefinida", usuario=usuario.usuario)
     mensagem(request, "Senha definida. Entre com o seu usuário e a nova senha.")
     return redirecionar("/login")
