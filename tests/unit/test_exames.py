@@ -209,12 +209,17 @@ def test_terceira_falha_do_processamento_alerta(com_exames: Sistema) -> None:
 # --------------------------------------------------------------------------- e-mail
 
 
+def planilhas(conteudo: ConteudoEmail) -> tuple[Anexo, ...]:
+    """Os anexos além do PDF do relatório, que todo e-mail leva."""
+    return tuple(a for a in conteudo.anexos if a.tipo != "application/pdf")
+
+
 def test_sem_medico_escolhido_o_email_sai_como_antes(com_exames: Sistema) -> None:
     s = com_exames
     preparar_envio(s)
     assert s.enviar.executar(DIA)["status"] == "enviado"
     _, conteudo = s.email.enviados[0]
-    assert conteudo.anexos == ()
+    assert planilhas(conteudo) == ()
     assert conteudo.texto == "texto"
     assert s.exames.chamadas == []  # nenhuma consulta ao SGG à toa
 
@@ -229,7 +234,7 @@ def test_email_traz_resumo_e_planilha_com_nomes(com_exames: Sistema) -> None:
     assert resultado["anexos"] == 1
     _, conteudo = s.email.enviados[0]
     assert conteudo.texto == "exames=4"
-    (anexo,) = conteudo.anexos
+    (anexo,) = planilhas(conteudo)
     assert anexo.nome == f"atendimentos-por-medico-{DIA:%Y-%m-%d}.xlsx"
     assert anexo.tipo == TIPO_XLSX
     livro = load_workbook(BytesIO(anexo.conteudo))
@@ -261,7 +266,7 @@ def test_sem_sgg_no_envio_a_planilha_sai_com_codigo(com_exames: Sistema) -> None
     autorizar_planilha(s, 1, 2)
     s.exames.falhar = True
     s.enviar.executar(DIA)
-    (anexo,) = s.email.enviados[0][1].anexos
+    (anexo,) = planilhas(s.email.enviados[0][1])
     aba = load_workbook(BytesIO(anexo.conteudo))["Ana Souza"]
     assert sorted(str(c[1].value) for c in aba.iter_rows(min_row=4)) == [
         "Funcionário #1001",
@@ -278,7 +283,7 @@ def test_complemento_que_falha_nao_segura_o_relatorio(com_exames: Sistema) -> No
     s.exames.falhar = True  # nem processado à noite, nem no envio
     assert s.enviar.executar(DIA)["status"] == "enviado"
     relatorio = [c for _, c in s.email.enviados if not c.assunto.startswith("[Alerta]")]
-    assert relatorio[0].anexos == ()
+    assert planilhas(relatorio[0]) == ()
     assert "[Alerta] Relatório enviado sem os atendimentos por médico" in s.alertas_enviados()
 
 
@@ -291,7 +296,7 @@ def test_dia_sem_exame_dos_escolhidos_tem_secao_sem_anexo(com_exames: Sistema) -
     s.enviar.executar(DIA)
     _, conteudo = s.email.enviados[0]
     assert conteudo.texto == "exames=0"
-    assert conteudo.anexos == ()
+    assert planilhas(conteudo) == ()
 
 
 def test_previa_do_admin_le_so_o_banco(com_exames: Sistema) -> None:
@@ -316,9 +321,9 @@ def test_planilha_so_para_quem_esta_autorizado(com_exames: Sistema) -> None:
     assert (resultado["destinatarios"], resultado["com_anexo"]) == (2, 1)
     # O e-mail sem planilha vai primeiro.
     (sem, conteudo_sem), (com, conteudo_com) = s.email.enviados
-    assert com == ["glauco@multilife.com.br"] and len(conteudo_com.anexos) == 1
+    assert com == ["glauco@multilife.com.br"] and len(planilhas(conteudo_com)) == 1
     assert conteudo_com.texto == "exames=3"
-    assert sem == ["tecnologia@multilife.com.br"] and conteudo_sem.anexos == ()
+    assert sem == ["tecnologia@multilife.com.br"] and planilhas(conteudo_sem) == ()
     assert conteudo_sem.texto == "exames=3 restrito"
 
 
@@ -330,8 +335,9 @@ def test_ninguem_autorizado_nem_le_nomes_no_sgg(com_exames: Sistema) -> None:
     s.exames.chamadas.clear()
     resultado = s.enviar.executar(DIA)
     assert (resultado["anexos"], resultado["com_anexo"]) == (0, 0)  # fica registrado
-    ((destinatarios, conteudo),) = s.email.enviados
-    assert len(destinatarios) == 2 and conteudo.anexos == ()
+    assert len(s.email.enviados) == 2  # um e-mail por destinatário, nenhum com planilha
+    conteudo = s.email.enviados[0][1]
+    assert planilhas(conteudo) == ()
     assert conteudo.texto == "exames=3 restrito"
     assert s.exames.chamadas == []  # sem planilha, os nomes não são lidos
 
@@ -354,7 +360,7 @@ def test_falha_so_no_anexo_nao_segura_os_demais_e_nao_duplica(com_exames: Sistem
         ["tecnologia@multilife.com.br"],
         ["glauco@multilife.com.br"],
     ]
-    assert len(s.email.enviados[1][1].anexos) == 1
+    assert len(planilhas(s.email.enviados[1][1])) == 1
     assert not any(k.startswith("envio_parcial") for k in s.banco.configuracoes)  # limpou
     # O reenvio forçado (admin) manda de novo para todos.
     s.enviar.executar(DIA, forcar=True)

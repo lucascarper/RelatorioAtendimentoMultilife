@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from relatorio.application.modelos import ConteudoEmail
+from relatorio.application.modelos import Anexo, ConteudoEmail
 from relatorio.application.ports import ErroIntegracao
 from relatorio.domain.entidades import Agenda, AgendamentoSgg, Situacao
 from relatorio.domain.exames import ExameClinico, Medico
@@ -187,6 +187,9 @@ class ExamesFake:
         return self.medicos.get(crm)
 
 
+PDF = "application/pdf"
+
+
 @dataclass
 class EmailFake:
     enviados: list[tuple[list[str], ConteudoEmail]] = field(default_factory=list)
@@ -196,7 +199,7 @@ class EmailFake:
     def enviar(self, destinatarios: Sequence[str], conteudo: ConteudoEmail) -> None:
         if self.falhar:
             raise ConnectionError("SMTP fora do ar")
-        if self.falhar_com_anexo and conteudo.anexos:
+        if self.falhar_com_anexo and any(a.tipo != PDF for a in conteudo.anexos):
             raise ConnectionError("552 mensagem grande demais")
         self.enviados.append((list(destinatarios), conteudo))
 
@@ -229,6 +232,12 @@ class RenderizadorFake:
 
     def alerta(self, titulo: str, mensagem: str, detalhes: Mapping[str, str]) -> ConteudoEmail:
         return ConteudoEmail(assunto=f"[Alerta] {titulo}", html=mensagem, texto=mensagem)
+
+    def pdf(self, conteudo: ConteudoEmail) -> Anexo:
+        return Anexo(nome="relatorio.pdf", conteudo=b"%PDF", tipo=PDF)
+
+    def mensagem(self, conteudo: ConteudoEmail, nome: str | None) -> ConteudoEmail:
+        return replace(conteudo, resumo=(f"Olá, {nome}",))
 
     def acesso(
         self, nome: str, usuario: str, link: str, validade: str, *, convite: bool

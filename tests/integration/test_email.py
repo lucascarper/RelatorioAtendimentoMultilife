@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import smtplib
+from dataclasses import replace
 from datetime import date
 from email import message_from_bytes
 from email.message import EmailMessage
@@ -11,7 +12,7 @@ from typing import Any, ClassVar
 
 import pytest
 
-from relatorio.application.modelos import ConteudoEmail, ImagemInline
+from relatorio.application.modelos import Anexo, ConteudoEmail, ImagemInline
 from relatorio.domain.comparativo import comparar
 from relatorio.domain.metricas import RegrasMetricas, calcular_metricas
 from relatorio.domain.resumo import ResumoDiario
@@ -309,6 +310,60 @@ def test_enviador_arquivo(tmp_path: Path) -> None:
     assert html.read_text(encoding="utf-8") == CONTEUDO.html
 
 
+class TestPdfEMensagem:
+    """O relatório completo vai em PDF; o corpo do e-mail é só o resumo, com o nome."""
+
+    def test_mensagem_tem_saudacao_resumo_e_anexos(
+        self,
+        renderizador: RenderizadorJinja,
+        previa: tuple[dict[str, Any], ConteudoEmail],
+    ) -> None:
+        _, conteudo = previa
+        assert conteudo.resumo[0] in conteudo.texto
+        anexo = Anexo(nome="relatorio.pdf", conteudo=b"%PDF", tipo="application/pdf")
+        mensagem = renderizador.mensagem(replace(conteudo, anexos=(anexo,)), "Maria Souza")
+        assert mensagem.assunto == conteudo.assunto
+        assert mensagem.anexos == (anexo,)
+        assert mensagem.imagens == ()
+        for corpo in (mensagem.html, mensagem.texto):
+            assert "Olá, Maria Souza," in corpo
+            assert conteudo.resumo[0] in corpo
+            assert conteudo.resumo[1] in corpo
+        assert "<table" not in mensagem.html  # o relatório completo só vai no PDF
+        assert len(mensagem.texto.splitlines()) < len(conteudo.texto.splitlines())
+
+    def test_mensagem_sem_nome_so_diz_ola(self, renderizador: RenderizadorJinja) -> None:
+        base = ConteudoEmail(assunto="x", html="", texto="", resumo=("Resumo.",))
+        assert renderizador.mensagem(base, None).texto.startswith("Olá,\n")
+
+    def test_os_tres_relatorios_trazem_resumo(
+        self, renderizador: RenderizadorJinja, previa: tuple[dict[str, Any], ConteudoEmail]
+    ) -> None:
+        metricas, conteudo = previa
+        assert conteudo.resumo[0] == montar_apresentacao(metricas, "").manchete
+        assert any(linha.startswith("Atendimentos realizados: ") for linha in conteudo.resumo)
+
+    def test_pdf_do_relatorio(
+        self,
+        renderizador: RenderizadorJinja,
+        previa: tuple[dict[str, Any], ConteudoEmail],
+    ) -> None:
+        try:
+            anexo = renderizador.pdf(previa[1])
+        except OSError:  # o WeasyPrint não achou o pango no sistema
+            pytest.skip("pango não instalado")
+        assert anexo.nome == "Resumo-de-Atendimentos-23-09-2026.pdf"
+        assert anexo.tipo == "application/pdf"
+        assert anexo.conteudo.startswith(b"%PDF")
+
+    def test_email_montado_leva_o_pdf_anexado(self) -> None:
+        pdf = Anexo(nome="r.pdf", conteudo=b"%PDF-1.7", tipo="application/pdf")
+        conteudo = ConteudoEmail(assunto="x", html="<p>oi</p>", texto="oi", anexos=(pdf,))
+        mensagem = montar_mensagem("r@multilife.com.br", "MultiLife", ["a@x.com"], conteudo)
+        [anexo] = [p for p in mensagem.iter_attachments()]
+        assert (anexo.get_filename(), anexo.get_content_type()) == ("r.pdf", "application/pdf")
+
+
 class TestTurnosEGuiches:
     """Blocos por turno (consultórios e agendas) e guichês separados na análise por turno."""
 
@@ -488,6 +543,8 @@ class TestRelatorioFinanceiro:
         metricas = {**self.metricas(anterior=ontem), "fluxo_dia": self.FLUXO}
         conteudo = renderizador.relatorio_financeiro(metricas)
         assert conteudo.assunto == "Relatório Financeiro — 27/09/2026 (domingo)"
+        assert conteudo.resumo[0].startswith("Em 27/09, entraram ")
+        assert any(linha.startswith("Saldo operacional") for linha in conteudo.resumo[1:])
         html, texto = conteudo.html, conteudo.texto
         for trecho in (
             "Indicadores principais",
@@ -583,6 +640,7 @@ class TestRelatorioSesmt:
     def test_estrutura_do_email_do_sesmt(self, renderizador: RenderizadorJinja) -> None:
         conteudo = renderizador.relatorio_sesmt(self.metricas())
         assert conteudo.assunto == "Relatório de Gestão SESMT — 30/09/2026 (quarta-feira)"
+        assert conteudo.resumo[0].startswith("Vencem nos próximos 30 dias")
         html, texto = conteudo.html, conteudo.texto
         for trecho in (
             "Contratos e documentos a vencer (próximos 30 dias)",

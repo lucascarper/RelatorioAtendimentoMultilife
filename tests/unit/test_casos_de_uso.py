@@ -375,17 +375,28 @@ class TestEnviarRelatorio:
         assert registro.status_envio is StatusEnvio.ENVIADO
         assert registro.enviado_em == hora("07:59", DIA + timedelta(days=1))
 
+    def test_cada_destinatario_recebe_o_seu_email_com_nome_e_o_pdf(self, sistema: Sistema) -> None:
+        preparar_envio(sistema)
+        sistema.enviar.executar(DIA)
+        enviados = sistema.email.enviados
+        assert [d for d, _ in enviados] == [
+            ["glauco@multilife.com.br"],
+            ["tecnologia@multilife.com.br"],
+        ]
+        assert [c.resumo for _, c in enviados] == [("Olá, Glauco",), ("Olá, Tecnologia",)]
+        assert all(c.anexos[0].tipo == "application/pdf" for _, c in enviados)
+
     def test_reexecutar_nao_duplica_email(self, sistema: Sistema) -> None:
         preparar_envio(sistema)
         sistema.enviar.executar(DIA)
         assert sistema.enviar.executar(DIA)["status"] == "ja_enviado"
-        assert len(sistema.email.enviados) == 1
+        assert len(sistema.email.enviados) == 2  # um por destinatário
 
     def test_reenvio_manual_forcado(self, sistema: Sistema) -> None:
         preparar_envio(sistema)
         sistema.enviar.executar(DIA)
         assert sistema.enviar.executar(DIA, forcar=True)["status"] == "enviado"
-        assert len(sistema.email.enviados) == 2
+        assert len(sistema.email.enviados) == 4
 
     def test_falha_smtp_marca_falha_e_permite_nova_tentativa(self, sistema: Sistema) -> None:
         preparar_envio(sistema)
@@ -461,7 +472,7 @@ class TestManutencao:
             "destinatarios": 2,
             "sem_movimento": False,
         }
-        assert len(sistema.email.enviados) == 2
+        assert len(sistema.email.enviados) == 4
 
     def test_reprocessar_sem_sgg_segue_com_o_que_tem(self, sistema: Sistema) -> None:
         sistema.sgg.falhar = True

@@ -40,6 +40,8 @@ jobs:
         with:
           version: "0.8.17"
           enable-cache: true
+      - name: Bibliotecas do PDF (WeasyPrint)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 fonts-liberation
       - name: Dependências
         run: uv sync --frozen
       - name: Ruff (lint)

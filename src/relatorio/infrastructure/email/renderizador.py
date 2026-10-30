@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import base64
 import logging
-from collections.abc import Mapping
+import re
+import unicodedata
+from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from jinja2 import ChainableUndefined, Environment, FileSystemLoader, select_autoescape
 from premailer import Premailer
 
-from relatorio.application.modelos import ConteudoEmail, ImagemInline
+from relatorio.application.modelos import Anexo, ConteudoEmail, ImagemInline
 from relatorio.domain.entidades import FUSO_BRASILIA
 from relatorio.infrastructure.email.apresentacao import montar_apresentacao
 from relatorio.infrastructure.email.apresentacao_financeira import montar_apresentacao_financeira
@@ -20,6 +24,27 @@ from relatorio.infrastructure.email.grafico import grafico_projecao
 
 LOGO_CID = "logo-multilife"
 GRAFICO_CID = "grafico-projecao"
+
+# O HTML do e-mail é uma coluna de 640 px sobre fundo cinza; no PDF ela ocupa a folha toda.
+CSS_PDF = """
+    @page { size: A4; margin: 10mm }
+    body, table[bgcolor="#F2F4F8"], td[bgcolor="#F2F4F8"] { background: #FFF !important }
+    table.container { width: 100% !important; max-width: none !important }
+    table[width="100%"] { width: 100% !important }
+    tr { break-inside: avoid }
+    """
+
+
+class _Cartao(Protocol):
+    @property
+    def rotulo(self) -> str: ...
+
+    @property
+    def valor(self) -> str: ...
+
+
+def _resumo(manchete: str, cartoes: Sequence[_Cartao]) -> tuple[str, ...]:
+    return (manchete, *(f"{c.rotulo}: {c.valor}" for c in cartoes))
 
 
 class RenderizadorJinja:
@@ -61,6 +86,7 @@ class RenderizadorJinja:
             html=self._inline(html),
             texto=texto.strip() + "\n",
             imagens=self._imagens(),
+            resumo=_resumo(apresentacao.manchete, apresentacao.kpis),
         )
 
     def relatorio_financeiro(self, metricas: Mapping[str, Any]) -> ConteudoEmail:
@@ -79,6 +105,7 @@ class RenderizadorJinja:
             html=self._inline(html),
             texto=texto.strip() + "\n",
             imagens=imagens,
+            resumo=_resumo(apresentacao.manchete, apresentacao.cartoes),
         )
 
     def relatorio_sesmt(self, metricas: Mapping[str, Any]) -> ConteudoEmail:
@@ -91,6 +118,7 @@ class RenderizadorJinja:
             html=self._inline(html),
             texto=texto.strip() + "\n",
             imagens=self._imagens(),
+            resumo=_resumo(apresentacao.manchete, ()),
         )
 
     def acesso(
@@ -138,3 +166,22 @@ class RenderizadorJinja:
             texto=texto.strip() + "\n",
             imagens=self._imagens(),
         )
+
+    def pdf(self, conteudo: ConteudoEmail) -> Anexo:
+        from weasyprint import CSS, HTML  # noqa: PLC0415 - exige o pango; só quem gera PDF paga
+
+        html = conteudo.html
+        for imagem in conteudo.imagens:  # o PDF não resolve ``cid:``
+            dados = base64.b64encode(imagem.conteudo).decode()
+            html = html.replace(f"cid:{imagem.cid}", f"data:image/{imagem.subtipo};base64,{dados}")
+        pdf = HTML(string=html).write_pdf(stylesheets=[CSS(string=CSS_PDF)])
+        # "Relatório Financeiro — 29/10/2026 (quinta-feira)" → Relatorio-Financeiro-29-10-2026.pdf
+        base = unicodedata.normalize("NFKD", conteudo.assunto.split(" (")[0])
+        nome = re.sub(r"[^A-Za-z0-9]+", "-", base.encode("ascii", "ignore").decode()).strip("-")
+        return Anexo(nome=f"{nome}.pdf", conteudo=pdf, tipo="application/pdf")
+
+    def mensagem(self, conteudo: ConteudoEmail, nome: str | None) -> ConteudoEmail:
+        contexto = {"nome": nome, "resumo": conteudo.resumo, "admin_url": self._admin_url}
+        html = self._env.get_template("email/mensagem.html").render(contexto)
+        texto = self._env.get_template("email/mensagem.txt").render(contexto)
+        return replace(conteudo, html=html, texto=texto.strip() + "\n", imagens=())

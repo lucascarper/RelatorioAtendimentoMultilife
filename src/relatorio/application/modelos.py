@@ -123,6 +123,8 @@ class ConteudoEmail:
     texto: str
     imagens: tuple[ImagemInline, ...] = ()
     anexos: tuple[Anexo, ...] = ()
+    # Linhas do resumo do relatório (manchete e indicadores) que vão no corpo do e-mail.
+    resumo: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

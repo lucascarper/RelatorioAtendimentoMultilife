@@ -23,6 +23,10 @@ RUN uv sync --frozen --no-dev
 
 # ---------------------------------------------------------------- execução
 FROM base AS runtime
+# WeasyPrint (PDF do relatório) precisa do pango; fonts-liberation é o Arial do PDF.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
 RUN groupadd --system app && useradd --system --gid app --home-dir /app app \
     && mkdir -p /app/saida_emails && chown app:app /app/saida_emails
 COPY --from=build /app/.venv /app/.venv

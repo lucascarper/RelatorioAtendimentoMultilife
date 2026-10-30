@@ -159,8 +159,10 @@ class EnviarRelatorio:
             # Homologação: a caixa de teste recebe tudo, inclusive a planilha.
             destinatarios = list(self._override)
             com_anexo = set(destinatarios)
+            nomes: dict[str, str | None] = {}
         else:
             destinatarios = [d.email for d in ativos]
+            nomes = {d.email: d.nome for d in ativos}
             com_anexo = {d.email for d in ativos if d.recebe_anexo}
 
         if not destinatarios:
@@ -175,7 +177,9 @@ class EnviarRelatorio:
             return {"referencia": referencia, "status": "sem_destinatarios"}
 
         complemento = self._complementar(dia, com_anexo=bool(com_anexo))
-        self._enviar_grupos(dia, forcar, registro.metricas, destinatarios, com_anexo, complemento)
+        self._enviar_grupos(
+            dia, forcar, registro.metricas, destinatarios, com_anexo, complemento, nomes
+        )
 
         with self._uow() as uow:
             self._tipo.resumos(uow).marcar_enviado(dia, self._relogio.agora())
@@ -206,10 +210,12 @@ class EnviarRelatorio:
         destinatarios: Sequence[str],
         com_anexo: set[str],
         complemento: Complemento,
+        nomes: Mapping[str, str | None],
     ) -> None:
-        """Envia cada grupo (sem e com planilha); marca falha e relança se algum falhar."""
-        # Com e sem planilha são dois e-mails: quem já recebeu numa tentativa anterior do dia
-        # não recebe de novo (nem a planilha nominal), a não ser num reenvio forçado.
+        """Envia a cada destinatário o resumo com o PDF; marca falha e relança se algum falhar."""
+        # Cada destinatário recebe a sua mensagem (com o nome), e o grupo com planilha leva
+        # também o anexo nominal. Quem já recebeu numa tentativa anterior do dia não recebe de
+        # novo, a não ser num reenvio forçado.
         chave = self._chave_parcial(dia)
         with self._uow() as uow:
             if forcar:
@@ -226,16 +232,22 @@ class EnviarRelatorio:
                 continue
             try:
                 conteudo = self._tipo.renderizar(self._renderizador, {**metricas, **extra})
-                if anexos:
-                    conteudo = replace(conteudo, anexos=anexos)
-                self._email.enviar(pendentes, conteudo)
+                pdf = self._renderizador.pdf(conteudo)
+                conteudo = replace(conteudo, anexos=(pdf, *anexos))
             except Exception as erro:  # um grupo que falha não impede o outro
                 falha = falha or erro
                 continue
-            ja_receberam.update(pendentes)
-            with self._uow() as uow:
-                uow.configuracoes.definir(chave, ",".join(sorted(ja_receberam)))
-                uow.commit()
+            for destinatario in pendentes:
+                try:
+                    mensagem = self._renderizador.mensagem(conteudo, nomes.get(destinatario))
+                    self._email.enviar([destinatario], mensagem)
+                except Exception as erro:  # quem falha não impede os demais
+                    falha = falha or erro
+                    continue
+                ja_receberam.add(destinatario)
+                with self._uow() as uow:
+                    uow.configuracoes.definir(chave, ",".join(sorted(ja_receberam)))
+                    uow.commit()
         if falha is not None:
             with self._uow() as uow:
                 self._tipo.resumos(uow).marcar_falha_envio(dia)
