@@ -238,3 +238,8 @@ class RenderizadorFake:
 
     def mensagem(self, conteudo: ConteudoEmail, nome: str | None) -> ConteudoEmail:
         return replace(conteudo, resumo=(f"Olá, {nome}",))
+
+    def acesso(
+        self, nome: str, usuario: str, link: str, validade: str, *, convite: bool
+    ) -> ConteudoEmail:
+        return ConteudoEmail(assunto="acesso", html=link, texto=f"{usuario} {link} {validade}")

@@ -74,6 +74,15 @@ SENHA_MIN, SENHA_MAX = 8, 72  # o bcrypt só considera os 72 primeiros bytes
 _USUARIO = re.compile(rf"^[a-z0-9][a-z0-9._-]{{{USUARIO_MIN - 1},{USUARIO_MAX - 1}}}$")
 
 
+_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+EMAIL_MAX = 254
+
+
+def email_valido(email: str) -> bool:
+    """Regra única de e-mail do sistema (destinatários, usuários e recuperação de senha)."""
+    return bool(_EMAIL.match(email)) and len(email) <= EMAIL_MAX
+
+
 def normalizar_usuario(texto: str) -> str:
     return texto.strip().lower()
 

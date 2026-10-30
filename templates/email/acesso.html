@@ -1,0 +1,31 @@
+{% extends "email/_base.html" %}
+{% block titulo %}{{ assunto }}{% endblock %}
+{% block preheader %}Defina a sua senha do Sistema de Relatórios. O link vale por {{ validade }}.{% endblock %}
+{% block cabecalho_direita %}
+<div style="font-size:12px; line-height:16px; letter-spacing:1.2px; text-transform:uppercase; color:#626883; font-weight:700;">Sistema de Relatórios</div>
+<div style="font-size:18px; line-height:24px; color:#20295A; font-weight:700; padding-top:2px;">{{ "Seu acesso" if convite else "Redefinir senha" }}</div>
+{% endblock %}
+{% block conteudo %}
+<tr>
+  <td bgcolor="#FFFFFF" class="px fonte" style="background:#FFFFFF; padding:22px 32px 8px; font-size:14px; line-height:22px; color:#20295A;">
+    <p style="margin:0 0 12px;">Olá, {{ nome }}.</p>
+    {%- if convite %}
+    <p style="margin:0 0 12px;">Você tem acesso ao Sistema de Relatórios da MultiLife. Para entrar, defina a sua senha pelo botão abaixo.</p>
+    {%- else %}
+    <p style="margin:0 0 12px;">Recebemos um pedido para redefinir a sua senha do Sistema de Relatórios. Use o botão abaixo para cadastrar a nova senha.</p>
+    {%- endif %}
+    <p style="margin:0 0 18px;">Seu usuário: <strong>{{ usuario }}</strong></p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td bgcolor="#2F4A80" style="background:#2F4A80; border-radius:8px;">
+          <a href="{{ link }}" style="display:inline-block; padding:12px 22px; color:#FFFFFF; font-weight:700; text-decoration:none;">Definir minha senha</a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:18px 0 0; font-size:13px; line-height:19px; color:#444B68;">O link vale por {{ validade }} e só pode ser usado uma vez. Se o botão não abrir, copie este endereço no navegador:<br><span style="word-break:break-all;">{{ link }}</span></p>
+    {%- if not convite %}
+    <p style="margin:12px 0 0; font-size:13px; line-height:19px; color:#444B68;">Se você não pediu, ignore este e-mail: a sua senha atual continua valendo.</p>
+    {%- endif %}
+  </td>
+</tr>
+{% endblock %}

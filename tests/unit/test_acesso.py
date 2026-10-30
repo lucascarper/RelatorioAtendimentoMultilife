@@ -85,7 +85,7 @@ def test_repositorio_em_memoria_cria_atualiza_e_exclui() -> None:
         with pytest.raises(UsuarioDuplicado):
             u.usuarios.criar("Outra Ana", "ANA", "hash", [])
         bia = u.usuarios.criar("Bia", "bia", "hash", [])
-        u.usuarios.atualizar(bia.id, "Beatriz", "beatriz", ["sesmt"])
+        u.usuarios.atualizar(bia.id, "Beatriz", "beatriz", ["sesmt"], email=None)
         atual = u.usuarios.obter(bia.id)
         assert atual is not None
         assert (atual.nome, atual.usuario, atual.senha_hash, atual.permissoes) == (
@@ -94,10 +94,10 @@ def test_repositorio_em_memoria_cria_atualiza_e_exclui() -> None:
             "hash",  # senha mantida
             ("sesmt",),
         )
-        u.usuarios.atualizar(bia.id, "Beatriz", "beatriz", ["sesmt"], senha_hash="novo")
+        u.usuarios.atualizar(bia.id, "Beatriz", "beatriz", ["sesmt"], "novo", email=None)
         assert u.usuarios.obter_por_usuario("Beatriz").senha_hash == "novo"  # type: ignore[union-attr]
         with pytest.raises(UsuarioDuplicado):
-            u.usuarios.atualizar(bia.id, "Beatriz", "ana", [])
+            u.usuarios.atualizar(bia.id, "Beatriz", "ana", [], email=None)
         assert [x.nome for x in u.usuarios.listar()] == ["Ana", "Beatriz"]
         assert u.usuarios.excluir(ana.id) is True and u.usuarios.excluir(ana.id) is False
         assert u.usuarios.obter_por_usuario("ana") is None

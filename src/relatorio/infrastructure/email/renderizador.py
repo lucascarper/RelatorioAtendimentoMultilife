@@ -121,6 +121,33 @@ class RenderizadorJinja:
             resumo=_resumo(apresentacao.manchete, ()),
         )
 
+    def acesso(
+        self, nome: str, usuario: str, link: str, validade: str, *, convite: bool
+    ) -> ConteudoEmail:
+        """Link de definição de senha: "Enviar acesso" (convite) ou "Esqueci minha senha"."""
+        assunto = (
+            "Seu acesso ao Sistema de Relatórios — MultiLife"
+            if convite
+            else "Redefinir senha — Sistema de Relatórios MultiLife"
+        )
+        contexto = {
+            "assunto": assunto,
+            "nome": nome,
+            "usuario": usuario,
+            "link": link,
+            "validade": validade,
+            "convite": convite,
+            "logo_cid": LOGO_CID,
+        }
+        html = self._env.get_template("email/acesso.html").render(contexto)
+        texto = self._env.get_template("email/acesso.txt").render(contexto)
+        return ConteudoEmail(
+            assunto=assunto,
+            html=self._inline(html),
+            texto=texto.strip() + "\n",
+            imagens=self._imagens(),
+        )
+
     def alerta(self, titulo: str, mensagem: str, detalhes: Mapping[str, str]) -> ConteudoEmail:
         agora = datetime.now(tz=FUSO_BRASILIA)
         contexto = {

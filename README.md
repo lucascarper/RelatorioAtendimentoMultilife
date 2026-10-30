@@ -134,7 +134,8 @@ Em **Configurações → Usuários** ficam a lista de usuários, com **Adicionar
 - O **administrador do deploy** (`ADMIN_USER` e `ADMIN_PASSWORD_HASH`) sempre tem todos os módulos e não é guardado no banco: aparece na lista, mas não é editado nem excluído por ali. Assim ninguém perde o acesso ao sistema por engano.
 - Usuário: 3 a 40 caracteres (letras minúsculas, números, ponto, hífen ou sublinhado), único sem diferenciar maiúsculas. Senha: de 8 a 72 caracteres, guardada com bcrypt. Ao editar, a senha em branco mantém a atual.
 - Ninguém exclui o próprio usuário nem tira o próprio acesso a Configurações.
-- Regras e decisões no [ADR 0014](docs/adr/0014-usuarios-e-modulos.md).
+- E-mail opcional e único. Com ele, **Enviar acesso** manda ao usuário o login e um link para definir a senha (vale 24 horas), e a tela de login ganha **Esqueci minha senha** (link de 1 hora, de uso único).
+- Regras e decisões no [ADR 0014](docs/adr/0014-usuarios-e-modulos.md) e no [ADR 0019](docs/adr/0019-acesso-e-senha-por-email.md).
 
 ### Listas paginadas
 
@@ -239,7 +240,7 @@ Veja [`.env.example`](.env.example). Segredos só em variáveis de ambiente (RNF
 | `EMAIL_FROM` / `EMAIL_ALERTA_TECNICO` | `relatorios@…` / `tecnologia@…` | Remetente e alertas técnicos |
 | `EMAIL_DESTINATARIOS_OVERRIDE` | `tecnologia@multilife.com.br` | Staging: todo e-mail só para o time de TI |
 | `ADMIN_USER` / `ADMIN_PASSWORD_HASH` / `SECRET_KEY` | (secretas) | Administrador do sistema (acesso a todos os módulos, não editável pelo painel) e assinatura da sessão |
-| `ADMIN_URL` | `https://….up.railway.app/admin` | Link no rodapé do e-mail |
+| `ADMIN_URL` | `https://….up.railway.app/admin` | Link no rodapé do e-mail e nos links de definição de senha |
 | `APP_ENV` / `TZ` / `LOG_LEVEL` | `production` / `America/Sao_Paulo` / `INFO` | Ambiente, fuso e logs |
 
 Turnos, limites de atípico, e-mail técnico, unidades e agendas incluídas também se ajustam no **admin** (tabela `configuracao`, que prevalece sobre as variáveis).
