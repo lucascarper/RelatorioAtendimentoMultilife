@@ -1,0 +1,10 @@
+Olá{% if nome %}, {{ nome }}{% endif %},
+
+segue em anexo (PDF) o relatório completo. Em resumo:
+{% if resumo %}
+{{ resumo[0] }}
+{% for linha in resumo[1:] %}- {{ linha }}
+{% endfor %}{% endif %}
+--
+MultiLife · Saúde e Segurança do Trabalho — mensagem automática, não responda.{% if admin_url %}
+Painel: {{ admin_url }}{% endif %}

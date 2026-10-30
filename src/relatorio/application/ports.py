@@ -12,6 +12,7 @@ from types import TracebackType
 from typing import Any, Protocol, Self
 
 from relatorio.application.modelos import (
+    Anexo,
     ColetaExames,
     ConteudoEmail,
     Destinatario,
@@ -115,6 +116,14 @@ class RenderizadorEmail(Protocol):
     def relatorio_sesmt(self, metricas: Mapping[str, Any]) -> ConteudoEmail: ...
 
     def alerta(self, titulo: str, mensagem: str, detalhes: Mapping[str, str]) -> ConteudoEmail: ...
+
+    def pdf(self, conteudo: ConteudoEmail) -> Anexo:
+        """O relatório completo (o HTML de ``conteudo``) como PDF."""
+        ...
+
+    def mensagem(self, conteudo: ConteudoEmail, nome: str | None) -> ConteudoEmail:
+        """O e-mail simples de um destinatário: saudação com o nome, resumo e os anexos."""
+        ...
 
 
 class Relogio(Protocol):

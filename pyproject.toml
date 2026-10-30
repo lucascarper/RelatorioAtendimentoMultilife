@@ -23,6 +23,7 @@ dependencies = [
     "tenacity>=8.5",
     "tzdata>=2024.1",
     "uvicorn[standard]>=0.30",
+    "weasyprint>=63",
 ]
 
 [dependency-groups]
@@ -78,7 +79,7 @@ packages = ["relatorio"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["premailer.*", "apscheduler.*"]
+module = ["premailer.*", "apscheduler.*", "weasyprint.*"]
 ignore_missing_imports = true
 
 # ---------------------------------------------------------------- testes

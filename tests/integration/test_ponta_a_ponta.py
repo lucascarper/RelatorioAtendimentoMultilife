@@ -146,7 +146,8 @@ def test_dia_simulado_bate_com_a_conferencia(
     [(destinatarios, conteudo)] = ambiente.email.enviados
     assert destinatarios == ["glauco@multilife.com.br"]
     assert conteudo.assunto == "Resumo de Atendimentos — 23/09/2026 (quarta-feira)"
-    assert f">{k['atendimentos']}<" in conteudo.html
+    assert any(str(k["atendimentos"]) in linha for linha in conteudo.resumo)
+    assert conteudo.anexos[0].conteudo.startswith(b"%PDF")
     assert ambiente.casos.enviar.executar(DIA)["status"] == "ja_enviado"
 
 

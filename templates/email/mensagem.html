@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<body style="margin:0; padding:16px; background:#FFFFFF; font-family:'Segoe UI', Roboto, Arial, sans-serif; font-size:15px; line-height:22px; color:#20295A;">
+<p style="margin:0 0 16px;">Olá{% if nome %}, {{ nome }}{% endif %},</p>
+<p style="margin:0 0 16px;">segue em anexo (PDF) o relatório completo. Em resumo:</p>
+{%- if resumo %}
+<p style="margin:0 0 8px;"><strong>{{ resumo[0] }}</strong></p>
+{%- if resumo|length > 1 %}
+<ul style="margin:0 0 16px; padding-left:20px;">
+{%- for linha in resumo[1:] %}
+  <li>{{ linha }}</li>
+{%- endfor %}
+</ul>
+{%- endif %}
+{%- endif %}
+<p style="margin:16px 0 0; font-size:12px; line-height:18px; color:#626883;">MultiLife · Saúde e Segurança do Trabalho — mensagem automática, não responda.{% if admin_url %} Painel: <a href="{{ admin_url }}" style="color:#2F4A80;">{{ admin_url }}</a>{% endif %}</p>
+</body>
+</html>
