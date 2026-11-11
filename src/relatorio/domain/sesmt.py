@@ -4,8 +4,9 @@ Funções puras sobre o que já foi lido do SGG (empresas, contratos, programas/
 eventos do eSocial). As regras:
 
 * **Documento corrente**: programas e laudos (PGR, PCMSO, LTCAT…) são emitidos de novo a
-  cada renovação e o SGG guarda todo o histórico. Para cada empresa e tipo vale o de
-  **maior vencimento**; os anteriores foram substituídos e não geram pendência.
+  cada renovação e o SGG guarda todo o histórico. Para cada empresa e tipo vale o **mais
+  recente** (maior emissão; empate ou emissão ausente, maior vencimento). Só o vencimento
+  dele define a situação (a vencer ou vencido); os anteriores não geram pendência.
 * **Contrato corrente**: só o contrato marcado como o último do cliente (``ultimo``).
   Contratos antigos já substituídos ou encerrados não entram.
 * **A vencer**: vence de hoje até hoje + 30 dias. **Vencendo** é o que vence em até 7 dias.
@@ -28,7 +29,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
 
-VERSAO_REGRA_SESMT = "1.0.0"
+VERSAO_REGRA_SESMT = "1.1.0"
 
 TIPOS_DOCUMENTO = ("PGR", "PCMSO", "LTCAT")
 JANELA_A_VENCER_DIAS = 30
@@ -179,16 +180,21 @@ def _pendencia(
 
 
 def documentos_correntes(documentos: Sequence[DocumentoSst]) -> list[DocumentoSst]:
-    """O documento de maior vencimento de cada empresa e tipo (os demais foram renovados)."""
+    """O documento mais recente de cada empresa e tipo (os demais foram renovados).
+
+    Um vencimento digitado errado num documento antigo não pode esconder nem criar pendência.
+    """
     correntes: dict[tuple[int, str], DocumentoSst] = {}
     for doc in documentos:
-        if doc.vencimento is None:
-            continue
         chave = (doc.id_empresa, doc.tipo)
         atual = correntes.get(chave)
-        if atual is None or atual.vencimento is None or doc.vencimento > atual.vencimento:
+        if atual is None or _recencia(doc) > _recencia(atual):
             correntes[chave] = doc
-    return list(correntes.values())
+    return [d for d in correntes.values() if d.vencimento is not None]
+
+
+def _recencia(doc: DocumentoSst) -> tuple[date, date]:
+    return (doc.emissao or date.min, doc.vencimento or date.min)
 
 
 def _pendencias(dados: DadosSesmt) -> list[_Pendencia]:

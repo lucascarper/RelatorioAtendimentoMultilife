@@ -76,6 +76,16 @@ def test_documento_corrente_e_o_de_maior_vencimento() -> None:
     assert correntes == {("PGR", d("2026-08-08")), ("PCMSO", d("2026-10-20"))}
 
 
+def test_documento_corrente_e_o_mais_recente_mesmo_com_vencimento_menor() -> None:
+    docs = [
+        DocumentoSst(1, "PGR", d("2027-01-01"), emissao=d("2024-01-01")),  # antigo, data suspeita
+        DocumentoSst(1, "PGR", d("2026-09-01"), emissao=d("2025-09-01")),  # o mais recente
+    ]
+    (corrente,) = documentos_correntes(docs)
+    assert corrente.vencimento == d("2026-09-01")
+    assert calcular_sesmt(dados(documentos=docs), GERADO)["vencidos"]["total"] == 1
+
+
 def test_renovado_nao_gera_vencido_e_o_atrasado_mostra_dias() -> None:
     r = calcular_sesmt(
         dados(
@@ -213,4 +223,4 @@ def test_dia_sem_eventos_e_resumo_serializavel() -> None:
     json.dumps(r)  # vai para JSONB: não pode ter tipos fora do JSON
     assert r["esocial"]["total"] == 0
     assert r["empresas_sem_consulta"] == 2
-    assert (r["referencia"], r["hoje"], r["versao_regra"]) == ("2026-09-29", "2026-09-30", "1.0.0")
+    assert (r["referencia"], r["hoje"], r["versao_regra"]) == ("2026-09-29", "2026-09-30", "1.1.0")

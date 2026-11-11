@@ -21,8 +21,8 @@ O SESMT quer um e-mail diário com os contratos e documentos a vencer, os vencid
 - **Mesmo deploy, job próprio.** Coleta às 02:00 (retentativas 03:30 e 04:30), e-mail às 08:00 (08:02 e 08:04), verificação às 08:12. Tabelas novas `resumo_sesmt` e `destinatario_sesmt` (migração 0004); `EnviarRelatorio` e `VerificarEnvio` recebem o `TipoRelatorio` `SESMT`, com a mesma trava de duplicidade dos outros.
 - **Coleta de madrugada e seletiva.** O SGG só responde documentos e eventos **por empresa** (1.138 empresas), no limite de 20 requisições por minuto, e o coletor de agendamentos usa 12 delas por minuto entre 06:00 e 18:00. Por isso a coleta roda de madrugada e consulta só o necessário: documentos (PGR, PCMSO e LTCAT, uma consulta por tipo) das empresas com contrato em andamento (cerca de 330) e eventos das empresas com o eSocial habilitado (cerca de 600). São cerca de 1.700 consultas, mais de uma hora. Reprocessar uma data pelo admin leva o mesmo tempo.
 - **Falha de uma empresa não derruba a coleta.** A empresa fica de fora e o e-mail avisa que o relatório está parcial. Cinco falhas seguidas (API fora, chave revogada) abortam; acima de 10% de falhas também: melhor não enviar do que mandar um relatório com buracos sem aviso.
-- **Regras** (`domain/sesmt.py`, `VERSAO_REGRA_SESMT` 1.0.0):
-  - Documento corrente = o de maior vencimento de cada empresa e tipo; os anteriores foram renovados.
+- **Regras** (`domain/sesmt.py`, `VERSAO_REGRA_SESMT` 1.1.0):
+  - Documento corrente = o mais recente (maior emissão; sem emissão ou empate, maior vencimento) de cada empresa e tipo; os anteriores foram renovados. Só o vencimento dele decide entre a vencer e vencido.
   - Contrato corrente = o marcado como `ultimo`.
   - A vencer: hoje até hoje + 30 dias; "Vencendo" em até 7 dias. Vencido: vencimento anterior a hoje.
   - Contratos vencidos há mais de 90 dias são de clientes que saíram: entram só na contagem. Documento vencido de cliente com contrato em andamento fica sempre na lista (risco legal), do mais atrasado ao menos.

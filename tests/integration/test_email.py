@@ -659,7 +659,7 @@ class TestRelatorioSesmt:
             "Funcionário #21",
             "1.1.0000000000000000001",
             "12.345.678/0001-90",
-            "Regra de cálculo v1.0.0",
+            "Regra de cálculo v1.1.0",
             f'src="cid:{LOGO_CID}"',
         ):
             assert trecho in html, trecho
