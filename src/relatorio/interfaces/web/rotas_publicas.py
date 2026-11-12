@@ -20,6 +20,7 @@ from relatorio.interfaces.web.seguranca import (
     CHAVE_MARCA,
     CHAVE_PERFIL,
     CHAVE_USUARIO,
+    MAX_TENTATIVAS_POR_USUARIO,
     PERFIL_ADMIN,
     PERFIL_USUARIO,
     conferir_credenciais,
@@ -71,7 +72,8 @@ def autenticar(ctx: ContextoWeb, usuario: str, senha: str) -> tuple[Acesso, str,
     if conferir_credenciais(
         usuario, senha, admin, ctx.settings.admin_password_hash.get_secret_value()
     ):
-        return Acesso(admin, admin, TODOS_OS_MODULOS, administrador=True), PERFIL_ADMIN, ""
+        marca = marca_da_senha(ctx.settings.admin_password_hash.get_secret_value())
+        return Acesso(admin, admin, TODOS_OS_MODULOS, administrador=True), PERFIL_ADMIN, marca
     # Sempre confere o bcrypt (com hash fictício se o usuário não existe): o tempo da
     # resposta não revela quais usuários existem.
     with ctx.container.uow() as uow:
@@ -91,8 +93,12 @@ def entrar(
     senha: Annotated[str, Form()] = "",
 ) -> Response:
     ip = request.client.host if request.client else "?"
-    chave = f"{ip}|{usuario.strip().lower()}"
-    if ctx.tentativas.bloqueado(chave):
+    nome = usuario.strip().lower()
+    chave = f"{ip}|{nome}"
+    chave_usuario = f"usuario|{nome}"  # sem IP: o X-Forwarded-For forjado não escapa deste limite
+    if ctx.tentativas.bloqueado(chave) or ctx.tentativas.bloqueado(
+        chave_usuario, MAX_TENTATIVAS_POR_USUARIO
+    ):
         log.warning("login_bloqueado", ip=ip)
         return ctx.render(
             request,
@@ -103,6 +109,7 @@ def entrar(
     entrada = autenticar(ctx, usuario.strip(), senha)
     if entrada is None:
         restantes = ctx.tentativas.registrar_falha(chave)
+        ctx.tentativas.registrar_falha(chave_usuario, MAX_TENTATIVAS_POR_USUARIO)
         log.warning("login_falhou", ip=ip, restantes=restantes)
         erro = "Usuário ou senha inválidos."
         if restantes <= 2:

@@ -9,12 +9,18 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from relatorio.application.ports import EmailDuplicado, FabricaUoW
 from relatorio.config import Settings
 from relatorio.infrastructure.container import Container
 from relatorio.interfaces.web.app import create_app
-from relatorio.interfaces.web.seguranca import conferir_senha, gerar_hash_senha
+from relatorio.interfaces.web.seguranca import (
+    MAX_CHAVES,
+    ControleTentativas,
+    conferir_senha,
+    gerar_hash_senha,
+)
 from tests.fabricas import hora
 from tests.fakes import BancoEmMemoria, EmailFake, RelogioFixo, UoWEmMemoria
 
@@ -286,3 +292,38 @@ def test_repositorio_em_memoria_email_e_tokens() -> None:
     assert list(banco.tokens_senha) == ["t2"]  # criar apaga os vencidos
     u.usuarios.excluir(ana.id)
     assert u.tokens_senha.consumir("t2", agora) is None  # usuário excluído leva o link
+
+
+def tentar_login(cliente: TestClient, usuario: str, senha: str) -> int:
+    resposta = cliente.post(
+        "/login",
+        data={"usuario": usuario, "senha": senha, "csrf": csrf(cliente, "/login")},
+        follow_redirects=False,
+    )
+    return resposta.status_code
+
+
+class TestLoginSeguro:
+    def test_limite_por_usuario_vale_mesmo_trocando_de_ip(self, cliente: TestClient) -> None:
+        tentativas = cliente.app.state.contexto.tentativas  # type: ignore[attr-defined]
+        for _ in range(20):
+            assert tentar_login(cliente, "admin", "senha-errada") == 401
+            tentativas.limpar("testclient|admin")  # como se cada tentativa viesse de outro IP
+        assert tentar_login(cliente, "admin", SENHA_ADMIN) == 429
+
+    def test_tentativas_nao_guardam_chaves_vencidas_sem_limite(self) -> None:
+        agora = [0.0]
+        controle = ControleTentativas(relogio=lambda: agora[0])
+        for i in range(MAX_CHAVES):
+            controle.registrar_falha(f"ip|usuario{i}")
+        agora[0] = 16 * 60  # tudo venceu
+        controle.registrar_falha("ip|novo")
+        assert len(controle._falhas) == 1
+
+    def test_senha_do_admin_trocada_derruba_a_sessao_aberta(self, cliente: TestClient) -> None:
+        assert tentar_login(cliente, "admin", SENHA_ADMIN) == 303
+        assert cliente.get("/admin/configuracoes", follow_redirects=False).status_code == 200
+        settings = cliente.app.state.contexto.settings  # type: ignore[attr-defined]
+        settings.admin_password_hash = SecretStr(gerar_hash_senha("outra-senha-123"))
+        resposta = cliente.get("/admin/configuracoes", follow_redirects=False)
+        assert resposta.status_code == 303 and resposta.headers["location"] == "/login"

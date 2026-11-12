@@ -14,7 +14,10 @@ import bcrypt
 from fastapi import HTTPException, Request, status
 
 MAX_TENTATIVAS = 5
+# Limite só por usuário (sem IP): vale mesmo se o cliente forjar o X-Forwarded-For.
+MAX_TENTATIVAS_POR_USUARIO = 20
 BLOQUEIO_SEGUNDOS = 15 * 60
+MAX_CHAVES = 10_000  # teto da memória: chaves vencidas são descartadas ao passar disto
 CHAVE_USUARIO = "usuario"
 CHAVE_PERFIL = "perfil"  # "admin" (o do deploy) ou "usuario" (cadastrado no painel)
 CHAVE_MARCA = "marca"  # impressão da senha com que a sessão foi aberta
@@ -68,22 +71,30 @@ class ControleTentativas:
     _falhas: dict[str, list[float]] = field(default_factory=dict)
     _trava: threading.Lock = field(default_factory=threading.Lock)
 
-    def bloqueado(self, chave: str) -> bool:
+    def bloqueado(self, chave: str, limite: int = MAX_TENTATIVAS) -> bool:
         with self._trava:
             falhas = [t for t in self._falhas.get(chave, []) if self._valida(t)]
-            self._falhas[chave] = falhas
-            return len(falhas) >= MAX_TENTATIVAS
+            if falhas:
+                self._falhas[chave] = falhas
+            else:
+                self._falhas.pop(chave, None)  # consulta de chave sem falha não ocupa memória
+            return len(falhas) >= limite
 
-    def registrar_falha(self, chave: str) -> int:
+    def registrar_falha(self, chave: str, limite: int = MAX_TENTATIVAS) -> int:
         with self._trava:
+            if len(self._falhas) >= MAX_CHAVES:
+                self._descartar_vencidas()
             falhas = [t for t in self._falhas.get(chave, []) if self._valida(t)]
             falhas.append(self.relogio())
             self._falhas[chave] = falhas
-            return MAX_TENTATIVAS - len(falhas)
+            return limite - len(falhas)
 
     def limpar(self, chave: str) -> None:
         with self._trava:
             self._falhas.pop(chave, None)
+
+    def _descartar_vencidas(self) -> None:
+        self._falhas = {c: v for c, v in self._falhas.items() if any(self._valida(t) for t in v)}
 
     def _valida(self, instante: float) -> bool:
         return self.relogio() - instante < BLOQUEIO_SEGUNDOS

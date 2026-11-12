@@ -128,6 +128,9 @@ class ContextoWeb:
         if administrador:
             if login != self.settings.admin_user:  # ADMIN_USER mudou desde o login
                 return None
+            hash_admin = self.settings.admin_password_hash.get_secret_value()
+            if not hmac.compare_digest(marca, marca_da_senha(hash_admin)):
+                return None  # ADMIN_PASSWORD_HASH mudou desde o login
             return Acesso(login, login, TODOS_OS_MODULOS, administrador=True)
         with self.container.uow() as uow:
             cadastrado = uow.usuarios.obter_por_usuario(login)
