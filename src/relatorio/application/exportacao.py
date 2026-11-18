@@ -22,12 +22,8 @@ from relatorio.domain.exportacao import (
     EXPORTAR,
     PROCESSAR,
     ROTULOS,
-    SESMT,
-    SESMT_FIM_HORA,
-    SESMT_INICIO_HORA,
     TIPOS,
     Planilha,
-    sesmt_liberado,
     validar_periodo,
 )
 
@@ -89,12 +85,6 @@ class ExportarRelatorio:
             raise ValueError("Relatório desconhecido.")
         agora = self._relogio.agora()
         validar_periodo(inicio, fim, agora.astimezone(FUSO_BRASILIA).date(), tipo, acao)
-        if tipo == SESMT and not sesmt_liberado(agora):
-            o_que = "O processamento" if acao == PROCESSAR else "A exportação"
-            raise ValueError(
-                f"{o_que} do SESMT relê o SGG empresa por empresa e só roda das "
-                f"{SESMT_INICIO_HORA}h às {SESMT_FIM_HORA}h."
-            )
         exportacao = Exportacao(
             id=uuid.uuid4().hex,
             tipo=tipo,

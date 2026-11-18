@@ -404,27 +404,53 @@ class TestDashboardsFinanceiroESesmt:
         assert "no máximo 31 dias" in erro
 
     def test_sesmt(self, cliente: TestClient, uow: FabricaUoW) -> None:
-        def dia(sem_recibo: int, vencidos: int) -> dict[str, object]:
-            return {
-                "esocial": {
-                    "total": 4 + sem_recibo,
-                    "com_recibo": 4,
-                    "sem_recibo": sem_recibo,
-                    "empresas": 2,
-                    "por_evento": {"S-2220": 3, "S-2240": 1 + sem_recibo},
-                    "eventos": ["fora do recorte"],
-                },
-                "a_vencer": {"total": 5, "vencendo": 2, "contratos": 1, "documentos": 4},
-                "vencidos": {"total": vencidos, "contratos": 0, "documentos": vencidos},
-            }
+        from datetime import date, datetime  # noqa: PLC0415
+
+        from relatorio.domain.entidades import FUSO_BRASILIA  # noqa: PLC0415
+        from relatorio.domain.sesmt import (  # noqa: PLC0415
+            DadosSesmt,
+            DocumentoSst,
+            EmpresaSesmt,
+            EventoEsocial,
+            calcular_sesmt,
+            mes_seguinte,
+        )
 
         entrar(cliente)
-        self.salvar(uow, "resumos_sesmt", {"2026-09-23": dia(1, 3), "2026-08-23": dia(2, 3)})
+        assert "Nenhuma coleta ainda" in cliente.get("/admin/sesmt").text
+        hoje = datetime.now(FUSO_BRASILIA).date()  # a tela usa o relógio real
+        vence, _ = mes_seguinte(hoje)
+        empresas = {
+            i: EmpresaSesmt(i, f"Empresa {i:02d} LTDA", "", "1", True) for i in range(1, 31)
+        }
+        documentos = [DocumentoSst(i, "PGR", date(2020, 1, 1)) for i in (1, 2)]
+        documentos += [DocumentoSst(i, "PCMSO", vence) for i in empresas]
+        eventos = [EventoEsocial("1", "S-2220", 3, hoje.replace(day=1), "")]
+        with uow() as u:
+            for ref in (hoje - timedelta(days=2), hoje - timedelta(days=1)):
+                dados = DadosSesmt(ref, hoje, empresas, documentos, eventos, {"1": "PREMIUM"})
+                gerado = datetime.combine(ref, datetime.min.time(), FUSO_BRASILIA)
+                u.resumos_sesmt.salvar_metricas(ref, calcular_sesmt(dados, gerado), "2.0.0", gerado)
+            # Resumo da versão antiga: fica de fora do dashboard e do histórico.
+            u.resumos_sesmt.salvar_metricas(
+                hoje - timedelta(days=3),
+                {"versao_regra": "1.1.0", "vencidos": {"total": 9}},
+                "1.1.0",
+                gerado,
+            )
+            u.commit()
         pagina = cliente.get("/admin/sesmt").text
-        assert "Eventos do eSocial por tipo" in pagina and "S-2240" in pagina
-        assert "1 contratos · 4 documentos" in pagina
-        assert 'id="dados-grafico-esocial"' in pagina and 'id="dados-grafico-pendencias"' in pagina
-        assert "■ estável" in pagina  # vencidos: 3 contra 3
+        assert '<p class="manchete">2 documentos vencidos em 2 empresas; 30 vencem em' in pagina
+        assert 'id="dados-grafico-grupos"' in pagina and '"horizontal": true' in pagina
+        assert 'id="dados-grafico-vencidos-dia"' in pagina
+        assert 'id="dados-grafico-esocial-mensal"' in pagina
+        assert "■ estável" in pagina  # vencidos: 2 contra 2 na coleta anterior
+        # Lista paginada: 25 por página por padrão, com seletor e páginas.
+        assert pagina.count("Empresa ") >= 25 and "1–25 de 30" in pagina
+        assert 'name="vencem_n"' in pagina
+        segunda = cliente.get("/admin/sesmt?vencem_p=2").text
+        assert "26–30 de 30" in segunda
+        assert "eSocial rejeitados em" in pagina and "S\u20112220: 1" in pagina
         assert re.search(r'href="/admin/sesmt"[^>]*aria-current="page"', pagina)
         assert "Planilha (LGPD)" not in pagina and "Exportar planilha" not in pagina
 
@@ -587,16 +613,23 @@ class TestSesmt:
         futuro = cliente.post(
             "/admin/sesmt/reprocessar", data={"data": "2099-01-01", "csrf": token}
         )
-        assert "escolha até ontem" in futuro.text
+        assert "Escolha uma data até hoje." in futuro.text
 
         assert cliente.get("/admin/sesmt/relatorios/2026-09-29").status_code == 404
         ref = date(2026, 9, 29)
-        vazio = DadosSesmt(ref, date(2026, 9, 30), {}, [], [], [])
-        gerado = datetime(2026, 9, 30, 2, 0, tzinfo=FUSO_BRASILIA)
+        vazio = DadosSesmt(ref, date(2026, 9, 30), {}, [], [])
+        gerado = datetime(2026, 9, 29, 23, 0, tzinfo=FUSO_BRASILIA)
         with uow() as u:
-            u.resumos_sesmt.salvar_metricas(ref, calcular_sesmt(vazio, gerado), "1.0.0", gerado)
+            u.resumos_sesmt.salvar_metricas(ref, calcular_sesmt(vazio, gerado), "2.0.0", gerado)
+            antigo = {"versao_regra": "1.1.0", "a_vencer": {"total": 1}}
+            u.resumos_sesmt.salvar_metricas(date(2026, 9, 28), antigo, "1.1.0", gerado)
             u.commit()
+        assert cliente.get("/admin/sesmt/relatorios/2026-09-28").status_code == 404
         previa = cliente.get("/admin/sesmt/relatorios/2026-09-29")
         assert previa.status_code == 200
         assert "Relatório de gestão SESMT" in previa.text
-        assert "/admin/sesmt/relatorios/2026-09-29" in cliente.get("/admin/sesmt/gestao").text
+        gestao = cliente.get("/admin/sesmt/gestao").text
+        assert "/admin/sesmt/relatorios/2026-09-29" in gestao
+        assert "/admin/sesmt/relatorios/2026-09-28" not in gestao
+        assert "Formato antigo do relatório" in gestao
+        assert "Processar período" not in gestao

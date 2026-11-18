@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 
 import httpx
 import pytest
 import respx
 
-from relatorio.domain.entidades import FUSO_BRASILIA
 from relatorio.domain.sesmt import TIPOS_DOCUMENTO
 from relatorio.infrastructure.sgg.cliente import ClienteSgg
-from relatorio.infrastructure.sgg.dto_sesmt import hora_de_geracao, para_empresa
+from relatorio.infrastructure.sgg.dto_sesmt import para_empresa
 from relatorio.infrastructure.sgg.erros import ErroSggRequisicao
 from relatorio.infrastructure.sgg.limitador import LimitadorTaxa
 
@@ -62,14 +61,6 @@ def test_empresa_pessoa_fisica_e_cnpj_de_mentira_nao_vazam() -> None:
         para_empresa({"nome": "x"})
 
 
-def test_hora_de_geracao_vem_do_id_do_xml_e_precisa_bater_com_o_dia() -> None:
-    esperado = datetime(2026, 9, 29, 12, 18, 37, tzinfo=FUSO_BRASILIA)
-    assert hora_de_geracao(XML, date(2026, 9, 29)) == esperado
-    assert hora_de_geracao(XML, date(2026, 9, 28)) is None  # data de outro dia: descarta
-    assert hora_de_geracao("", date(2026, 9, 29)) is None
-    assert hora_de_geracao("<x Id='ID1234'/>", None) is None
-
-
 @respx.mock
 def test_empresas_paginam_e_ignoram_item_invalido(cliente: ClienteSgg) -> None:
     rota = respx.get(BASE + "empresa/").mock(
@@ -81,48 +72,6 @@ def test_empresas_paginam_e_ignoram_item_invalido(cliente: ClienteSgg) -> None:
     empresas = cliente.empresas_sesmt()
     assert [(e.id, e.esocial_habilitado) for e in empresas] == [(1, False), (2, True)]
     assert [c.request.url.params["paginador[pagina]"] for c in rota.calls] == ["0", "1"]
-
-
-@respx.mock
-def test_contratos_das_duas_situacoes_com_ultimo(cliente: ClienteSgg) -> None:
-    rota = respx.get(BASE + "contratoCliente/").mock(
-        side_effect=[
-            resposta(
-                [
-                    {
-                        "id": "10",
-                        "id_cliente": "5",
-                        "codigo_interno": "2025-089",
-                        "situacao_contrato": "Em andamento",
-                        "data_vencimento": "2026-10-28",
-                        "ultimo": "Sim",
-                    }
-                ]
-            ),
-            resposta(
-                [
-                    {
-                        "id": "11",
-                        "id_cliente": "5",
-                        "situacao_contrato": "Vencido",
-                        "data_vencimento": "2024-01-02",
-                        "ultimo": "Não",
-                    }
-                ]
-            ),
-        ]
-    )
-    contratos = {c.id: c for c in cliente.contratos_sesmt()}
-    assert [c.request.url.params["situacao_contrato"] for c in rota.calls] == [
-        "Em andamento",
-        "Vencido",
-    ]
-    assert (contratos[10].codigo, contratos[10].ultimo, contratos[10].vencimento) == (
-        "2025-089",
-        True,
-        date(2026, 10, 28),
-    )
-    assert contratos[11].ultimo is False
 
 
 @respx.mock
@@ -157,7 +106,7 @@ def test_documentos_uma_consulta_por_tipo_com_a_empresa(cliente: ClienteSgg) -> 
 
 
 @respx.mock
-def test_eventos_esocial_descartam_o_xml_e_guardam_hora_e_recibo(cliente: ClienteSgg) -> None:
+def test_eventos_esocial_guardam_so_tipo_data_e_recibo(cliente: ClienteSgg) -> None:
     rota = respx.get(BASE + "getEvtEsocial/").mock(
         return_value=resposta(
             [
@@ -189,11 +138,10 @@ def test_eventos_esocial_descartam_o_xml_e_guardam_hora_e_recibo(cliente: Client
     params = rota.calls[0].request.url.params
     assert (params["id_empresa"], params["evento"]) == ("58", "Todos")
     com, sem = eventos["14300"], eventos["14301"]
-    assert com.transmitido and not sem.transmitido
-    assert com.gerado_em == datetime(2026, 9, 29, 12, 18, 37, tzinfo=FUSO_BRASILIA)
-    assert sem.gerado_em is None
-    assert (com.id_funcionario, com.prazo) == (21068, date(2026, 10, 15))
+    assert sem.rejeitado and not com.rejeitado
+    assert (com.tipo, com.id_empresa, com.data_geracao) == ("S-2220", 58, date(2026, 9, 29))
     assert "13372222679" not in repr(eventos)  # o CPF do XML não é guardado
+    assert "21068" not in repr(eventos)  # nem o código do funcionário
 
 
 @respx.mock

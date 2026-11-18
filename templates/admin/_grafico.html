@@ -1,8 +1,8 @@
-{#- Gráfico diário dos dashboards: canvas (desenhado por dashboard.js com o JSON ao lado) e
+{#- Gráfico dos dashboards (por dia, mês ou grupo): canvas (desenhado por dashboard.js com o JSON ao lado) e
     a mesma informação em tabela, para quem não enxerga o gráfico. Recebe a configuração
     montada por ``interfaces/web/dashboard.grafico``. -#}
 {% macro grafico(g) -%}
-<div class="grafico-dias">
+<div class="grafico-dias"{% if g.horizontal %} style="height: {{ 60 + 32 * g.rotulos | length }}px"{% endif %}>
   <canvas id="{{ g.id }}" data-grafico role="img" aria-label="{{ g.titulo }}: {{ g.nota }} Os números estão na tabela abaixo."></canvas>
 </div>
 <script type="application/json" id="dados-{{ g.id }}">{{ g | tojson }}</script>
@@ -10,7 +10,7 @@
   <summary>Ver os números em tabela</summary>
   <div class="rolagem">
   <table class="tabela tabela-compacta">
-    <thead><tr><th>Dia</th>{% for s in g.series %}<th class="num">{{ s.rotulo }}</th>{% endfor %}</tr></thead>
+    <thead><tr><th>{{ g.eixo or "Dia" }}</th>{% for s in g.series %}<th class="num">{{ s.rotulo }}</th>{% endfor %}</tr></thead>
     <tbody>
     {%- for rotulo in g.rotulos %}{% set i = loop.index0 %}
       <tr>

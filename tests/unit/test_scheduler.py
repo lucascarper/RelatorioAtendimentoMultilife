@@ -113,9 +113,9 @@ def test_financeiro_retentativa_pula_dia_ja_consolidado(
 
 def test_sesmt_retentativa_pula_dia_ja_consolidado(sistema: Sistema, jobs: JobsAgendados) -> None:
     sistema.uow().destinatarios_sesmt.adicionar("sesmt@multilife.com.br", None)
-    sistema.relogio.instante = hora("02:00", DIA + timedelta(days=1))
+    sistema.relogio.instante = hora("20:00", DIA)  # a coleta das 20:00 é do próprio dia
     jobs.consolidar_sesmt(tentativa=1)
-    sistema.relogio.instante = hora("03:30", DIA + timedelta(days=1))
+    sistema.relogio.instante = hora("00:00", DIA + timedelta(days=1))  # retentativa: o mesmo dia
     jobs.consolidar_sesmt(tentativa=2)
     assert execucoes(sistema, "consolidar_sesmt") == [(StatusJob.SUCESSO, "2026-09-23")]
     sistema.relogio.instante = hora("08:00", DIA + timedelta(days=1))

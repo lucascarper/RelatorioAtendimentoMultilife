@@ -25,7 +25,7 @@ from relatorio.application.modelos import (
 from relatorio.domain.entidades import Agenda, AgendamentoSgg, Evento, Situacao, Snapshot
 from relatorio.domain.exames import ExameClinico, Medico
 from relatorio.domain.financeiro import Contrato, PrecoFornecedor, Titulo
-from relatorio.domain.sesmt import ContratoSesmt, DocumentoSst, EmpresaSesmt, EventoEsocial
+from relatorio.domain.sesmt import DocumentoSst, EmpresaSesmt, EventoEsocial
 
 # --------------------------------------------------------------------------- externos
 
@@ -78,10 +78,6 @@ class SesmtGateway(Protocol):
     """Leitura dos endpoints do relatório de gestão do SESMT (somente GET)."""
 
     def empresas_sesmt(self) -> list[EmpresaSesmt]: ...
-
-    def contratos_sesmt(self) -> list[ContratoSesmt]:
-        """Contratos "Em andamento" e "Vencido" (o campo ``ultimo`` marca o corrente)."""
-        ...
 
     def documentos_sst(self, id_empresa: int) -> list[DocumentoSst]:
         """Programas e laudos da empresa (todo o histórico dos tipos do relatório)."""

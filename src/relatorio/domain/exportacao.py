@@ -11,8 +11,6 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Literal
 
-from relatorio.domain.entidades import FUSO_BRASILIA
-
 ATENDIMENTO = "atendimento"
 FINANCEIRO = "financeiro"
 SESMT = "sesmt"
@@ -25,10 +23,6 @@ ROTULOS = {
     MEDICOS: "Atendimentos por médico",
 }
 MAX_DIAS = 31
-# A exportação do SESMT relê o SGG empresa por empresa (mais de mil consultas): só fora do
-# expediente, quando a cota da API é maior e o coletor do painel não está rodando.
-SESMT_INICIO_HORA = 20
-SESMT_FIM_HORA = 5
 
 # "duracao" recebe segundos e aparece como h:mm:ss; "percentual" recebe a fração (0,25 = 25%).
 Formato = Literal[
@@ -55,11 +49,6 @@ def validar_periodo(
         raise ValueError("Este relatório é do dia anterior: escolha a data final até ontem.")
     if (fim - inicio).days + 1 > MAX_DIAS:
         raise ValueError(f"O período pode ter no máximo {MAX_DIAS} dias.")
-
-
-def sesmt_liberado(agora: datetime) -> bool:
-    hora = agora.astimezone(FUSO_BRASILIA).hour
-    return hora >= SESMT_INICIO_HORA or hora < SESMT_FIM_HORA
 
 
 def dias(inicio: date, fim: date) -> list[date]:

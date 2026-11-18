@@ -1,13 +1,20 @@
-"""Dashboards do financeiro e do SESMT: somas do período, fotos do último dia e setas."""
+"""Dashboards do financeiro (somas do período, foto do último dia) e do SESMT (última coleta)."""
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from relatorio.domain.comparativo import Sentido, comparar_valor
 from relatorio.domain.dashboard_financeiro import CAMPOS, resumir_financeiro
-from relatorio.domain.dashboard_sesmt import resumir_sesmt
+from relatorio.domain.entidades import FUSO_BRASILIA
+from relatorio.domain.sesmt import (
+    DadosSesmt,
+    DocumentoSst,
+    EmpresaSesmt,
+    EventoEsocial,
+    calcular_sesmt,
+)
 from relatorio.infrastructure.memoria import _recortar
 from relatorio.interfaces.web.dashboard import montar_financeiro, montar_sesmt
 
@@ -29,18 +36,23 @@ def financeiro(recebido: float, pago: float, faturado: float, mrr: float) -> dic
     }
 
 
-def sesmt(com: int, sem: int, a_vencer: int, vencidos: int, **tipos: int) -> dict[str, Any]:
-    return {
-        "esocial": {
-            "total": com + sem,
-            "com_recibo": com,
-            "sem_recibo": sem,
-            "empresas": 2,
-            "por_evento": tipos,
-        },
-        "a_vencer": {"total": a_vencer, "vencendo": 1, "contratos": 1, "documentos": a_vencer - 1},
-        "vencidos": {"total": vencidos, "contratos": vencidos, "documentos": 0},
-    }
+def sesmt(referencia: date, vencidos: int, rejeitados: int) -> dict[str, Any]:
+    """Métricas de uma coleta: ``vencidos`` PGRs vencidos e ``rejeitados`` eventos sem recibo."""
+    empresas = {i: EmpresaSesmt(i, f"Empresa {i}", "", "1", True) for i in range(1, 4)}
+    documentos = [
+        DocumentoSst(1 + i % 3, ("PGR", "PCMSO", "LTCAT")[i % 3], date(2026, 1, 1))
+        for i in range(vencidos)
+    ]
+    documentos.append(DocumentoSst(2, "PGR", date(2026, 12, 10), date(2026, 6, 1)))
+    eventos = [EventoEsocial(str(i), "S-2220", 1, referencia, "") for i in range(rejeitados)]
+    eventos += [
+        EventoEsocial("x", "S-2240", 2, date(2026, 10, 3), "1.1.1"),
+        EventoEsocial("y", "S-2240", 2, date(2026, 10, 4), ""),
+    ]
+    dados = DadosSesmt(
+        referencia, date(2026, 11, 18), empresas, documentos, eventos, {"1": "PREMIUM"}
+    )
+    return calcular_sesmt(dados, datetime(2026, 11, 17, 23, 0, tzinfo=FUSO_BRASILIA))
 
 
 def test_financeiro_soma_os_dias_e_tira_a_foto_do_ultimo() -> None:
@@ -94,39 +106,36 @@ def test_variacao_com_base_negativa_tem_o_sinal_certo() -> None:
     assert (item.direcao, item.avaliacao, item.variacao) == ("alta", "positiva", 1.5)
 
 
-def test_sesmt_soma_esocial_e_tira_a_foto_das_pendencias() -> None:
-    p = resumir_sesmt(
-        INICIO,
-        FIM,
-        [
-            (date(2026, 10, 1), sesmt(5, 1, a_vencer=8, vencidos=2, S2220=4, S2240=2)),
-            (date(2026, 10, 3), sesmt(3, 2, a_vencer=6, vencidos=3, S2220=5)),
-        ],
+def test_painel_sesmt_mostra_a_ultima_coleta_com_setas_e_historico() -> None:
+    atual = sesmt(date(2026, 11, 17), vencidos=3, rejeitados=2)
+    anterior = sesmt(date(2026, 11, 16), vencidos=2, rejeitados=1)
+    painel = montar_sesmt(atual, anterior, [(date(2026, 11, 16), 2), (date(2026, 11, 17), 3)])
+    vencidos, vencem, enviados, rejeitados = painel.cartoes
+    assert (vencidos.valor, vencidos.contexto) == ("3", "em 3 empresas")
+    assert vencidos.delta is not None and (vencidos.delta.tom, vencidos.delta.rotulo) == (
+        "ruim",
+        "vs 16/11",
     )
-    assert (p.eventos, p.com_recibo, p.sem_recibo, p.empresas) == (11, 8, 3, 4)
-    assert p.por_evento == (("S2220", 9), ("S2240", 2))
-    assert p.foto is not None and (p.foto.data, p.foto.a_vencer, p.foto.vencidos) == (
-        date(2026, 10, 3),
-        6,
-        3,
-    )
-    assert [(d.com_recibo, d.a_vencer) for d in p.dias] == [(5, 8), (None, None), (3, 6)]
+    assert vencem.rotulo == "Vencem em dezembro" and vencem.valor == "1"
+    assert rejeitados.delta is not None and rejeitados.delta.rotulo == "vs 01/10 a 17/10"
+    assert enviados.delta is not None and enviados.delta.tom == "neutro"
+    assert painel.manchete.startswith("3 documentos vencidos em 3 empresas; 1 vence em dezembro.")
+    # Barras deitadas por grupo, empilhadas por tipo.
+    assert painel.grupos["horizontal"] and painel.grupos["rotulos"] == ["PREMIUM"]
+    assert [s["dados"] for s in painel.grupos["series"]] == [[1], [1], [1]]
+    assert painel.vencem == [
+        {"empresa": "Empresa 2", "cnpj": "", "grupo": "PREMIUM", "documentos": "PGR 10/12"}
+    ]
+    assert painel.rejeitados[0]["quantidade"] == "2"
+    dia, mes = painel.historico
+    assert dia["rotulos"] == ["16/11", "17/11"] and dia["series"][0]["dados"] == [2, 3]
+    assert mes["rotulos"][-2:] == ["out/26", "nov/26"] and mes["eixo"] == "Mês"
 
 
-def test_painel_sesmt_setas_e_tabela() -> None:
-    atual = resumir_sesmt(INICIO, FIM, [(date(2026, 10, 1), sesmt(5, 1, 8, 2, S2220=6))])
-    anterior = resumir_sesmt(
-        date(2026, 9, 1), date(2026, 9, 3), [(date(2026, 9, 1), sesmt(5, 0, 4, 2))]
-    )
-    painel = montar_sesmt(atual, anterior)
-    periodo, foto = painel.grupos
-    eventos, _, sem_recibo, _ = periodo.cartoes
-    assert eventos.delta is not None and eventos.delta.tom == "neutro"
-    assert sem_recibo.delta is None  # base zero: sem variação percentual
-    assert foto.cartoes[0].delta is not None and foto.cartoes[0].delta.tom == "ruim"
-    assert foto.cartoes[0].contexto == "1 contratos · 7 documentos"
-    assert painel.tabela is not None and painel.tabela["linhas"] == [("S2220", "6")]
-    assert [g["empilhado"] for g in painel.graficos] == [True, False]
+def test_painel_sesmt_sem_coleta_anterior_fica_sem_seta_do_dia() -> None:
+    painel = montar_sesmt(sesmt(date(2026, 11, 17), 0, 0), None, [])
+    assert painel.cartoes[0].delta is None and painel.cartoes[1].delta is None
+    assert painel.grupos["rotulos"] == []
 
 
 def test_recorte_do_json_como_no_banco() -> None:

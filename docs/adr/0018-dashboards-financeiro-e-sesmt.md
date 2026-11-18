@@ -1,6 +1,6 @@
 # ADR 0018: Dashboards do financeiro e do SESMT
 
-- **Status:** aceita
+- **Status:** aceita; a parte do SESMT foi substituída pelo [ADR 0020](0020-sesmt-vencidos-mes-seguinte-e-esocial-do-mes.md)
 - **Data:** 2026-10-29
 
 ## Contexto

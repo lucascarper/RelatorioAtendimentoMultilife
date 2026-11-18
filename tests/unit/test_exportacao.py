@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, time, timedelta
 from decimal import Decimal
 from io import BytesIO
 
@@ -11,11 +11,11 @@ from openpyxl import load_workbook
 from openpyxl.workbook import Workbook
 
 from relatorio.application.modelos import StatusExportacao
-from relatorio.domain.entidades import FUSO_BRASILIA, Agenda, AgendamentoSgg, Situacao
+from relatorio.domain.entidades import Agenda, AgendamentoSgg, Situacao
 from relatorio.domain.exames import ExameClinico, Medico
-from relatorio.domain.exportacao import Aba, Coluna, Planilha, sesmt_liberado, validar_periodo
+from relatorio.domain.exportacao import Aba, Coluna, Planilha, validar_periodo
 from relatorio.domain.financeiro import ItemFaturado, Titulo
-from relatorio.domain.sesmt import ContratoSesmt, DocumentoSst, EmpresaSesmt, EventoEsocial
+from relatorio.domain.sesmt import DocumentoSst, EmpresaSesmt, EventoEsocial
 from relatorio.infrastructure.memoria import _Exportacoes
 from relatorio.infrastructure.planilha_exportacao import escrever_planilha
 from tests.fabricas import DIA, hora, snapshot
@@ -51,20 +51,6 @@ def test_validacao_do_periodo() -> None:
         validar_periodo(DIA, HOJE + timedelta(days=1), HOJE)
     with pytest.raises(ValueError, match="31 dias"):
         validar_periodo(DIA - timedelta(days=31), DIA, HOJE)
-
-
-@pytest.mark.parametrize(
-    ("hora_", "liberado"), [(19, False), (20, True), (23, True), (0, True), (4, True), (5, False)]
-)
-def test_janela_do_sesmt(hora_: int, liberado: bool) -> None:
-    assert sesmt_liberado(datetime(2026, 10, 7, hora_, 30, tzinfo=FUSO_BRASILIA)) is liberado
-
-
-def test_sesmt_fora_do_horario_nem_entra_na_fila(sistema: Sistema) -> None:
-    sistema.relogio.instante = hora("10:00", HOJE)
-    with pytest.raises(ValueError, match="20h às 5h"):
-        sistema.exportar.solicitar("sesmt", DIA, DIA, "admin")
-    assert sistema.banco.exportacoes == {}
 
 
 def test_tipo_desconhecido(sistema: Sistema) -> None:
@@ -264,24 +250,41 @@ def test_sgg_fora_marca_falha_com_mensagem(sistema: Sistema) -> None:
 # --------------------------------------------------------------------------- SESMT
 
 
-def test_sesmt_rele_o_sgg_e_filtra_eventos_do_periodo(sistema: Sistema) -> None:
+def test_sesmt_exporta_a_ultima_coleta_sem_reler_o_sgg(sistema: Sistema) -> None:
     s = sistema.sesmt
     s.empresas = [EmpresaSesmt(1, "Conplan LTDA", "", "1", True)]
-    s.contratos = [ContratoSesmt(10, 1, date(2026, 10, 30), "Em andamento", True, "2025-1")]
-    s.documentos = {1: [DocumentoSst(1, "PGR", date(2026, 11, 1))]}
-    s.eventos = {
+    s.documentos = {
         1: [
-            EventoEsocial("a", "S-2220", 1, 50, DIA, None, None, "1.1", ""),
-            EventoEsocial("b", "S-2240", 1, 51, DIA - timedelta(days=5), None, None, "", ""),
+            DocumentoSst(1, "PGR", DIA - timedelta(days=10)),
+            DocumentoSst(1, "PCMSO", date(DIA.year + (DIA.month == 12), DIA.month % 12 + 1, 15)),
         ]
     }
-    sistema.relogio.instante = hora("21:00", HOJE)
+    s.eventos = {
+        1: [
+            EventoEsocial("a", "S-2220", 1, DIA, "1.1"),
+            EventoEsocial("b", "S-2240", 1, DIA, ""),
+        ]
+    }
+    sistema.relogio.instante = hora("21:00", DIA)
+    sistema.consolidar_sesmt.executar(DIA)
+    chamadas = len(s.chamadas)
+    sistema.relogio.instante = hora("10:00", HOJE)  # fora da noite: não relê o SGG
     livro = exportar(sistema, "sesmt")
-    assert [r[1] for r in linhas(livro, "Fonte - Empresas")] == ["Conplan LTDA"]
-    assert [r[2] for r in linhas(livro, "Fonte - Contratos")] == ["Conplan LTDA"]
-    assert [r[1] for r in linhas(livro, "Fonte - Documentos")] == ["PGR"]
-    eventos = linhas(livro, "Fonte - Eventos eSocial")
-    assert [(r[0], r[3]) for r in eventos] == [("a", "Funcionário #50")]  # só o do período
+    assert len(s.chamadas) == chamadas
+    ((_, _, vencidos, empresas, vencem, enviados, rejeitados, _),) = linhas(livro, "Resumo diário")
+    assert (vencidos, empresas, vencem, enviados, rejeitados) == (1, 1, 1, 2, 1)
+    assert [r[3] for r in linhas(livro, "Vencidos")] == ["PGR"]
+    assert [r[3] for r in linhas(livro, "Vencem no mês seguinte")] == ["PCMSO"]
+    assert [(r[0], r[3], r[4]) for r in linhas(livro, "eSocial rejeitados")] == [
+        ("Conplan LTDA", 1, "S-2240: 1")
+    ]
+    assert len(linhas(livro, "eSocial mês a mês")) == 12
+
+
+def test_sesmt_sem_coleta_no_periodo_sai_so_com_o_resumo(sistema: Sistema) -> None:
+    livro = exportar(sistema, "sesmt")
+    assert livro.sheetnames[-1] == "Resumo diário"
+    assert "Vencidos" not in livro.sheetnames
 
 
 # --------------------------------------------------------------------------- médicos
@@ -377,35 +380,10 @@ def test_processar_financeiro_tolera_dia_sem_sgg_mas_nao_todos(sistema: Sistema)
     assert final is not None and final.status is StatusExportacao.FALHA
 
 
-def test_processar_sesmt_uma_coleta_para_varios_dias(sistema: Sistema) -> None:
-    s = sistema.sesmt
-    s.empresas = [EmpresaSesmt(1, "Conplan LTDA", "", "1", True)]
-    s.contratos = [ContratoSesmt(10, 1, date(2026, 10, 30), "Em andamento", True, "2025-1")]
-    s.eventos = {
-        1: [
-            EventoEsocial("a", "S-2220", 1, 50, DIA, None, None, "1.1", ""),
-            EventoEsocial("b", "S-2240", 1, 51, DIA - timedelta(days=1), None, None, "", ""),
-        ]
-    }
+def test_processar_so_ate_ontem_e_sem_sesmt(sistema: Sistema) -> None:
     sistema.relogio.instante = hora("22:00", HOJE)
-    etapa = processar(sistema, "sesmt", DIA - timedelta(days=1), DIA)
-    assert etapa == "2 dia(s) processado(s)"
-    assert s.chamadas.count("empresas") == 1  # uma leitura só
-    totais = {d: r.metricas["esocial"]["total"] for d, r in sistema.banco.resumos_sesmt.items()}
-    assert totais == {DIA: 1, DIA - timedelta(days=1): 1}
-    assert {d: r.metricas["referencia"] for d, r in sistema.banco.resumos_sesmt.items()} == {
-        DIA: DIA.isoformat(),
-        DIA - timedelta(days=1): (DIA - timedelta(days=1)).isoformat(),
-    }
-
-
-def test_processar_sesmt_so_na_janela_e_so_ate_ontem(sistema: Sistema) -> None:
-    sistema.relogio.instante = hora("10:00", HOJE)
-    with pytest.raises(ValueError, match=r"O processamento do SESMT.*20h às 5h"):
+    with pytest.raises(ValueError, match="desconhecido"):  # o SESMT não processa período
         sistema.exportar.solicitar("sesmt", DIA, DIA, "admin", "processar")
-    sistema.relogio.instante = hora("22:00", HOJE)
-    with pytest.raises(ValueError, match="dia anterior"):
-        sistema.exportar.solicitar("sesmt", DIA, HOJE, "admin", "processar")
     with pytest.raises(ValueError, match="dia anterior"):
         sistema.exportar.solicitar("financeiro", DIA, HOJE, "admin", "processar")
     sistema.exportar.solicitar("atendimento", DIA, HOJE, "admin", "processar")  # hoje vale
