@@ -9,16 +9,16 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Protocol
 
 from relatorio.application.manutencao import subtrair_meses
 from relatorio.domain.comparativo import Sentido, comparar, comparar_valor
 from relatorio.domain.dashboard import ResumoPeriodo
 from relatorio.domain.dashboard_financeiro import PeriodoFinanceiro
-from relatorio.domain.dashboard_sesmt import PeriodoSesmt
 from relatorio.domain.exportacao import validar_periodo
 from relatorio.domain.resumo import para_json
+from relatorio.domain.sesmt import TIPOS_DOCUMENTO
 from relatorio.infrastructure.email.apresentacao import (
     CartaoKpi,
     Delta,
@@ -29,6 +29,16 @@ from relatorio.infrastructure.email.apresentacao import (
     percentual,
 )
 from relatorio.infrastructure.email.apresentacao_financeira import moeda
+from relatorio.infrastructure.email.apresentacao_sesmt import (
+    MESES,
+    documentos_texto,
+    manchete,
+    nome_mes,
+    notas,
+    plural,
+    tipos_texto,
+)
+from relatorio.infrastructure.email.apresentacao_sesmt import percentual as percentual_br
 
 
 class _Repositorio(Protocol):
@@ -77,7 +87,7 @@ def periodo_anterior(inicio: date, fim: date) -> tuple[date, date]:
     return de, min(de + (fim - inicio), inicio - timedelta(days=1))
 
 
-def carregar_periodos[Resumo: (ResumoPeriodo, PeriodoFinanceiro, PeriodoSesmt)](
+def carregar_periodos[Resumo: (ResumoPeriodo, PeriodoFinanceiro)](
     repositorio: _Repositorio,
     de: date,
     ate: date,
@@ -97,22 +107,27 @@ def grafico(
     id_: str,
     titulo: str,
     nota: str,
-    dias: Iterable[date],
+    dias: Iterable[date | str],
     series: Sequence[tuple[str, Sequence[float | None], str, str]],
     *,
     formato: str = "numero",
     empilhado: bool = False,
+    horizontal: bool = False,
+    eixo: str = "Dia",
 ) -> dict[str, Any]:
-    """Configuração de um gráfico diário. ``series``: (rótulo, valores, cor, tipo), com a
-    cor como token do CSS (ex.: ``--serie-atendidos``) e o tipo ``bar`` ou ``line``.
-    Valor None vira lacuna (dia sem resumo)."""
+    """Configuração de um gráfico. ``series``: (rótulo, valores, cor, tipo), com a cor como
+    token do CSS (ex.: ``--serie-atendidos``) e o tipo ``bar`` ou ``line``. Os rótulos são
+    dias (viram DD/MM) ou textos; ``eixo`` nomeia a coluna na tabela alternativa. Valor None
+    vira lacuna (dia sem resumo)."""
     return {
         "id": id_,
         "titulo": titulo,
         "nota": nota,
         "formato": formato,
         "empilhado": empilhado,
-        "rotulos": [f"{d:%d/%m}" for d in dias],
+        "horizontal": horizontal,
+        "eixo": eixo,
+        "rotulos": [f"{d:%d/%m}" if isinstance(d, date) else d for d in dias],
         "series": [{"rotulo": r, "dados": list(v), "cor": c, "tipo": t} for r, v, c, t in series],
     }
 
@@ -274,91 +289,141 @@ def montar_financeiro(atual: PeriodoFinanceiro, anterior: PeriodoFinanceiro) -> 
     )
 
 
-def _divisao(contratos: int, documentos: int) -> str:
-    return f"{numero(contratos)} contratos · {numero(documentos)} documentos"
+@dataclass(frozen=True, slots=True)
+class PainelSesmt:
+    """Dashboard do SESMT: a foto da última coleta (o mesmo do e-mail) e o histórico."""
+
+    referencia: date
+    gerado_em: datetime
+    manchete: str
+    notas: tuple[str, ...]
+    cartoes: tuple[CartaoKpi, ...]
+    grupos: dict[str, Any]  # gráfico de vencidos por grupo
+    mes_seguinte: str
+    vencem: list[dict[str, str]]
+    mes_esocial: str
+    rejeitados: list[dict[str, str]]
+    historico: tuple[dict[str, Any], ...]
 
 
-def montar_sesmt(atual: PeriodoSesmt, anterior: PeriodoSesmt) -> PainelRelatorio:
-    base = None if anterior.vazio else anterior
-    f = atual.foto
-    intervalo = f"{anterior.inicio:%d/%m} a {anterior.fim:%d/%m}"
-    neutro, menor = Sentido.NEUTRO, Sentido.MENOR_MELHOR
-    periodo = (
-        ("Eventos do eSocial", numero(atual.eventos), "gerados no período", "eventos", neutro),
-        ("Com recibo", numero(atual.com_recibo), "transmitidos", "com_recibo", neutro),
-        (
-            "Sem recibo",
-            numero(atual.sem_recibo),
-            "não transmitidos ou rejeitados",
-            "sem_recibo",
-            menor,
-        ),
-        ("Empresas com eventos", numero(atual.empresas), "somadas dia a dia", "empresas", neutro),
+CORES_TIPO = {"PGR": "--serie-atendidos", "PCMSO": "--serie-chegadas", "LTCAT": "--serie-terceira"}
+
+
+def montar_sesmt(
+    m: Mapping[str, Any],
+    anterior: Mapping[str, Any] | None,
+    vencidos_por_dia: Sequence[tuple[date, int | None]],
+) -> PainelSesmt:
+    """``m``: métricas da última coleta; ``anterior``: as da coleta antes dela (setas)."""
+    v, p, e = m["vencidos"], m["proximo_mes"], m["esocial"]
+    ant = e["anterior"]
+    base_esocial = (
+        f"vs {date.fromisoformat(ant['inicio']):%d/%m} a {date.fromisoformat(ant['fim']):%d/%m}"
     )
-    fotos = (
-        (
-            (
-                "A vencer em 30 dias",
-                numero(f.a_vencer),
-                _divisao(f.a_vencer_contratos, f.a_vencer_documentos),
-                "a_vencer",
-                menor,
-            ),
-            (
-                "Vencendo em 7 dias",
-                numero(f.vencendo),
-                "dos que vencem em 30 dias",
-                "vencendo",
-                menor,
-            ),
-            (
-                "Vencidos",
-                numero(f.vencidos),
-                _divisao(f.vencidos_contratos, f.vencidos_documentos),
+    base_dia = f"vs {date.fromisoformat(anterior['referencia']):%d/%m}" if anterior else ""
+    mesmo_mes = anterior is not None and anterior["proximo_mes"]["inicio"] == p["inicio"]
+    mes = nome_mes(p["inicio"])
+    menor, neutro = Sentido.MENOR_MELHOR, Sentido.NEUTRO
+    cartoes = (
+        CartaoKpi(
+            "Documentos vencidos",
+            numero(v["total"]),
+            f"em {plural(v['empresas'], 'empresa', 'empresas')}",
+            _seta(
                 "vencidos",
+                v["total"],
+                anterior["vencidos"]["total"] if anterior else None,
                 menor,
-            ),
-        )
-        if f
-        else ()
-    )
-    dias_ = [d.data for d in atual.dias]
-    return PainelRelatorio(
-        inicio=atual.inicio,
-        fim=atual.fim,
-        ultimo_dia=atual.ultimo_dia,
-        vazio=atual.vazio,
-        grupos=_grupos((atual, base, periodo), (f, base.foto if base else None, fotos), intervalo),
-        graficos=(
-            grafico(
-                "grafico-esocial",
-                "Eventos do eSocial por dia",
-                "Com recibo (transmitidos) e sem recibo (não transmitidos ou rejeitados).",
-                dias_,
-                (
-                    ("Com recibo", [d.com_recibo for d in atual.dias], "--serie-atendidos", "bar"),
-                    ("Sem recibo", [d.sem_recibo for d in atual.dias], "--serie-chegadas", "bar"),
-                ),
-                empilhado=True,
-            ),
-            grafico(
-                "grafico-pendencias",
-                "Pendências por dia",
-                "Documentos e contratos a vencer em 30 dias e vencidos, em cada dia.",
-                dias_,
-                (
-                    ("A vencer", [d.a_vencer for d in atual.dias], "--aviso-borda", "line"),
-                    ("Vencidos", [d.vencidos for d in atual.dias], "--erro-borda", "line"),
-                ),
+                base_dia,
             ),
         ),
-        tabela={
-            "titulo": "Eventos do eSocial por tipo",
-            "nota": "Somados no período.",
-            "cabecalho": ("Evento", "Quantidade"),
-            "linhas": [(tipo, numero(n)) for tipo, n in atual.por_evento],
-            "vazio": "Nenhum evento no período.",
-        },
+        CartaoKpi(
+            f"Vencem em {mes.split(' de ')[0]}",
+            numero(p["total"]),
+            f"em {plural(p['empresas_total'], 'empresa', 'empresas')}",
+            _seta(
+                "vencem",
+                p["total"],
+                anterior["proximo_mes"]["total"] if anterior and mesmo_mes else None,
+                menor,
+                base_dia,
+            ),
+        ),
+        CartaoKpi(
+            "eSocial enviados",
+            numero(e["enviados"]),
+            "eventos gerados no mês",
+            _seta("enviados", e["enviados"], ant["enviados"], neutro, base_esocial),
+        ),
+        CartaoKpi(
+            "eSocial rejeitados",
+            numero(e["rejeitados"]),
+            f"{percentual_br(e['rejeitados'], e['enviados'])} dos enviados, sem recibo",
+            _seta("rejeitados", e["rejeitados"], ant["rejeitados"], menor, base_esocial),
+        ),
+    )
+    por_grupo = v["por_grupo"]
+    mensal = m["esocial_mensal"]
+    return PainelSesmt(
+        referencia=date.fromisoformat(m["referencia"]),
+        gerado_em=datetime.fromisoformat(m["gerado_em"]),
+        manchete=manchete(m),
+        notas=notas(m),
+        cartoes=cartoes,
+        grupos=grafico(
+            "grafico-grupos",
+            "Vencidos por grupo de empresas",
+            "PGR, PCMSO e LTCAT vencidos (o documento mais recente de cada empresa e tipo).",
+            [g["grupo"] for g in por_grupo],
+            [
+                (t, [g["por_tipo"].get(t, 0) for g in por_grupo], CORES_TIPO[t], "bar")
+                for t in TIPOS_DOCUMENTO
+            ],
+            empilhado=True,
+            horizontal=True,
+            eixo="Grupo",
+        ),
+        mes_seguinte=mes,
+        vencem=[
+            {
+                "empresa": x["empresa"],
+                "cnpj": x.get("cnpj") or "",
+                "grupo": x["grupo"],
+                "documentos": documentos_texto(x["documentos"]),
+            }
+            for x in p["empresas"]
+        ],
+        mes_esocial=nome_mes(e["inicio"]),
+        rejeitados=[
+            {
+                "empresa": x["empresa"],
+                "cnpj": x.get("cnpj") or "",
+                "grupo": x["grupo"],
+                "quantidade": numero(x["quantidade"]),
+                "tipos": tipos_texto(x["tipos"]),
+            }
+            for x in e["rejeitados_por_empresa"]
+        ],
+        historico=(
+            grafico(
+                "grafico-vencidos-dia",
+                "Documentos vencidos dia a dia",
+                "Total na coleta de cada dia, desde a nova versão do relatório.",
+                [d for d, _ in vencidos_por_dia],
+                [("Vencidos", [n for _, n in vencidos_por_dia], "--erro-borda", "line")],
+            ),
+            grafico(
+                "grafico-esocial-mensal",
+                "eSocial mês a mês",
+                "Gerados e rejeitados (sem recibo) em 12 meses; o mês atual vai até a coleta.",
+                [f"{MESES[int(x['mes'][5:]) - 1][:3]}/{x['mes'][2:4]}" for x in mensal],
+                (
+                    ("Enviados", [x["enviados"] for x in mensal], "--serie-atendidos", "bar"),
+                    ("Rejeitados", [x["rejeitados"] for x in mensal], "--erro-borda", "line"),
+                ),
+                eixo="Mês",
+            ),
+        ),
     )
 
 

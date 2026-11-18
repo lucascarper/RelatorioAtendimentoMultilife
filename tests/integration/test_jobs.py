@@ -150,8 +150,9 @@ def test_jobs_do_financeiro_so_quando_habilitado() -> None:
 
 def test_jobs_do_sesmt_so_quando_habilitado() -> None:
     gatilhos = _gatilhos(Settings(_env_file=None, sesmt_habilitado=True))  # type: ignore[call-arg]
-    assert "hour='2', minute='0'" in gatilhos["consolidar_sesmt_1"]
-    assert "hour='4', minute='30'" in gatilhos["consolidar_sesmt_3"]
+    assert "hour='20', minute='0'" in gatilhos["consolidar_sesmt_1"]
+    assert "hour='0', minute='0'" in gatilhos["consolidar_sesmt_2"]
+    assert "consolidar_sesmt_3" not in gatilhos
     assert "hour='8', minute='0'" in gatilhos["enviar_sesmt_1"]
     assert "hour='8', minute='12'" in gatilhos["verificar_sesmt"]
     padrao = _gatilhos(Settings(_env_file=None))  # type: ignore[call-arg]

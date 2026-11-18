@@ -1,0 +1,120 @@
+{#- Dashboard do SESMT (montado em interfaces/web/dashboard.montar_sesmt).
+    Topo: a frase de status e os números da última coleta (o mesmo do e-mail).
+    Meio: as evidências (vencidos por grupo, quem vence no mês que vem, rejeitados).
+    Base: histórico e contexto da coleta. -#}
+{% extends "admin/base.html" %}
+{% block titulo %}SESMT{% endblock %}
+{% block scripts %}<script src="/static/admin/chart.umd.min.js" defer></script>
+  <script src="/static/admin/dashboard.js" defer></script>{% endblock %}
+{% block conteudo %}
+{%- from "admin/_icones.html" import icone %}
+{%- from "admin/_cartao_kpi.html" import cartao_kpi %}
+{%- from "admin/_grafico.html" import grafico %}
+{%- from "admin/_paginacao.html" import rodape %}
+<div class="pagina-cabecalho">
+  <div>
+    <h1>SESMT</h1>
+    <p class="nota">{% if p %}Coleta de {{ p.gerado_em | datahora_br }} · eSocial até {{ p.referencia | data_br }}{% else %}Sem coleta na versão atual{% endif %}</p>
+  </div>
+  <div class="pagina-acoes">
+    <a href="{{ url_gestao }}" class="btn btn-secundario">Gestão do relatório</a>
+  </div>
+</div>
+
+<p class="faixa-coleta" aria-label="Situação do relatório">
+  <strong>Envio automático</strong>
+  {%- if habilitado %}<span class="badge badge-ok">{{ icone("ok") }}Ligado</span>
+  {%- else %}<span class="badge badge-neutro">{{ icone("aviso") }}Desligado</span>{% endif %}
+  <span>coleta às 20:00 (retentativa 00:00), e-mail às 08:00</span>
+</p>
+
+{% if not p %}
+<section class="card vazio">
+  <h2>Nenhuma coleta ainda</h2>
+  <p class="nota">O relatório mudou de formato. Gere a primeira coleta pela gestão do relatório (leva cerca de 3h30) ou aguarde a das 20:00.</p>
+</section>
+{% else %}
+{%- for n in p.notas %}
+<div class="mensagem mensagem-aviso">{{ icone("aviso") }}<span>{{ n }}</span></div>
+{%- endfor %}
+
+<p class="manchete">{{ p.manchete }}</p>
+<div class="kpi-grade kpi-grade-relatorio">
+  {%- for k in p.cartoes %}
+  {{ cartao_kpi(k) }}
+  {%- endfor %}
+</div>
+
+<section class="card" aria-labelledby="t-{{ p.grupos.id }}">
+  <h2 id="t-{{ p.grupos.id }}">{{ p.grupos.titulo }}</h2>
+  <p class="nota">{{ p.grupos.nota }}</p>
+  {%- if p.grupos.rotulos %}
+  {{ grafico(p.grupos) }}
+  {%- else %}
+  <p class="nota">Nenhum documento vencido.</p>
+  {%- endif %}
+</section>
+
+<section id="vencem" class="card" aria-labelledby="t-vencem">
+  <h2 id="t-vencem">Vencem em {{ p.mes_seguinte }}</h2>
+  <p class="nota">Uma linha por empresa, pelo primeiro vencimento.</p>
+  {%- if pg_vencem.total %}
+  <div class="rolagem">
+  <table class="tabela tabela-compacta">
+    <thead><tr><th>Empresa</th><th class="oculta-celular">Grupo</th><th>Documentos e vencimento</th></tr></thead>
+    <tbody>
+    {%- for x in pg_vencem.itens %}
+      <tr>
+        <td><strong>{{ x.empresa }}</strong>{% if x.cnpj %}<br><span class="nota">{{ x.cnpj }}</span>{% endif %}</td>
+        <td class="oculta-celular">{{ x.grupo }}</td>
+        <td>{{ x.documentos }}</td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  </div>
+  {{ rodape(pg_vencem) }}
+  {%- else %}
+  <p class="nota">Nenhum PGR, PCMSO ou LTCAT vence em {{ p.mes_seguinte }}.</p>
+  {%- endif %}
+</section>
+
+<section id="rejeitados" class="card" aria-labelledby="t-rejeitados">
+  <h2 id="t-rejeitados">eSocial rejeitados em {{ p.mes_esocial }}</h2>
+  <p class="nota">Eventos sem recibo de entrega, por empresa (inclui os ainda não transmitidos: a API não separa os dois).</p>
+  {%- if pg_rejeitados.total %}
+  <div class="rolagem">
+  <table class="tabela tabela-compacta">
+    <thead><tr><th>Empresa</th><th class="oculta-celular">Grupo</th><th class="num">Rejeitados</th><th>Eventos</th></tr></thead>
+    <tbody>
+    {%- for x in pg_rejeitados.itens %}
+      <tr>
+        <td><strong>{{ x.empresa }}</strong>{% if x.cnpj %}<br><span class="nota">{{ x.cnpj }}</span>{% endif %}</td>
+        <td class="oculta-celular">{{ x.grupo }}</td>
+        <td class="num">{{ x.quantidade }}</td>
+        <td>{{ x.tipos }}</td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  </div>
+  {{ rodape(pg_rejeitados) }}
+  {%- else %}
+  <p class="nota">Nenhum evento rejeitado no mês.</p>
+  {%- endif %}
+</section>
+
+<div class="secao-titulo"><h2>Histórico</h2></div>
+<div class="dashboard-graficos">
+  {%- for g in p.historico %}
+  <section class="card" aria-labelledby="t-{{ g.id }}">
+    <h3 id="t-{{ g.id }}">{{ g.titulo }}</h3>
+    <p class="nota">{{ g.nota }}</p>
+    {{ grafico(g) }}
+  </section>
+  {%- endfor %}
+</div>
+
+<p class="nota">Fonte: API do SGG ({{ p.gerado_em | datahora_br }}). Documentos de todas as empresas; vale o mais recente de cada empresa e tipo. eSocial das empresas com o eSocial habilitado.</p>
+{% endif %}
+{% endblock %}

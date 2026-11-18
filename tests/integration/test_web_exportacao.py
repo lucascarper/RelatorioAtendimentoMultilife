@@ -95,7 +95,7 @@ def test_cartoes_nos_modulos_e_medicos_em_configuracoes(cliente: TestClient) -> 
     ):
         pagina = cliente.get(url).text
         assert f'value="{tipo}"' in pagina and "Exportar planilha" in pagina, url
-    assert "só das 20h às 5h" in cliente.get("/admin/sesmt/gestao").text
+    assert "Não relê o SGG." in cliente.get("/admin/sesmt/gestao").text
     assert 'value="medicos"' not in cliente.get("/admin/atendimento/gestao").text
 
 

@@ -15,6 +15,18 @@
   function desenhar(tela) {
     var g = JSON.parse(document.getElementById("dados-" + tela.id).textContent);
     var dinheiro = g.formato === "moeda";
+    var deitado = g.horizontal;  // barras deitadas: rótulos longos (grupos) no eixo y
+    var rotulo = deitado ? "x" : "y";
+    var escalaCategoria = { stacked: g.empilhado, grid: { display: false }, ticks: {} };
+    var escalaValor = {
+      stacked: g.empilhado,
+      beginAtZero: true,
+      grid: {},
+      ticks: {
+        precision: 0,
+        callback: function (v) { return dinheiro ? "R$ " + compacto.format(v) : inteiro.format(v); }
+      }
+    };
     var grafico = new window.Chart(tela, {
       type: "bar",
       data: {
@@ -39,25 +51,15 @@
         responsive: true,
         maintainAspectRatio: false,
         animation: parado ? false : undefined,
-        interaction: { mode: "index", intersect: false },
-        scales: {
-          x: { stacked: g.empilhado, grid: { display: false }, ticks: {} },
-          y: {
-            stacked: g.empilhado,
-            beginAtZero: true,
-            grid: {},
-            ticks: {
-              precision: 0,
-              callback: function (v) { return dinheiro ? "R$ " + compacto.format(v) : inteiro.format(v); }
-            }
-          }
-        },
+        indexAxis: deitado ? "y" : "x",
+        interaction: { mode: "index", intersect: false, axis: deitado ? "y" : "x" },
+        scales: deitado ? { x: escalaValor, y: escalaCategoria } : { x: escalaCategoria, y: escalaValor },
         plugins: {
           legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12 } },
           tooltip: {
             callbacks: {
               label: function (c) {
-                var v = c.parsed.y;
+                var v = c.parsed[rotulo];
                 var texto = v === null ? "sem resumo" : dinheiro ? moeda.format(v) : inteiro.format(v);
                 return c.dataset.label + ": " + texto;
               }
@@ -77,7 +79,7 @@
       });
       o.scales.x.ticks.color = texto;
       o.scales.y.ticks.color = texto;
-      o.scales.y.grid.color = cor("--borda");
+      (deitado ? o.scales.x : o.scales.y).grid.color = cor("--borda");
       o.plugins.legend.labels.color = texto;
       grafico.update();
     }

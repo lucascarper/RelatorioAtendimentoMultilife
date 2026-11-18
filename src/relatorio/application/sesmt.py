@@ -1,16 +1,17 @@
 """Relatório de gestão do SESMT: coleta nos endpoints do SGG e consolidação.
 
-Roda no mesmo worker dos demais relatórios, com job e e-mail próprios. De madrugada (fora
-da janela do coletor, que usa a cota da API) lê o SGG e grava ``resumo_sesmt``; o envio da
-manhã só lê o resumo pronto (``EnviarRelatorio`` com o repositório e a lista do SESMT).
+Roda no mesmo worker dos demais relatórios, com job e e-mail próprios. À noite (20:00,
+depois do coletor, que usa a cota da API) lê o SGG e grava ``resumo_sesmt``; o envio da
+manhã seguinte só lê o resumo pronto (``EnviarRelatorio`` com o repositório e a lista do
+SESMT).
 
-O SGG só responde documentos e eventos do eSocial **por empresa**, e a coleta respeita o
-limite de requisições por minuto: são cerca de 1.500 consultas, o que leva mais de uma
-hora. Para não gastar consulta à toa:
+O SGG só responde documentos e eventos do eSocial **por empresa** (sem lote nem filtro de
+data, conferido em 11/2026), e a coleta respeita o limite de requisições por minuto:
 
-* documentos (PGR, PCMSO, LTCAT) só das empresas com contrato em andamento: sem contrato
-  não há pendência a cobrar;
+* documentos (PGR, PCMSO, LTCAT, uma consulta por tipo) de **todas** as empresas;
 * eventos do eSocial só das empresas com o eSocial habilitado.
+
+São cerca de 4.300 consultas: perto de 3h30 a 20 por minuto.
 
 Uma empresa que falha na consulta não derruba a coleta: fica de fora e o e-mail avisa
 que o relatório está parcial. Se a falha é geral (API fora, chave revogada), a coleta
@@ -20,7 +21,6 @@ aborta em vez de mandar um relatório vazio.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import replace
 from datetime import date, timedelta
 from typing import TypeVar
 
@@ -51,6 +51,7 @@ GRUPOS_PADRAO = {
     "9": "CAGED",
     "10": "GESTÃO INTEGRAL",
     "11": "SEGMENTO",
+    "14": "EM CANCELAMENTO",
 }
 FALHAS_SEGUIDAS_PARA_ABORTAR = 5
 FRACAO_MAXIMA_DE_FALHAS = 0.10
@@ -91,7 +92,6 @@ class ConsolidarSesmt:
         nome: str,
         ids: Sequence[int],
         consulta: Callable[[int], Iterable[T]],
-        andamento: Callable[[str, int, int], None] | None = None,
     ) -> tuple[list[T], set[int]]:
         """Consulta empresa a empresa, tolerando falhas isoladas."""
         itens: list[T] = []
@@ -114,46 +114,23 @@ class ConsolidarSesmt:
                     raise
             if posicao % REGISTRAR_A_CADA == 0:
                 log.info("sesmt_coleta_andamento", consulta=nome, feitas=posicao, total=len(ids))
-            if andamento is not None:
-                andamento(nome, posicao, len(ids))
         if ids and len(falharam) / len(ids) > FRACAO_MAXIMA_DE_FALHAS:
             raise ColetaSesmtInviavel(f"{len(falharam)} de {len(ids)} consultas de {nome} falharam")
         return itens, falharam
 
-    def carregar(
-        self,
-        referencia: date,
-        hoje: date,
-        andamento: Callable[[str, int, int], None] | None = None,
-    ) -> DadosSesmt:
-        """``andamento(etapa, feitas, total)`` acompanha a coleta (exportação por período)."""
+    def carregar(self, referencia: date, hoje: date) -> DadosSesmt:
         empresas = {e.id: e for e in self._sgg.empresas_sesmt()}
-        if andamento is not None:
-            andamento("empresas", 1, 1)
-        contratos = self._sgg.contratos_sesmt()
-        if andamento is not None:
-            andamento("contratos", 1, 1)
-        com_contrato = sorted(
-            {
-                c.id_cliente
-                for c in contratos
-                if c.ultimo and c.situacao.casefold() == "em andamento" and c.id_cliente is not None
-            }
-        )
         com_esocial = sorted(e.id for e in empresas.values() if e.esocial_habilitado)
         documentos, sem_documentos = self._por_empresa(
-            "documentos", com_contrato, self._sgg.documentos_sst, andamento
+            "documentos", sorted(empresas), self._sgg.documentos_sst
         )
-        eventos, sem_eventos = self._por_empresa(
-            "esocial", com_esocial, self._sgg.eventos_esocial, andamento
-        )
+        eventos, sem_eventos = self._por_empresa("esocial", com_esocial, self._sgg.eventos_esocial)
         with self._uow() as uow:
             texto = uow.configuracoes.obter_todas().get(CHAVE_NOMES_GRUPOS)
         return DadosSesmt(
             referencia=referencia,
             hoje=hoje,
             empresas=empresas,
-            contratos=contratos,
             documentos=documentos,
             eventos=eventos,
             nomes_grupos=ler_nomes_grupos(texto),
@@ -170,39 +147,14 @@ class ConsolidarSesmt:
             uow.commit()
         return {
             "referencia": referencia.isoformat(),
-            "a_vencer": resumo["a_vencer"]["total"],
+            "proximo_mes": resumo["proximo_mes"]["total"],
             "vencidos": resumo["vencidos"]["total"],
-            "eventos_esocial": resumo["esocial"]["total"],
-            "empresas_sem_consulta": dados.empresas_sem_consulta,
-        }
-
-    def executar_periodo(
-        self,
-        dias: Sequence[date],
-        andamento: Callable[[str, int, int], None] | None = None,
-    ) -> dict[str, object]:
-        """Recalcula vários dias com **uma só** leitura do SGG.
-
-        A API devolve todos os eventos do eSocial de cada empresa, então a mesma coleta
-        serve a todos os dias; só a data de referência muda. Como no processamento de um dia,
-        contratos e documentos valem pela situação de agora.
-        """
-        agora = self._relogio.agora()
-        hoje = agora.astimezone(FUSO_BRASILIA).date()
-        ultimo = max(dias)
-        dados = self.carregar(ultimo, max(hoje, ultimo + timedelta(days=1)), andamento)
-        with self._uow() as uow:
-            for dia in dias:
-                resumo = calcular_sesmt(replace(dados, referencia=dia), agora)
-                uow.resumos_sesmt.salvar_metricas(dia, resumo, VERSAO_REGRA_SESMT, agora)
-            uow.commit()
-        return {
-            "dias": len(dias),
+            "esocial_rejeitados": resumo["esocial"]["rejeitados"],
             "empresas_sem_consulta": dados.empresas_sem_consulta,
         }
 
     def executar_agendado(
-        self, referencia: date, tentativa: int, total: int = 3
+        self, referencia: date, tentativa: int, total: int = 2
     ) -> dict[str, object]:
         try:
             return self.executar(referencia)

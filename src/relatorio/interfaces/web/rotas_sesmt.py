@@ -16,10 +16,10 @@ from relatorio.application.sesmt import (
     ler_nomes_grupos,
 )
 from relatorio.domain.acesso import email_valido
-from relatorio.domain.dashboard_sesmt import CAMPOS, resumir_sesmt
+from relatorio.domain.sesmt import da_versao_atual
 from relatorio.infrastructure.container import Container
 from relatorio.interfaces.demo import html_para_navegador
-from relatorio.interfaces.web.dashboard import carregar_periodos, escolher_periodo, montar_sesmt
+from relatorio.interfaces.web.dashboard import montar_sesmt
 from relatorio.interfaces.web.dependencias import Csrf, Ctx, UsuarioSesmt, mensagem, redirecionar
 from relatorio.interfaces.web.paginacao import paginar, voltar_para
 
@@ -29,33 +29,37 @@ router = APIRouter(prefix="/admin/sesmt")
 JOB_REPROCESSAR_SESMT = "reprocessar_sesmt"
 URL = "/admin/sesmt"
 URL_GESTAO = f"{URL}/gestao"
+DIAS_HISTORICO = 90
 CSP_PREVIA = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; frame-ancestors 'self'"
 
 
 @router.get("", response_class=HTMLResponse)
-def dashboard(
-    request: Request, ctx: Ctx, _usuario: UsuarioSesmt, inicio: str = "", fim: str = ""
-) -> HTMLResponse:
-    """Indicadores do período (padrão: o mês até ontem), só com dias que têm resumo."""
-    de, ate, erro = escolher_periodo(inicio, fim, ctx.hoje())
-    if erro:
-        mensagem(request, erro, "erro")
+def dashboard(request: Request, ctx: Ctx, _usuario: UsuarioSesmt) -> HTMLResponse:
+    """A última coleta (o mesmo do e-mail), com as listas paginadas, e o histórico."""
+    hoje = ctx.hoje()
     with ctx.container.uow() as uow:
         repositorio = uow.resumos_sesmt
-        atual, anterior = carregar_periodos(repositorio, de, ate, CAMPOS, resumir_sesmt)
-        recentes = repositorio.listar_recentes(1)
+        recentes = [r for r in repositorio.listar_recentes(2) if da_versao_atual(r.metricas)]
+        historico = repositorio.listar_indicadores(
+            hoje - timedelta(days=DIAS_HISTORICO), hoje, (("versao_regra",), ("vencidos", "total"))
+        )
+    painel = None
+    if recentes:
+        painel = montar_sesmt(
+            recentes[0].metricas,
+            recentes[1].metricas if len(recentes) > 1 else None,
+            [(dia, m["vencidos"]["total"]) for dia, m in historico if da_versao_atual(m)],
+        )
     return ctx.render(
         request,
-        "admin/dashboard_relatorio.html",
+        "admin/dashboard_sesmt.html",
         {
             "pagina": "dashboard_sesmt",
-            "titulo": "SESMT",
-            "p": montar_sesmt(atual, anterior),
-            "url": URL,
+            "p": painel,
+            "pg_vencem": paginar(request, painel.vencem if painel else [], "vencem"),
+            "pg_rejeitados": paginar(request, painel.rejeitados if painel else [], "rejeitados"),
             "url_gestao": URL_GESTAO,
-            "nota_periodo": "Até 31 dias. O resumo de cada dia é gerado às 02:00 do dia seguinte.",
             "habilitado": ctx.settings.sesmt_habilitado,
-            "ultimo_resumo": recentes[0] if recentes else None,
         },
     )
 
@@ -77,6 +81,7 @@ def sesmt(request: Request, ctx: Ctx, _usuario: UsuarioSesmt) -> HTMLResponse:
             "ativos": sum(1 for d in destinatarios if d.ativo),
             "habilitado": ctx.settings.sesmt_habilitado,
             "ontem": ctx.hoje() - timedelta(days=1),
+            "hoje": ctx.hoje(),
             "override": ctx.settings.destinatarios_override,
             "nomes_grupos": formatar_nomes_grupos(ler_nomes_grupos(texto)),
         },
@@ -89,6 +94,10 @@ def ver_relatorio_sesmt(dia: date, ctx: Ctx, _usuario: UsuarioSesmt) -> HTMLResp
         registro = uow.resumos_sesmt.obter(dia)
     if registro is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Resumo do SESMT não encontrado")
+    if not da_versao_atual(registro.metricas):
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "Resumo no formato antigo do relatório: gere a data de novo"
+        )
     conteudo = ctx.container.renderizador.relatorio_sesmt(registro.metricas)
     return HTMLResponse(
         html_para_navegador(conteudo), headers={"Content-Security-Policy": CSP_PREVIA}
@@ -105,15 +114,15 @@ def reprocessar_sesmt(
     dia: Annotated[date, Form(alias="data")],
     enviar: Annotated[bool, Form()] = False,
 ) -> RedirectResponse:
-    if dia >= ctx.hoje():
-        mensagem(request, "O relatório do SESMT é do dia anterior: escolha até ontem.", "erro")
+    if dia > ctx.hoje():
+        mensagem(request, "Escolha uma data até hoje.", "erro")
         return redirecionar(URL_GESTAO)
     tarefas.add_task(reprocessar_em_segundo_plano, ctx.container, dia, enviar)
     log.info("sesmt_reprocessamento_agendado", referencia=dia.isoformat(), enviar=enviar)
     mensagem(
         request,
-        f"Coleta do SESMT de {dia:%d/%m/%Y} iniciada. São cerca de 1.700 consultas ao SGG e leva"
-        " mais de uma hora. O resultado aparece nesta página e em Execuções.",
+        f"Coleta do SESMT de {dia:%d/%m/%Y} iniciada. São cerca de 4.300 consultas ao SGG e leva"
+        " cerca de 3h30. O resultado aparece nesta página e em Execuções.",
     )
     return redirecionar(URL_GESTAO)
 

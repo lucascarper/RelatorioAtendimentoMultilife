@@ -1,27 +1,21 @@
 """Mapeamento dos endpoints do SESMT no SGG → entidades do relatório de gestão.
 
-Endpoints: ``empresa/``, ``contratoCliente/``, ``programasLaudos/`` e ``getEvtEsocial/``.
+Endpoints: ``empresa/``, ``programasLaudos/`` e ``getEvtEsocial/``.
 
 LGPD: da empresa só ficam código, nome, CNPJ, grupo e a situação do eSocial (quando o
-documento é CPF, o nome vira "Empresa #id"). Do evento do eSocial ficam tipo, datas,
-código do funcionário, recibo e protocolo: o XML, que traz o CPF do trabalhador, é lido
-só para extrair a hora de geração e depois descartado.
+documento é CPF, o nome vira "Empresa #id"). Do evento do eSocial ficam código, tipo,
+empresa, data de geração e recibo: o XML (com o CPF do trabalhador) e o código do
+funcionário são descartados.
 """
 
 from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from datetime import date, datetime
 from typing import Any
 
-from relatorio.domain.entidades import FUSO_BRASILIA
-from relatorio.domain.sesmt import ContratoSesmt, DocumentoSst, EmpresaSesmt, EventoEsocial
+from relatorio.domain.sesmt import DocumentoSst, EmpresaSesmt, EventoEsocial
 from relatorio.infrastructure.sgg.dto import _data, _inteiro, _texto
-
-# Id do evento no XML do eSocial: "ID", tipo de inscrição (1), CNPJ (14), AAAAMMDDHHMMSS, seq (5).
-_ID_EVENTO = re.compile(r"\bId=['\"]ID\d\d{14}(\d{14})\d{5}['\"]")
-_VERDADEIRO = {"sim", "s", "1", "true"}
 
 
 def _digitos(valor: Any) -> str:
@@ -47,20 +41,6 @@ def para_empresa(item: Mapping[str, Any]) -> EmpresaSesmt:
     )
 
 
-def para_contrato_sesmt(item: Mapping[str, Any]) -> ContratoSesmt:
-    id_contrato = _inteiro(item.get("id"))
-    if id_contrato is None:
-        raise ValueError("contrato sem id")
-    return ContratoSesmt(
-        id=id_contrato,
-        id_cliente=_inteiro(item.get("id_cliente")),
-        vencimento=_data(item.get("data_vencimento")),
-        situacao=_texto(item.get("situacao_contrato")) or "",
-        ultimo=(_texto(item.get("ultimo")) or "").casefold() in _VERDADEIRO,
-        codigo=_texto(item.get("codigo_interno")) or "",
-    )
-
-
 def para_documento(item: Mapping[str, Any]) -> DocumentoSst:
     """Programa ou laudo (PGR, PCMSO, LTCAT…). O link e o emissor são descartados."""
     id_empresa = _inteiro(item.get("id_empresa"))
@@ -77,33 +57,16 @@ def para_documento(item: Mapping[str, Any]) -> DocumentoSst:
     )
 
 
-def hora_de_geracao(xml: Any, dia: date | None) -> datetime | None:
-    """Hora em que o evento foi gerado, lida do Id do XML (só vale se bater com o dia)."""
-    achado = _ID_EVENTO.search(str(xml or ""))
-    if achado is None:
-        return None
-    try:
-        instante = datetime.strptime(achado.group(1), "%Y%m%d%H%M%S").replace(tzinfo=FUSO_BRASILIA)
-    except ValueError:
-        return None
-    return instante if dia is None or instante.date() == dia else None
-
-
 def para_evento_esocial(item: Mapping[str, Any]) -> EventoEsocial:
     id_empresa = _inteiro(item.get("id_empresa"))
     tipo = _texto(item.get("tipo_evento"))
     codigo = _texto(item.get("codigo"))
     if id_empresa is None or tipo is None or codigo is None:
         raise ValueError("evento sem código, tipo ou empresa")
-    geracao = _data(item.get("data_geracao"))
     return EventoEsocial(
         codigo=codigo,
         tipo=tipo,
         id_empresa=id_empresa,
-        id_funcionario=_inteiro(item.get("id_funcionario")),
-        data_geracao=geracao,
-        gerado_em=hora_de_geracao(item.get("xml"), geracao),
-        prazo=_data(item.get("prazo")),
+        data_geracao=_data(item.get("data_geracao")),
         recibo=_texto(item.get("recibo")) or "",
-        protocolo=_texto(item.get("protocolo")) or "",
     )

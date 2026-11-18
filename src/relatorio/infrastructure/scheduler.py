@@ -10,7 +10,7 @@
 | 07:59                    | enviar_relatorio   | 08:01 e 08:03; depois alerta técnico   |
 | 08:10                    | verificar_envio    | alerta se não foi entregue             |
 | dia 1, 03:00             | limpar_retencao    | reexecuta no dia seguinte              |
-| 02:00                    | consolidar_sesmt   | reexecuta às 03:30 e 04:30 (~85 min)   |
+| 20:00                    | consolidar_sesmt   | reexecuta às 00:00 (~3h30)             |
 | 08:00                    | enviar_sesmt       | 08:02 e 08:04; depois alerta técnico   |
 | 08:12                    | verificar_sesmt    | alerta se não foi entregue             |
 | 23:20                    | processar_exames   | 02:20 e 05:20; o envio das 07:59 tenta |
@@ -146,7 +146,9 @@ class JobsAgendados:
     # ------------------------------------------------------------------ SESMT
 
     def consolidar_sesmt(self, tentativa: int) -> None:
-        dia = dia_do_relatorio(self._c.relogio.agora())
+        agora = self._c.relogio.agora().astimezone(FUSO_BRASILIA)
+        # 20:00 coleta o próprio dia; a retentativa de 00:00, o dia que acabou de fechar.
+        dia = agora.date() if agora.hour >= 12 else dia_do_relatorio(agora)
         if tentativa > 1 and self._ja_executado("consolidar_sesmt", dia.isoformat()):
             return
         consolidar = self._casos.consolidar_sesmt
@@ -289,9 +291,9 @@ def registrar_jobs(agendador: BlockingScheduler, jobs: JobsAgendados, settings: 
         adicionar("verificar_financeiro", jobs.verificar_financeiro, _cron(hour=8, minute=10))
 
     if settings.sesmt_habilitado:
-        # De madrugada, longe da janela do coletor (06:00): são ~1.700 consultas no limite de
-        # requisições por minuto, então a coleta leva mais de uma hora.
-        for tentativa, (hora, minuto) in enumerate(((2, 0), (3, 30), (4, 30)), start=1):
+        # Depois do coletor (até 18:00) e longe da volta dele (06:00): são ~4.300 consultas no
+        # limite de requisições por minuto, então a coleta leva cerca de 3h30.
+        for tentativa, (hora, minuto) in enumerate(((20, 0), (0, 0)), start=1):
             adicionar(
                 f"consolidar_sesmt_{tentativa}",
                 jobs.consolidar_sesmt,

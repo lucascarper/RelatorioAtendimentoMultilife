@@ -41,7 +41,7 @@ flowchart LR
 | 03:20 | `compactar_execucoes`: deixa 1 ciclo de coleta bem-sucedido por minuto nos dias anteriores | dia seguinte |
 | 05:45 | `consolidar_financeiro`: lê os endpoints financeiros e grava `resumo_financeiro` (só com `FINANCEIRO_HABILITADO`) | 06:30 e 07:15; na 3ª falha, alerta técnico |
 | 07:59 | `enviar_financeiro`: e-mail financeiro do dia anterior, lista própria | 08:01 e 08:03; verificação às 08:10 |
-| 02:00 | `consolidar_sesmt`: lê empresas, contratos, programas/laudos e eventos do eSocial e grava `resumo_sesmt` (só com `SESMT_HABILITADO`; leva mais de 1 h no limite de requisições) | 03:30 e 04:30; na 3ª falha, alerta técnico |
+| 20:00 | `consolidar_sesmt`: lê empresas, programas/laudos e eventos do eSocial e grava `resumo_sesmt` (só com `SESMT_HABILITADO`; leva cerca de 3h30 no limite de requisições) | 00:00; na 2ª falha, alerta técnico |
 | 08:00 | `enviar_sesmt`: e-mail de gestão do SESMT, lista própria | 08:02 e 08:04; verificação às 08:12 |
 | 23:20 | `processar_exames`: exames clínicos do dia dos médicos escolhidos (atendimentos por médico) | 02:20 e 05:20; o envio das 07:59 tenta de novo |
 
@@ -89,13 +89,13 @@ Regras e decisões no [ADR 0011](docs/adr/0011-relatorio-financeiro-diario.md). 
 
 Um terceiro e-mail às 08:00, para o SESMT, com lista de destinatários própria (admin → **SESMT**), no mesmo padrão visual dos outros dois. Três seções:
 
-1. **Contratos e documentos a vencer** (próximos 30 dias): contratos e programas/laudos (PGR, PCMSO, LTCAT) com grupo do cliente, vencimento, status (*A vencer*, *Vencendo* em até 7 dias) e ação recomendada.
-2. **Contratos e documentos vencidos** (atenção crítica): com os dias de atraso, do mais atrasado ao menos. Contratos vencidos há mais de 90 dias (clientes que saíram) ficam só na contagem.
-3. **Envios para o eSocial** (dia anterior): total de eventos gerados, com recibo e sem recibo (pendentes ou rejeitados), a lista dos sem recibo e a dos transmitidos com recibo e protocolo.
+1. **Programas e laudos vencidos** (PGR, PCMSO, LTCAT): gráfico por grupo de empresas, dividido por tipo.
+2. **Vencem no mês que vem** (mês civil seguinte): uma linha por empresa, com os documentos e as datas.
+3. **Eventos do eSocial do mês** (do dia 1º até a coleta): enviados e rejeitados (sem recibo), com os rejeitados por empresa.
 
-O SGG só responde documentos e eventos do eSocial **por empresa**, então a coleta roda de madrugada (02:00): consulta os documentos das empresas com contrato em andamento e os eventos das empresas com o eSocial habilitado (cerca de 1.700 consultas, mais de uma hora no limite de requisições por minuto). O relatório traz só o código do funcionário, nunca nome ou CPF (LGPD). Sem o item "Exames pendentes" da primeira versão do layout, porque o escopo não trazia o endpoint.
+O dashboard (`/admin/sesmt`) mostra o mesmo, com as listas paginadas e o histórico (vencidos dia a dia e eSocial mês a mês). O SGG só responde documentos e eventos do eSocial **por empresa**, então a coleta roda às 20:00: documentos de todas as empresas e eventos das que têm o eSocial habilitado (cerca de 4.300 consultas, perto de 3h30). Sem funcionário, nome ou CPF (LGPD).
 
-Regras e decisões no [ADR 0013](docs/adr/0013-relatorio-sesmt.md). O envio automático fica desligado até `SESMT_HABILITADO=true` no worker. A prévia e o reenvio pelo admin funcionam sempre (a coleta manual também leva mais de uma hora).
+Regras e decisões no [ADR 0020](docs/adr/0020-sesmt-vencidos-mes-seguinte-e-esocial-do-mes.md) (a versão anterior está no [ADR 0013](docs/adr/0013-relatorio-sesmt.md)). O envio automático fica desligado até `SESMT_HABILITADO=true` no worker. A prévia e o reenvio pelo admin funcionam sempre (a coleta manual também leva cerca de 3h30).
 
 ### Atendimentos por médico (no e-mail de atendimentos)
 
@@ -113,8 +113,8 @@ Cada relatório tem o cartão **Exportar período** (Atendimento, Financeiro e S
 
 - A planilha traz a aba **Sobre**, as abas do relatório (o que o e-mail mostrou em cada dia) e as abas **Fonte** (os dados usados no cálculo).
 - **Agendas do Atendimento:** o cartão traz a lista de agendas ativas (marcadas as que já saem no e-mail). Marcar ou desmarcar vale só para a planilha: os indicadores do dia, o desempenho por agenda e as abas de fonte são recalculados com a seleção e podem diferir do e-mail; a aba Sobre registra as agendas escolhidas.
-- Fonte do Atendimento: agendamentos e mudanças de status do banco; a coluna **Tipo de exame** (Admissional, Periódico…) é lida do SGG na hora, uma consulta por dia do período, e não é gravada. Financeiro: títulos e itens faturados relidos do SGG. SESMT: empresas, contratos, documentos e eventos do eSocial relidos do SGG, **só das 20h às 5h** (mais de mil consultas). Médicos: exames com o nome do trabalhador lido do SGG na hora, nunca gravado.
-- **Processar período** (cartão ao lado, nos mesmos quatro lugares): recalcula e grava o resumo de cada dia do período (até 31 dias), com a mesma barra. **Não reenvia e-mail.** O SESMT faz uma única leitura do SGG para todos os dias e só roda das 20h às 5h.
+- Fonte do Atendimento: agendamentos e mudanças de status do banco; a coluna **Tipo de exame** (Admissional, Periódico…) é lida do SGG na hora, uma consulta por dia do período, e não é gravada. Financeiro: títulos e itens faturados relidos do SGG. SESMT: o resumo de cada dia e as listas da última coleta (sem reler o SGG). Médicos: exames com o nome do trabalhador lido do SGG na hora, nunca gravado.
+- **Processar período** (cartão ao lado, nos mesmos quatro lugares): recalcula e grava o resumo de cada dia do período (até 31 dias), com a mesma barra. **Não reenvia e-mail.** O SESMT não tem essa opção: a coleta é uma foto do momento, não depende do dia.
 - Regras e decisões no [ADR 0016](docs/adr/0016-exportacao-por-periodo.md).
 
 ### Painel administrativo: módulos e usuários
@@ -234,7 +234,7 @@ Veja [`.env.example`](.env.example). Segredos só em variáveis de ambiente (RNF
 | `COLETA_INTERVALO_S` | `5` | Segundos entre ciclos de coleta (divisor de 60, de 5 a 60); cada ciclo é 1 requisição |
 | `COLETOR_HABILITADO` | `true` | `false` quando o painel em tempo real grava os eventos |
 | `FINANCEIRO_HABILITADO` | `false` | Liga a coleta (05:45) e o envio (07:59) do relatório financeiro no worker |
-| `SESMT_HABILITADO` | `false` | Liga a coleta (02:00) e o envio (08:00) do relatório de gestão do SESMT no worker |
+| `SESMT_HABILITADO` | `false` | Liga a coleta (20:00) e o envio (08:00) do relatório de gestão do SESMT no worker |
 | `SMTP_HOST` / `SMTP_PORT` | `mail.kinghost.net` / `587` | KingHost: 587 = STARTTLS, 465 = SSL direto (`SMTP_SSL` força) |
 | `SMTP_USER` / `SMTP_PASSWORD` | (secretas) | Caixa usada no envio |
 | `EMAIL_FROM` / `EMAIL_ALERTA_TECNICO` | `relatorios@…` / `tecnologia@…` | Remetente e alertas técnicos |
@@ -326,3 +326,4 @@ O ambiente em que o código foi desenvolvido não tinha acesso à rede do `app.s
 - [0014 — Usuários, permissões e módulos do painel](docs/adr/0014-usuarios-e-modulos.md)
 - [0015 — Atendimentos por médico](docs/adr/0015-atendimentos-por-medico.md)
 - [0016 — Exportação de relatórios por período](docs/adr/0016-exportacao-por-periodo.md)
+- [0020 — SESMT refeito: vencidos, mês seguinte e eSocial do mês](docs/adr/0020-sesmt-vencidos-mes-seguinte-e-esocial-do-mes.md)

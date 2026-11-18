@@ -5,7 +5,7 @@
 {%- from "admin/_icones.html" import icone %}
 <p class="voltar"><a href="/admin/sesmt">&larr; Dashboard</a></p>
 <div class="pagina-cabecalho"><h1>Gestão do relatório do SESMT</h1></div>
-<p class="subtitulo-pagina">Relatório de gestão diário: documentos e contratos a vencer, vencidos e eventos do eSocial.</p>
+<p class="subtitulo-pagina">Relatório de gestão diário: programas e laudos vencidos, os que vencem no mês que vem e os eventos do eSocial do mês.</p>
 
 {% if not habilitado %}
 <div class="mensagem mensagem-aviso">{{ icone("aviso") }}<span>O envio automático está desligado (<code>SESMT_HABILITADO=false</code>). Gere a prévia abaixo, confira os números com o SESMT e só então ligue a variável no worker na Railway.</span></div>
@@ -19,7 +19,7 @@
   <article class="card status">
     <h2>Envio automático</h2>
     <p class="valor">{{ "08:00" if habilitado else "Desligado" }}</p>
-    <p class="nota">{% if habilitado %}Coleta às 02:00 (retentativas 03:30 e 04:30), e-mail às 08:00.{% else %}Prévia e reenvio pelo admin continuam disponíveis.{% endif %}</p>
+    <p class="nota">{% if habilitado %}Coleta às 20:00 (retentativa 00:00), e-mail às 08:00 do dia seguinte.{% else %}Prévia e reenvio pelo admin continuam disponíveis.{% endif %}</p>
   </article>
   <article class="card status">
     <h2>Último relatório</h2>
@@ -40,11 +40,11 @@
 
 <section class="card">
   <h2>Gerar ou reenviar uma data</h2>
-  <p class="nota">Consulta o SGG empresa por empresa (cerca de 1.700 consultas, mais de uma hora no limite de requisições por minuto) e grava o resumo do dia escolhido. Contratos e documentos refletem a situação no momento da coleta. Durante o expediente a coleta disputa a cota da API com o painel: prefira rodar fora do horário.</p>
+  <p class="nota">Consulta o SGG empresa por empresa (cerca de 4.300 consultas, perto de 3h30 no limite de requisições por minuto) e grava o resumo da data escolhida. Os documentos refletem a situação no momento da coleta; o eSocial vai do dia 1º do mês da data até ela. Durante o expediente a coleta disputa a cota da API com o painel: prefira rodar depois das 20h.</p>
   <form method="post" action="/admin/sesmt/reprocessar" class="form form-linha">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <label>Data
-      <input type="date" name="data" value="{{ ontem.isoformat() }}" max="{{ ontem.isoformat() }}" required>
+      <input type="date" name="data" value="{{ ontem.isoformat() }}" max="{{ hoje.isoformat() }}" required>
     </label>
     <label class="check"><input type="checkbox" name="enviar" value="true"> Enviar o e-mail aos destinatários</label>
     <button type="submit" class="btn btn-primario">Gerar</button>
@@ -58,7 +58,7 @@
   <table class="tabela">
     <thead>
       <tr>
-        <th>Data</th><th class="num">A vencer</th><th class="num">Vencidos</th><th class="num">Eventos eSocial</th>
+        <th>Data</th><th class="num">Vencidos</th><th class="num">Vencem no mês seguinte</th><th class="num">eSocial rejeitados</th>
         <th>Envio</th><th><span class="sr">Ações</span></th>
       </tr>
     </thead>
@@ -67,11 +67,15 @@
       {% set m = r.metricas %}
       <tr>
         <td><strong>{{ r.data | data_br }}</strong> <span class="nota">{{ (r.data | dia_semana)[:3] }}</span></td>
-        <td class="num">{{ m.get("a_vencer", {}).get("total", "-") }}</td>
-        <td class="num">{{ m.get("vencidos", {}).get("total", "-") }}</td>
-        <td class="num">{{ m.get("esocial", {}).get("total", "-") }}</td>
+        {%- if m.get("proximo_mes") %}
+        <td class="num">{{ m.vencidos.total }}</td>
+        <td class="num">{{ m.proximo_mes.total }}</td>
+        <td class="num">{{ m.esocial.rejeitados }}</td>
+        {%- else %}
+        <td colspan="3" class="nota">Formato antigo do relatório: gere a data de novo</td>
+        {%- endif %}
         <td>{% set ultimo = r %}{% include "admin/_status_envio.html" %}</td>
-        <td><a href="/admin/sesmt/relatorios/{{ r.data.isoformat() }}" target="_blank" rel="noopener">Ver e-mail</a></td>
+        <td>{% if m.get("proximo_mes") %}<a href="/admin/sesmt/relatorios/{{ r.data.isoformat() }}" target="_blank" rel="noopener">Ver e-mail</a>{% endif %}</td>
       </tr>
     {% endfor %}
     </tbody>
@@ -115,7 +119,5 @@
   </form>
 </section>
 
-{% with tipo="sesmt", descricao="Uma única leitura do SGG (mais de uma hora) serve a todos os dias do período. Contratos e documentos refletem a situação de agora; os eventos do eSocial são os de cada dia.", aviso="Disponível só das 20h às 5h, como a coleta do SESMT." %}{% include "admin/_processar_periodo.html" %}{% endwith %}
-
-{% with tipo="sesmt", descricao="Relatório: pendências e envios ao eSocial de cada dia. Fonte: empresas, contratos, documentos e eventos do eSocial, relidos do SGG empresa por empresa.", aviso="Disponível só das 20h às 5h: a releitura faz mais de mil consultas ao SGG e leva de 15 a 30 minutos. Pode sair da página: ao voltar, a barra mostra o andamento." %}{% include "admin/_exportar.html" %}{% endwith %}
+{% with tipo="sesmt", descricao="A última coleta até a data final: todos os documentos vencidos, os que vencem no mês seguinte, os eventos rejeitados do mês e o resumo de cada dia. Não relê o SGG.", aviso="" %}{% include "admin/_exportar.html" %}{% endwith %}
 {% endblock %}

@@ -1,6 +1,6 @@
 # ADR 0013: Relatório de gestão do SESMT
 
-- **Status:** aceita (envio automático desligado até a conferência dos números)
+- **Status:** substituída pelo [ADR 0020](0020-sesmt-vencidos-mes-seguinte-e-esocial-do-mes.md) (o relatório foi refeito em 11/2026)
 - **Data:** 2026-09-30
 - **Escopo:** layout "Relatório Diário de Gestão SESMT" (três seções) e o mapeamento de endpoints enviado pelo SESMT
 

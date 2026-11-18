@@ -27,7 +27,6 @@ from relatorio.domain.exames import EXAME_CLINICO, ExameClinico, Medico
 from relatorio.domain.financeiro import Contrato, PrecoFornecedor, Titulo
 from relatorio.domain.sesmt import (
     TIPOS_DOCUMENTO,
-    ContratoSesmt,
     DocumentoSst,
     EmpresaSesmt,
     EventoEsocial,
@@ -36,7 +35,6 @@ from relatorio.infrastructure.sgg.dto import formatar_filtro, para_agenda, para_
 from relatorio.infrastructure.sgg.dto_exames import para_exame_clinico, para_medico
 from relatorio.infrastructure.sgg.dto_financeiro import para_contrato, para_preco, para_titulo
 from relatorio.infrastructure.sgg.dto_sesmt import (
-    para_contrato_sesmt,
     para_documento,
     para_empresa,
     para_evento_esocial,
@@ -355,18 +353,6 @@ class ClienteSgg:
                 continue
             empresas[empresa.id] = empresa
         return list(empresas.values())
-
-    def contratos_sesmt(self) -> list[ContratoSesmt]:
-        contratos: dict[int, ContratoSesmt] = {}
-        for situacao in ("Em andamento", "Vencido"):
-            for item in self._paginar("contratoCliente/", {"situacao_contrato": situacao}):
-                try:
-                    contrato = para_contrato_sesmt(item)
-                except ValueError as erro:
-                    log.warning("sgg_contrato_ignorado", id=item.get("id"), motivo=str(erro))
-                    continue
-                contratos[contrato.id] = contrato
-        return list(contratos.values())
 
     def documentos_sst(self, id_empresa: int) -> list[DocumentoSst]:
         # A API exige o tipo: uma consulta por tipo do relatório.

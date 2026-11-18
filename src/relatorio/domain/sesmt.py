@@ -1,49 +1,38 @@
-"""Relatório de gestão do SESMT: contratos e documentos a vencer, vencidos e envios ao eSocial.
+"""Relatório de gestão do SESMT: programas e laudos vencidos, os que vencem no mês que vem
+e os envios ao eSocial do mês.
 
-Funções puras sobre o que já foi lido do SGG (empresas, contratos, programas/laudos e
-eventos do eSocial). As regras:
+Funções puras sobre o que já foi lido do SGG (empresas, programas/laudos e eventos do
+eSocial). As regras:
 
-* **Documento corrente**: programas e laudos (PGR, PCMSO, LTCAT…) são emitidos de novo a
+* **Documento corrente**: programas e laudos (PGR, PCMSO, LTCAT) são emitidos de novo a
   cada renovação e o SGG guarda todo o histórico. Para cada empresa e tipo vale o **mais
   recente** (maior emissão; empate ou emissão ausente, maior vencimento). Só o vencimento
-  dele define a situação (a vencer ou vencido); os anteriores não geram pendência.
-* **Contrato corrente**: só o contrato marcado como o último do cliente (``ultimo``).
-  Contratos antigos já substituídos ou encerrados não entram.
-* **A vencer**: vence de hoje até hoje + 30 dias. **Vencendo** é o que vence em até 7 dias.
-* **Vencido**: o vencimento já passou. Contratos vencidos há mais de 90 dias são de
-  clientes que saíram e não pedem ação; só entram no total, não na lista.
-* **eSocial**: eventos gerados na data de referência. Com recibo = transmitido; sem
-  recibo = ainda não transmitido ou rejeitado (a API não distingue os dois).
+  dele conta; os anteriores foram renovados. Entram **todas** as empresas do SGG.
+* **Vencido**: o vencimento do documento corrente é anterior a ``hoje`` (o dia do e-mail).
+* **Vence no mês que vem**: o vencimento cai no mês civil seguinte ao de ``hoje``.
+* **eSocial**: eventos gerados do dia 1º do mês de ``referencia`` até ``referencia``.
+  Enviado = gerado; rejeitado = sem recibo (a API não separa "rejeitado" de "ainda não
+  transmitido": decisão do SESMT tratar os dois como rejeitados).
 
-LGPD: nenhum nome de funcionário nem CPF. O evento traz só o código do funcionário e o
-XML (com CPF) é descartado na leitura.
+LGPD: nenhum nome de funcionário nem CPF. Os rejeitados saem agrupados por empresa.
 
 Mudou alguma regra? Suba ``VERSAO_REGRA_SESMT`` e reprocesse os dias afetados.
 """
 
 from __future__ import annotations
 
-from collections import Counter
+import calendar
+from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
-VERSAO_REGRA_SESMT = "1.1.0"
+VERSAO_REGRA_SESMT = "2.0.0"
 
 TIPOS_DOCUMENTO = ("PGR", "PCMSO", "LTCAT")
-JANELA_A_VENCER_DIAS = 30
-DIAS_VENCENDO = 7
-JANELA_CONTRATO_VENCIDO_DIAS = 90
-MAX_LINHAS_PENDENCIAS = 40
-MAX_LINHAS_ESOCIAL = 40
-MAX_LINHAS_SEM_RECIBO = 30
-
-STATUS_A_VENCER = "A vencer"
-STATUS_VENCENDO = "Vencendo"
-STATUS_VENCIDO = "Vencido"
-CATEGORIA_PROGRAMA = "programa"
-CATEGORIA_CONTRATO = "contrato"
+MESES_HISTORICO_ESOCIAL = 12
+SEM_GRUPO = "Sem grupo"
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,117 +55,83 @@ class DocumentoSst:
 
 
 @dataclass(frozen=True, slots=True)
-class ContratoSesmt:
-    id: int
-    id_cliente: int | None
-    vencimento: date | None
-    situacao: str
-    ultimo: bool
-    codigo: str = ""
-
-
-@dataclass(frozen=True, slots=True)
 class EventoEsocial:
     codigo: str
     tipo: str
     id_empresa: int
-    id_funcionario: int | None
     data_geracao: date | None
-    gerado_em: datetime | None = None
-    prazo: date | None = None
     recibo: str = ""
-    protocolo: str = ""
 
     @property
-    def transmitido(self) -> bool:
-        return bool(self.recibo)
+    def rejeitado(self) -> bool:
+        return not self.recibo
 
 
 @dataclass(frozen=True, slots=True)
 class DadosSesmt:
     """Tudo o que o cálculo precisa, já lido do SGG."""
 
-    referencia: date  # dia dos eventos do eSocial (ontem, no envio da manhã)
-    hoje: date  # dia da coleta: base dos vencimentos
+    referencia: date  # último dia de eventos do eSocial (o dia da coleta)
+    hoje: date  # dia do e-mail: base dos vencimentos
     empresas: Mapping[int, EmpresaSesmt]
-    contratos: Sequence[ContratoSesmt]
     documentos: Sequence[DocumentoSst]
     eventos: Sequence[EventoEsocial]
     nomes_grupos: Mapping[str, str] = field(default_factory=dict)
     empresas_sem_consulta: int = 0  # empresas cuja consulta falhou (relatório parcial)
 
 
-# --------------------------------------------------------------------------- pendências
+def da_versao_atual(metricas: Mapping[str, Any]) -> bool:
+    """Resumos da regra 1.x (contratos e documentos a vencer) têm outro formato."""
+    versao = str(metricas.get("versao_regra", ""))
+    return versao.split(".", maxsplit=1)[0] == VERSAO_REGRA_SESMT.split(".", maxsplit=1)[0]
 
 
-def _nome_grupo(empresa: EmpresaSesmt | None, nomes: Mapping[str, str]) -> str:
+# --------------------------------------------------------------------------- datas
+
+
+def _ultimo_dia(ano: int, mes: int) -> date:
+    return date(ano, mes, calendar.monthrange(ano, mes)[1])
+
+
+def mes_seguinte(dia: date) -> tuple[date, date]:
+    inicio = _ultimo_dia(dia.year, dia.month) + timedelta(days=1)
+    return inicio, _ultimo_dia(inicio.year, inicio.month)
+
+
+def _meses_ate(dia: date, quantidade: int) -> list[date]:
+    """O dia 1º dos ``quantidade`` meses que terminam no mês de ``dia``, do mais antigo."""
+    meses = [dia.replace(day=1)]
+    while len(meses) < quantidade:
+        meses.append((meses[-1] - timedelta(days=1)).replace(day=1))
+    return meses[::-1]
+
+
+def mesmo_periodo_mes_anterior(fim: date) -> tuple[date, date]:
+    """1º até o mesmo dia do mês anterior (31/03 → 01/02 a 28/02)."""
+    inicio = (fim.replace(day=1) - timedelta(days=1)).replace(day=1)
+    return inicio, min(inicio + timedelta(days=fim.day - 1), _ultimo_dia(inicio.year, inicio.month))
+
+
+# --------------------------------------------------------------------------- nomes
+
+
+def nome_grupo(empresa: EmpresaSesmt | None, nomes: Mapping[str, str]) -> str:
     if empresa is None or not empresa.id_grupo:
-        return "Sem grupo"
+        return SEM_GRUPO
     return nomes.get(empresa.id_grupo) or f"Grupo {empresa.id_grupo}"
 
 
-def _nome_empresa(id_empresa: int | None, empresas: Mapping[int, EmpresaSesmt]) -> str:
-    empresa = empresas.get(id_empresa) if id_empresa is not None else None
-    if empresa is not None and empresa.nome:
-        return empresa.nome
-    return f"Empresa #{id_empresa}" if id_empresa is not None else "Empresa sem cadastro"
+def _empresa(id_empresa: int, dados: DadosSesmt) -> dict[str, Any]:
+    empresa = dados.empresas.get(id_empresa)
+    return {
+        "id_empresa": id_empresa,
+        "empresa": empresa.nome if empresa else f"Empresa #{id_empresa}",
+        "cnpj": empresa.cnpj if empresa else "",
+        "grupo": nome_grupo(empresa, dados.nomes_grupos),
+    }
 
 
-def _status(dias: int) -> str:
-    if dias < 0:
-        return STATUS_VENCIDO
-    return STATUS_VENCENDO if dias <= DIAS_VENCENDO else STATUS_A_VENCER
-
-
-@dataclass(frozen=True, slots=True)
-class _Pendencia:
-    categoria: str
-    tipo: str
-    grupo: str
-    identificacao: str
-    empresa: str
-    id_empresa: int | None
-    vencimento: date
-    dias: int  # negativo quando vencido
-
-    @property
-    def status(self) -> str:
-        return _status(self.dias)
-
-    def como_dict(self) -> dict[str, Any]:
-        return {
-            "categoria": self.categoria,
-            "tipo": self.tipo,
-            "grupo": self.grupo,
-            "identificacao": self.identificacao,
-            "empresa": self.empresa,
-            "id_empresa": self.id_empresa,
-            "vencimento": self.vencimento.isoformat(),
-            "dias": self.dias,
-            "status": self.status,
-        }
-
-
-def _pendencia(
-    categoria: str,
-    tipo: str,
-    rotulo: str,
-    id_empresa: int | None,
-    vencimento: date,
-    dados: DadosSesmt,
-) -> _Pendencia:
-    empresa = dados.empresas.get(id_empresa) if id_empresa is not None else None
-    nome = _nome_empresa(id_empresa, dados.empresas)
-    return _Pendencia(
-        categoria=categoria,
-        tipo=tipo,
-        grupo=_nome_grupo(empresa, dados.nomes_grupos),
-        identificacao=f"{rotulo} - {nome}",
-        empresa=nome,
-        id_empresa=id_empresa,
-        vencimento=vencimento,
-        dias=(vencimento - dados.hoje).days,
-    )
+# --------------------------------------------------------------------------- documentos
 
 
 def documentos_correntes(documentos: Sequence[DocumentoSst]) -> list[DocumentoSst]:
@@ -197,111 +152,113 @@ def _recencia(doc: DocumentoSst) -> tuple[date, date]:
     return (doc.emissao or date.min, doc.vencimento or date.min)
 
 
-def _pendencias(dados: DadosSesmt) -> list[_Pendencia]:
-    itens = [
-        _pendencia(CATEGORIA_PROGRAMA, doc.tipo, doc.tipo, doc.id_empresa, doc.vencimento, dados)
-        for doc in documentos_correntes(dados.documentos)
-        if doc.vencimento is not None
-    ]
-    for contrato in dados.contratos:
-        if contrato.ultimo and contrato.vencimento is not None:
-            rotulo = f"CT-{contrato.codigo or contrato.id}"
-            itens.append(
-                _pendencia(
-                    CATEGORIA_CONTRATO,
-                    "Contrato",
-                    rotulo,
-                    contrato.id_cliente,
-                    contrato.vencimento,
-                    dados,
-                )
-            )
-    return itens
-
-
-def _contagem(itens: Sequence[_Pendencia]) -> dict[str, int]:
-    por_categoria = Counter(i.categoria for i in itens)
-    return {
-        "documentos": por_categoria[CATEGORIA_PROGRAMA],
-        "contratos": por_categoria[CATEGORIA_CONTRATO],
-    }
-
-
-def _a_vencer(pendencias: Sequence[_Pendencia]) -> dict[str, Any]:
-    itens = sorted(
-        (i for i in pendencias if 0 <= i.dias <= JANELA_A_VENCER_DIAS),
-        key=lambda i: (i.dias, i.empresa),
+def _vencidos(correntes: Sequence[DocumentoSst], dados: DadosSesmt) -> dict[str, Any]:
+    vencidos = sorted(
+        (d for d in correntes if d.vencimento is not None and d.vencimento < dados.hoje),
+        key=lambda d: (d.vencimento, d.id_empresa, d.tipo),
     )
+    por_grupo: defaultdict[str, Counter[str]] = defaultdict(Counter)
+    itens = []
+    for doc in vencidos:
+        linha = _empresa(doc.id_empresa, dados)
+        por_grupo[linha["grupo"]][doc.tipo] += 1
+        itens.append({**linha, "tipo": doc.tipo, "vencimento": str(doc.vencimento)})
     return {
-        "janela_dias": JANELA_A_VENCER_DIAS,
-        "total": len(itens),
-        **_contagem(itens),
-        "vencendo": sum(1 for i in itens if i.status == STATUS_VENCENDO),
-        "itens": [i.como_dict() for i in itens[:MAX_LINHAS_PENDENCIAS]],
-        "ocultos": max(0, len(itens) - MAX_LINHAS_PENDENCIAS),
+        "total": len(vencidos),
+        "empresas": len({d.id_empresa for d in vencidos}),
+        "por_tipo": {t: sum(1 for d in vencidos if d.tipo == t) for t in TIPOS_DOCUMENTO},
+        "por_grupo": [
+            {"grupo": g, "total": sum(c.values()), "por_tipo": {t: c[t] for t in TIPOS_DOCUMENTO}}
+            for g, c in sorted(por_grupo.items(), key=lambda par: (-sum(par[1].values()), par[0]))
+        ],
+        "itens": itens,  # do mais atrasado ao menos (planilha)
     }
 
 
-def _vencidos(pendencias: Sequence[_Pendencia]) -> dict[str, Any]:
-    vencidos = [i for i in pendencias if i.dias < 0]
-    # Contrato vencido há muito tempo é cliente que saiu: fica só na contagem de antigos.
-    recentes = [
-        i
-        for i in vencidos
-        if i.categoria != CATEGORIA_CONTRATO or -i.dias <= JANELA_CONTRATO_VENCIDO_DIAS
-    ]
-    itens = sorted(recentes, key=lambda i: (i.dias, i.empresa))  # o mais atrasado primeiro
+def _proximo_mes(correntes: Sequence[DocumentoSst], dados: DadosSesmt) -> dict[str, Any]:
+    inicio, fim = mes_seguinte(dados.hoje)
+    por_empresa: defaultdict[int, list[DocumentoSst]] = defaultdict(list)
+    for doc in correntes:
+        if doc.vencimento is not None and inicio <= doc.vencimento <= fim:
+            por_empresa[doc.id_empresa].append(doc)
+    empresas = []
+    for id_empresa, docs in por_empresa.items():
+        docs.sort(key=lambda d: (d.vencimento, d.tipo))
+        empresas.append(
+            {
+                **_empresa(id_empresa, dados),
+                "primeiro": str(docs[0].vencimento),
+                "documentos": [{"tipo": d.tipo, "vencimento": str(d.vencimento)} for d in docs],
+            }
+        )
+    empresas.sort(key=lambda e: (e["primeiro"], e["empresa"].casefold()))
     return {
-        "total": len(itens),
-        **_contagem(itens),
-        "contratos_antigos": len(vencidos) - len(recentes),
-        "janela_contrato_dias": JANELA_CONTRATO_VENCIDO_DIAS,
-        "itens": [i.como_dict() for i in itens[:MAX_LINHAS_PENDENCIAS]],
-        "ocultos": max(0, len(itens) - MAX_LINHAS_PENDENCIAS),
+        "inicio": inicio.isoformat(),
+        "fim": fim.isoformat(),
+        "total": sum(len(e["documentos"]) for e in empresas),
+        "empresas_total": len(empresas),
+        "empresas": empresas,
     }
 
 
 # --------------------------------------------------------------------------- eSocial
 
 
-def _linha_evento(evento: EventoEsocial, empresas: Mapping[int, EmpresaSesmt]) -> dict[str, Any]:
-    empresa = empresas.get(evento.id_empresa)
-    return {
-        "codigo": evento.codigo,
-        "horario": evento.gerado_em.strftime("%H:%M:%S") if evento.gerado_em else None,
-        "evento": evento.tipo,
-        "funcionario": evento.id_funcionario,
-        "empresa": _nome_empresa(evento.id_empresa, empresas),
-        "cnpj": empresa.cnpj if empresa else "",
-        "recibo": evento.recibo or None,
-        "protocolo": evento.protocolo or None,
-    }
-
-
-def _ordem_evento(evento: EventoEsocial) -> tuple[str, str]:
-    """Todos são do mesmo dia: ordena pela hora de geração e, se faltar, pelo código."""
-    hora = evento.gerado_em.strftime("%H:%M:%S") if evento.gerado_em else ""
-    return (hora, evento.codigo.zfill(12))
+def _contagem(eventos: Sequence[EventoEsocial], inicio: date, fim: date) -> tuple[int, int]:
+    """(enviados, rejeitados) gerados de ``inicio`` a ``fim``."""
+    do_periodo = [e for e in eventos if e.data_geracao and inicio <= e.data_geracao <= fim]
+    return len(do_periodo), sum(1 for e in do_periodo if e.rejeitado)
 
 
 def _esocial(dados: DadosSesmt) -> dict[str, Any]:
-    do_dia = sorted(
-        (e for e in dados.eventos if e.data_geracao == dados.referencia), key=_ordem_evento
-    )
-    transmitidos = [e for e in do_dia if e.transmitido]
-    sem_recibo = [e for e in do_dia if not e.transmitido]
+    inicio, fim = dados.referencia.replace(day=1), dados.referencia
+    rejeitados = [
+        e
+        for e in dados.eventos
+        if e.rejeitado and e.data_geracao and inicio <= e.data_geracao <= fim
+    ]
+    por_empresa: defaultdict[int, Counter[str]] = defaultdict(Counter)
+    for evento in rejeitados:
+        por_empresa[evento.id_empresa][evento.tipo] += 1
+    enviados, _ = _contagem(dados.eventos, inicio, fim)
+    antes_de, antes_ate = mesmo_periodo_mes_anterior(fim)
+    enviados_antes, rejeitados_antes = _contagem(dados.eventos, antes_de, antes_ate)
     return {
-        "referencia": dados.referencia.isoformat(),
-        "total": len(do_dia),
-        "com_recibo": len(transmitidos),
-        "sem_recibo": len(sem_recibo),
-        "por_evento": dict(sorted(Counter(e.tipo for e in do_dia).items())),
-        "empresas": len({e.id_empresa for e in do_dia}),
-        "eventos": [_linha_evento(e, dados.empresas) for e in transmitidos[:MAX_LINHAS_ESOCIAL]],
-        "eventos_ocultos": max(0, len(transmitidos) - MAX_LINHAS_ESOCIAL),
-        "pendentes": [_linha_evento(e, dados.empresas) for e in sem_recibo[:MAX_LINHAS_SEM_RECIBO]],
-        "pendentes_ocultos": max(0, len(sem_recibo) - MAX_LINHAS_SEM_RECIBO),
+        "inicio": inicio.isoformat(),
+        "fim": fim.isoformat(),
+        "enviados": enviados,
+        "rejeitados": len(rejeitados),
+        "anterior": {
+            "inicio": antes_de.isoformat(),
+            "fim": antes_ate.isoformat(),
+            "enviados": enviados_antes,
+            "rejeitados": rejeitados_antes,
+        },
+        "empresas_rejeitadas": len(por_empresa),
+        "rejeitados_por_empresa": sorted(
+            (
+                {
+                    **_empresa(id_empresa, dados),
+                    "quantidade": sum(tipos.values()),
+                    "tipos": dict(sorted(tipos.items())),
+                }
+                for id_empresa, tipos in por_empresa.items()
+            ),
+            key=lambda e: (-e["quantidade"], e["empresa"].casefold()),
+        ),
     }
+
+
+def _esocial_mensal(dados: DadosSesmt) -> list[dict[str, Any]]:
+    """Enviados e rejeitados de cada um dos últimos 12 meses (o atual, até a referência)."""
+    linhas = []
+    for inicio in _meses_ate(dados.referencia, MESES_HISTORICO_ESOCIAL):
+        fim = min(_ultimo_dia(inicio.year, inicio.month), dados.referencia)
+        enviados, rejeitados = _contagem(dados.eventos, inicio, fim)
+        linhas.append(
+            {"mes": inicio.isoformat()[:7], "enviados": enviados, "rejeitados": rejeitados}
+        )
+    return linhas
 
 
 # --------------------------------------------------------------------------- resumo
@@ -309,14 +266,16 @@ def _esocial(dados: DadosSesmt) -> dict[str, Any]:
 
 def calcular_sesmt(dados: DadosSesmt, gerado_em: datetime) -> dict[str, Any]:
     """Resumo do dia em JSON puro (é o que vai para ``resumo_sesmt.metricas``)."""
-    pendencias = _pendencias(dados)
+    correntes = documentos_correntes(dados.documentos)
     return {
         "versao_regra": VERSAO_REGRA_SESMT,
         "referencia": dados.referencia.isoformat(),
         "hoje": dados.hoje.isoformat(),
         "gerado_em": gerado_em.isoformat(),
-        "a_vencer": _a_vencer(pendencias),
-        "vencidos": _vencidos(pendencias),
-        "esocial": _esocial(dados),
+        "empresas_consultadas": len(dados.empresas),
         "empresas_sem_consulta": dados.empresas_sem_consulta,
+        "vencidos": _vencidos(correntes, dados),
+        "proximo_mes": _proximo_mes(correntes, dados),
+        "esocial": _esocial(dados),
+        "esocial_mensal": _esocial_mensal(dados),
     }

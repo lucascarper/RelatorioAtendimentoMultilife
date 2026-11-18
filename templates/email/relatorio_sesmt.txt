@@ -12,10 +12,10 @@
 {%- for c in s.cartoes %}
 - {{ c.rotulo }}: {{ c.valor }}{% if c.contexto %} ({{ c.contexto }}){% endif %}
 {%- endfor %}
-{%- for t in s.tabelas %}
-{% if t.titulo %}
-{{ t.titulo }}
-{%- endif %}
+{%- for b in s.barras %}
+- {{ b.rotulo }}: {{ b.total }} ({% for g in b.segmentos %}{{ g.rotulo }}{% if not loop.last %}, {% endif %}{% endfor %})
+{%- endfor %}
+{%- if s.tabela %}{% set t = s.tabela %}
 {%- if t.linhas %}
 {%- for linha in t.linhas %}
 - {% for c in linha %}{{ c.texto }}{% if c.nota %} ({{ c.nota }}){% endif %}{% if not loop.last %} | {% endif %}{% endfor %}
@@ -26,7 +26,7 @@
 {%- else %}
 {{ t.vazio }}
 {%- endif %}
-{%- endfor %}
+{%- endif %}
 {%- endfor %}
 
 Como os números são calculados

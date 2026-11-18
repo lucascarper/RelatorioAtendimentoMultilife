@@ -48,6 +48,7 @@ from relatorio.domain.exportacao import (
 from relatorio.domain.financeiro import Titulo
 from relatorio.domain.metricas import AgendamentoDoDia
 from relatorio.domain.resumo import ResumoDiario
+from relatorio.domain.sesmt import da_versao_atual
 
 DIAS_SEMANA = ("seg", "ter", "qua", "qui", "sex", "sáb", "dom")
 ENVIO = {"pendente": "Pendente", "enviando": "Enviando", "enviado": "Enviado", "falha": "Falha"}
@@ -542,173 +543,143 @@ class ExportarFinanceiro:
 
 
 class ExportarSesmt:
-    def __init__(self, uow: FabricaUoW, coleta: ConsolidarSesmt, relogio: Relogio) -> None:
+    """A última coleta até a data final (sem reler o SGG) e o resumo de cada dia do período."""
+
+    def __init__(self, uow: FabricaUoW) -> None:
         self._uow = uow
-        self._coleta = coleta
-        self._relogio = relogio
 
     def gerar(
         self, inicio: date, fim: date, progresso: Progresso, opcoes: frozenset[str]
     ) -> Planilha:
         planilha = Planilha(SESMT, "Relatório de Gestão SESMT", inicio, fim)
-        progresso(2, "Lendo os resumos diários")
+        progresso(10, "Lendo os resumos diários")
         with self._uow() as uow:
-            resumos = uow.resumos_sesmt.listar_periodo(inicio, fim)
+            resumos = [
+                r
+                for r in uow.resumos_sesmt.listar_periodo(inicio, fim)
+                if da_versao_atual(r.metricas)
+            ]
         resumo = Aba(
             "Resumo diário",
-            "Pendências e envios ao eSocial de cada dia (os mesmos do e-mail diário)",
+            "Vencidos, vencimentos do mês seguinte e eSocial do mês em cada coleta",
             (
                 Coluna("Data", "data", 12),
                 Coluna("Dia", largura=6),
-                Coluna("A vencer (30 dias)", "inteiro", 14),
-                Coluna("Vencidos", "inteiro", 10),
-                Coluna("Eventos eSocial", "inteiro", 13),
-                Coluna("Com recibo", "inteiro", 11),
-                Coluna("Sem recibo", "inteiro", 11),
+                Coluna("Documentos vencidos", "inteiro", 13),
+                Coluna("Empresas com vencido", "inteiro", 13),
+                Coluna("Vencem no mês seguinte", "inteiro", 14),
+                Coluna("eSocial enviados no mês", "inteiro", 14),
+                Coluna("eSocial rejeitados no mês", "inteiro", 14),
                 Coluna("E-mail", largura=10),
             ),
         )
         for registro in resumos:
             m = registro.metricas
-            esocial: Mapping[str, Any] = m.get("esocial", {})
             resumo.linhas.append(
                 (
                     registro.data,
                     _dia(registro.data),
-                    _num(m.get("a_vencer", {}).get("total")),
-                    _num(m.get("vencidos", {}).get("total")),
-                    _num(esocial.get("total")),
-                    _num(esocial.get("com_recibo")),
-                    _num(esocial.get("sem_recibo")),
+                    _num(m["vencidos"]["total"]),
+                    _num(m["vencidos"]["empresas"]),
+                    _num(m["proximo_mes"]["total"]),
+                    _num(m["esocial"]["enviados"]),
+                    _num(m["esocial"]["rejeitados"]),
                     ENVIO.get(str(registro.status_envio), str(registro.status_envio)),
                 )
             )
-
-        faixas = {
-            "empresas": (3, 3),
-            "contratos": (6, 6),
-            "documentos": (6, 55),
-            "esocial": (55, 93),
-        }
-        rotulos = {
-            "empresas": "Relendo as empresas no SGG",
-            "contratos": "Relendo os contratos no SGG",
-            "documentos": "Relendo programas e laudos, empresa por empresa",
-            "esocial": "Relendo os eventos do eSocial, empresa por empresa",
-        }
-
-        def andamento(etapa: str, feitas: int, total: int) -> None:
-            de, ate = faixas[etapa]
-            valor = de + (ate - de) * feitas // max(total, 1)
-            texto = rotulos[etapa] + (f" ({feitas} de {total})" if total > 1 else "")
-            progresso(valor, texto)
-
-        hoje = self._relogio.agora().astimezone(FUSO_BRASILIA).date()
-        dados = self._coleta.carregar(fim, max(hoje, fim + timedelta(days=1)), andamento)
-        empresas = dados.empresas
-
-        def nome(id_empresa: int | None) -> str:
-            empresa = empresas.get(id_empresa) if id_empresa is not None else None
-            return empresa.nome if empresa else (f"Empresa #{id_empresa}" if id_empresa else "")
-
-        aba_empresas = Aba(
-            "Fonte - Empresas",
-            "Empresas do SGG",
-            (
-                Coluna("ID", "inteiro", 9),
-                Coluna("Empresa", largura=40),
-                Coluna("CNPJ", largura=20),
-                Coluna("Grupo", largura=22),
-                Coluna("eSocial habilitado", largura=12),
-            ),
-            fonte=True,
-        )
-        for emp in sorted(empresas.values(), key=lambda x: x.nome.casefold()):
-            grupo = dados.nomes_grupos.get(emp.id_grupo, emp.id_grupo)
-            aba_empresas.linhas.append(
-                (emp.id, emp.nome, emp.cnpj, grupo, _sim(emp.esocial_habilitado))
-            )
-        aba_contratos = Aba(
-            "Fonte - Contratos",
-            "Contratos em andamento e vencidos",
-            (
-                Coluna("ID", "inteiro", 9),
-                Coluna("Código", largura=14),
-                Coluna("Empresa", largura=40),
-                Coluna("Situação", largura=14),
-                Coluna("Vencimento", "data", 12),
-                Coluna("Contrato corrente", largura=10),
-            ),
-            fonte=True,
-        )
-        for c in sorted(dados.contratos, key=lambda x: (x.vencimento or date.max, x.id)):
-            aba_contratos.linhas.append(
-                (c.id, c.codigo, nome(c.id_cliente), c.situacao, c.vencimento, _sim(c.ultimo))
-            )
-        aba_documentos = Aba(
-            "Fonte - Documentos",
-            "Programas e laudos (PGR, PCMSO, LTCAT) das empresas com contrato em andamento",
-            (
-                Coluna("Empresa", largura=40),
-                Coluna("Tipo", largura=9),
-                Coluna("Código", largura=10),
-                Coluna("Emissão", "data", 12),
-                Coluna("Vencimento", "data", 12),
-                Coluna("Situação", largura=14),
-            ),
-            fonte=True,
-        )
-        for d in sorted(dados.documentos, key=lambda x: (nome(x.id_empresa).casefold(), x.tipo)):
-            aba_documentos.linhas.append(
-                (nome(d.id_empresa), d.tipo, d.codigo, d.emissao, d.vencimento, d.situacao)
-            )
-        aba_eventos = Aba(
-            "Fonte - Eventos eSocial",
-            "Eventos gerados no período, das empresas com o eSocial habilitado",
-            (
-                Coluna("Código", largura=10),
-                Coluna("Evento", largura=9),
-                Coluna("Empresa", largura=40),
-                Coluna("Funcionário", largura=16),
-                Coluna("Data de geração", "data", 12),
-                Coluna("Gerado em", "datahora", 17),
-                Coluna("Prazo", "data", 12),
-                Coluna("Recibo", largura=26),
-                Coluna("Protocolo", largura=30),
-            ),
-            fonte=True,
-            nota="Funcionário pelo código do SGG, sem nome nem CPF (LGPD).",
-        )
-        no_periodo = [
-            ev for ev in dados.eventos if ev.data_geracao and inicio <= ev.data_geracao <= fim
-        ]
-        for ev in sorted(no_periodo, key=lambda x: (x.data_geracao or date.min, x.codigo)):
-            aba_eventos.linhas.append(
-                (
-                    ev.codigo,
-                    ev.tipo,
-                    nome(ev.id_empresa),
-                    f"Funcionário #{ev.id_funcionario}" if ev.id_funcionario else "",
-                    ev.data_geracao,
-                    ev.gerado_em.astimezone(FUSO_BRASILIA) if ev.gerado_em else None,
-                    ev.prazo,
-                    ev.recibo,
-                    ev.protocolo,
-                )
-            )
-        planilha.abas = [resumo, aba_empresas, aba_contratos, aba_documentos, aba_eventos]
-        planilha.observacoes.append(
-            "Empresas, contratos e documentos refletem a situação no SGG no momento da "
-            "exportação; os eventos do eSocial são os gerados no período."
-        )
-        if dados.empresas_sem_consulta:
-            planilha.observacoes.append(
-                f"{dados.empresas_sem_consulta} empresa(s) não responderam no SGG "
-                "e ficaram de fora."
-            )
+        planilha.abas = [resumo]
         nota = _nota_faltando(_faltando(inicio, fim, (r.data for r in resumos)), "resumo")
         if nota:
             planilha.observacoes.append(nota)
+        if not resumos:
+            return planilha
+
+        progresso(50, "Montando as listas da última coleta")
+        ultimo = resumos[-1]
+        m = ultimo.metricas
+        coleta = f"coleta de {ultimo.data:%d/%m/%Y}"
+        vencidos = Aba(
+            "Vencidos",
+            f"PGR, PCMSO e LTCAT vencidos ({coleta}), do mais atrasado ao menos",
+            (
+                Coluna("Empresa", largura=40),
+                Coluna("CNPJ", largura=20),
+                Coluna("Grupo", largura=22),
+                Coluna("Tipo", largura=9),
+                Coluna("Vencimento", "data", 12),
+            ),
+        )
+        for x in m["vencidos"]["itens"]:
+            vencidos.linhas.append(
+                (
+                    x["empresa"],
+                    x["cnpj"],
+                    x["grupo"],
+                    x["tipo"],
+                    date.fromisoformat(x["vencimento"]),
+                )
+            )
+        proximo = m["proximo_mes"]
+        vencem = Aba(
+            "Vencem no mês seguinte",
+            f"Documentos que vencem de {date.fromisoformat(proximo['inicio']):%d/%m} a"
+            f" {date.fromisoformat(proximo['fim']):%d/%m/%Y} ({coleta})",
+            (
+                Coluna("Empresa", largura=40),
+                Coluna("CNPJ", largura=20),
+                Coluna("Grupo", largura=22),
+                Coluna("Tipo", largura=9),
+                Coluna("Vencimento", "data", 12),
+            ),
+        )
+        for x in proximo["empresas"]:
+            for d in x["documentos"]:
+                vencem.linhas.append(
+                    (
+                        x["empresa"],
+                        x["cnpj"],
+                        x["grupo"],
+                        d["tipo"],
+                        date.fromisoformat(d["vencimento"]),
+                    )
+                )
+        esocial = m["esocial"]
+        rejeitados = Aba(
+            "eSocial rejeitados",
+            f"Eventos sem recibo de {date.fromisoformat(esocial['inicio']):%d/%m} a"
+            f" {date.fromisoformat(esocial['fim']):%d/%m/%Y}, por empresa",
+            (
+                Coluna("Empresa", largura=40),
+                Coluna("CNPJ", largura=20),
+                Coluna("Grupo", largura=22),
+                Coluna("Rejeitados", "inteiro", 11),
+                Coluna("Eventos", largura=40),
+            ),
+            nota="Sem recibo inclui o que ainda não foi transmitido (a API não separa os dois).",
+        )
+        for x in esocial["rejeitados_por_empresa"]:
+            tipos = ", ".join(f"{t}: {n}" for t, n in x["tipos"].items())
+            rejeitados.linhas.append((x["empresa"], x["cnpj"], x["grupo"], x["quantidade"], tipos))
+        mensal = Aba(
+            "eSocial mês a mês",
+            f"Eventos gerados e sem recibo nos últimos 12 meses ({coleta})",
+            (
+                Coluna("Mês", largura=10),
+                Coluna("Enviados", "inteiro", 11),
+                Coluna("Rejeitados", "inteiro", 11),
+            ),
+        )
+        for x in m["esocial_mensal"]:
+            mensal.linhas.append((x["mes"], x["enviados"], x["rejeitados"]))
+        planilha.abas += [vencidos, vencem, rejeitados, mensal]
+        planilha.observacoes.append(
+            f"As listas são da {coleta}, a última do período: documentos pela situação no SGG"
+            " naquela noite."
+        )
+        if m.get("empresas_sem_consulta"):
+            planilha.observacoes.append(
+                f"{m['empresas_sem_consulta']} empresa(s) não responderam no SGG naquela coleta."
+            )
         progresso(95, "Organizando as abas")
         return planilha
 
@@ -852,7 +823,7 @@ def montar_exportadores(
     if financeiro is not None:
         exportadores[FINANCEIRO] = ExportarFinanceiro(uow, financeiro)
     if coleta_sesmt is not None:
-        exportadores[SESMT] = ExportarSesmt(uow, coleta_sesmt, relogio)
+        exportadores[SESMT] = ExportarSesmt(uow)
     if exames is not None:
         exportadores[MEDICOS] = ExportarMedicos(uow, exames)
     return exportadores

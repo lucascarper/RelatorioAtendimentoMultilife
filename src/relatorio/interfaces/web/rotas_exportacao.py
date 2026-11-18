@@ -112,13 +112,10 @@ def gerar_em_segundo_plano(container: Container, id_exportacao: str, tipo: str) 
     exportar = container.casos.exportar
     if exportar is None:  # pragma: no cover
         return
-    # O SESMT disputa a cota da API com a coleta noturna: usa a mesma trava do job.
     exportacao = exportar.obter(id_exportacao)
     processando = exportacao is not None and exportacao.acao == "processar"
     trava = f"exportar_{tipo}"
-    if tipo == SESMT:
-        trava = "consolidar_sesmt"
-    elif processando:  # a mesma trava dos jobs que gravam esses resumos
+    if processando:  # a mesma trava dos jobs que gravam esses resumos
         trava = {
             ATENDIMENTO: "consolidar_dia",
             FINANCEIRO: "consolidar_financeiro",
