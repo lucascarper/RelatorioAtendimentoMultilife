@@ -1,17 +1,13 @@
-"""Relatório de gestão do SESMT: coleta nos endpoints do SGG e consolidação.
+"""Relatório de gestão do SESMT: planilhas de vencimento, eSocial do SGG e consolidação.
 
 Roda no mesmo worker dos demais relatórios, com job e e-mail próprios. À noite (20:00,
-depois do coletor, que usa a cota da API) lê o SGG e grava ``resumo_sesmt``; o envio da
-manhã seguinte só lê o resumo pronto (``EnviarRelatorio`` com o repositório e a lista do
-SESMT).
+depois do coletor, que usa a cota da API) grava ``resumo_sesmt``; o envio semanal (segunda,
+08:00) só lê o resumo pronto (``EnviarRelatorio`` com o repositório e a lista do SESMT).
 
-O SGG só responde documentos e eventos do eSocial **por empresa** (sem lote nem filtro de
-data, conferido em 11/2026), e a coleta respeita o limite de requisições por minuto:
-
-* documentos (PGR, PCMSO, LTCAT, uma consulta por tipo) de **todas** as empresas;
-* eventos do eSocial só das empresas com o eSocial habilitado.
-
-São cerca de 4.300 consultas: perto de 3h30 a 20 por minuto.
+* **Documentos** (PGR, PCMSO, LTCAT): da última planilha "Vencimento(s) de ..." de cada
+  tipo enviada no admin. A API do SGG não traz os documentos atuais (ADR 0021).
+* **eSocial**: do SGG, uma consulta por empresa com o eSocial habilitado (sem lote nem
+  filtro de data): cerca de 600 consultas, perto de 30 minutos.
 
 Uma empresa que falha na consulta não derruba a coleta: fica de fora e o e-mail avisa
 que o relatório está parcial. Se a falha é geral (API fora, chave revogada), a coleta
@@ -121,20 +117,19 @@ class ConsolidarSesmt:
     def carregar(self, referencia: date, hoje: date) -> DadosSesmt:
         empresas = {e.id: e for e in self._sgg.empresas_sesmt()}
         com_esocial = sorted(e.id for e in empresas.values() if e.esocial_habilitado)
-        documentos, sem_documentos = self._por_empresa(
-            "documentos", sorted(empresas), self._sgg.documentos_sst
-        )
         eventos, sem_eventos = self._por_empresa("esocial", com_esocial, self._sgg.eventos_esocial)
         with self._uow() as uow:
             texto = uow.configuracoes.obter_todas().get(CHAVE_NOMES_GRUPOS)
+            planilhas = uow.planilhas_sesmt.listar()
         return DadosSesmt(
             referencia=referencia,
             hoje=hoje,
             empresas=empresas,
-            documentos=documentos,
+            documentos=[d for p in planilhas for d in p.documentos],
             eventos=eventos,
             nomes_grupos=ler_nomes_grupos(texto),
-            empresas_sem_consulta=len(sem_documentos | sem_eventos),
+            empresas_sem_consulta=len(sem_eventos),
+            planilhas={p.tipo: p.enviada_em for p in planilhas},
         )
 
     def executar(self, referencia: date) -> dict[str, object]:

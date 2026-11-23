@@ -633,3 +633,45 @@ class TestSesmt:
         assert "/admin/sesmt/relatorios/2026-09-28" not in gestao
         assert "Formato antigo do relatório" in gestao
         assert "Processar período" not in gestao
+
+    def test_envio_das_planilhas_de_vencimento(self, cliente: TestClient, uow: FabricaUoW) -> None:
+        from datetime import date  # noqa: PLC0415
+
+        from tests.fabricas import planilha_vencimentos  # noqa: PLC0415
+
+        token = entrar(cliente)
+        pagina = cliente.get("/admin/sesmt/gestao").text
+        assert 'enctype="multipart/form-data"' in pagina
+        assert "Nenhuma planilha enviada" in pagina
+        xlsx = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        pgr = planilha_vencimentos("PGR", [(60, "A.M LTDA", "", "GESTÃO 2", "28/01/2028", "")])
+        ltcat = planilha_vencimentos("LTCAT", [(61, "B LTDA", "", "EVENTUAL", "01/12/2026", "")])
+        ok = cliente.post(
+            "/admin/sesmt/planilhas",
+            data={"csrf": token},
+            files=[
+                ("arquivos", ("pgr.xlsx", pgr, xlsx)),
+                ("arquivos", ("qualquer-nome.xlsx", ltcat, xlsx)),  # o tipo vem do título
+            ],
+        )
+        assert "Planilhas salvas: PGR (1 empresas), LTCAT (1 empresas)" in ok.text
+        with uow() as u:
+            salvas = {p.tipo: p for p in u.planilhas_sesmt.listar()}
+        assert sorted(salvas) == ["LTCAT", "PGR"]
+        [doc] = salvas["LTCAT"].documentos
+        assert (doc.id_empresa, doc.empresa, doc.grupo, doc.vencimento) == (
+            61,
+            "B LTDA",
+            "EVENTUAL",
+            date(2026, 12, 1),
+        )
+        assert salvas["PGR"].arquivo == "pgr.xlsx"
+
+        ruim = cliente.post(
+            "/admin/sesmt/planilhas",
+            data={"csrf": token},
+            files=[("arquivos", ("vencimentos.csv", b"codigo;validade", "text/csv"))],
+        )
+        assert "vencimentos.csv: O arquivo não é uma planilha .xlsx." in ruim.text
+        with uow() as u:
+            assert len(u.planilhas_sesmt.listar()) == 2  # nada mudou

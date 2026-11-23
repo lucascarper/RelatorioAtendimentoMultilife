@@ -160,3 +160,23 @@ def snapshot(id_agendamento: int, situacao: Situacao, **extra: object) -> Snapsh
     }
     base.update(extra)
     return Snapshot(**base)  # type: ignore[arg-type]
+
+
+def planilha_vencimentos(tipo: str, linhas: list[tuple[object, ...]]) -> bytes:
+    """Planilha "VENCIMENTO(s) DE {tipo}(s)" no formato da exportação do SGG."""
+    from io import BytesIO  # noqa: PLC0415
+
+    from openpyxl import Workbook  # noqa: PLC0415
+
+    livro = Workbook()
+    aba = livro.active
+    assert aba is not None
+    aba.title = f"VENCIMENTO(s) DE {tipo}(s)"
+    aba.append(
+        ("Código Empresa", "Empresa", "CNPJ/CPF", "Grupo", "Data Validade", "Emails da Empresa")
+    )
+    for linha in linhas:
+        aba.append(linha)
+    saida = BytesIO()
+    livro.save(saida)
+    return saida.getvalue()

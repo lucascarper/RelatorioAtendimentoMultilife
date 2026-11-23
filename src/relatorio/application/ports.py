@@ -25,7 +25,7 @@ from relatorio.application.modelos import (
 from relatorio.domain.entidades import Agenda, AgendamentoSgg, Evento, Situacao, Snapshot
 from relatorio.domain.exames import ExameClinico, Medico
 from relatorio.domain.financeiro import Contrato, PrecoFornecedor, Titulo
-from relatorio.domain.sesmt import DocumentoSst, EmpresaSesmt, EventoEsocial
+from relatorio.domain.sesmt import EmpresaSesmt, EventoEsocial, PlanilhaSesmt
 
 # --------------------------------------------------------------------------- externos
 
@@ -75,13 +75,9 @@ class FinanceiroGateway(Protocol):
 
 
 class SesmtGateway(Protocol):
-    """Leitura dos endpoints do relatório de gestão do SESMT (somente GET)."""
+    """Empresas e eventos do eSocial do SGG (somente GET). Os documentos vêm das planilhas."""
 
     def empresas_sesmt(self) -> list[EmpresaSesmt]: ...
-
-    def documentos_sst(self, id_empresa: int) -> list[DocumentoSst]:
-        """Programas e laudos da empresa (todo o histórico dos tipos do relatório)."""
-        ...
 
     def eventos_esocial(self, id_empresa: int) -> list[EventoEsocial]:
         """Todos os eventos da empresa; a API não filtra por data."""
@@ -354,6 +350,12 @@ class ExportacaoRepository(Protocol):
     def apagar_anteriores_a(self, limite: datetime) -> int: ...
 
 
+class PlanilhaSesmtRepository(Protocol):
+    def salvar(self, planilha: PlanilhaSesmt) -> None: ...
+
+    def listar(self) -> list[PlanilhaSesmt]: ...
+
+
 class ConfiguracaoRepository(Protocol):
     def obter_todas(self) -> dict[str, str]: ...
 
@@ -429,6 +431,9 @@ class UnidadeDeTrabalho(Protocol):
 
     @property
     def destinatarios_sesmt(self) -> DestinatarioRepository: ...
+
+    @property
+    def planilhas_sesmt(self) -> PlanilhaSesmtRepository: ...
 
     @property
     def medicos(self) -> MedicoRepository: ...

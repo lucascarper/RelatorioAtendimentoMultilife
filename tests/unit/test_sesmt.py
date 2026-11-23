@@ -110,8 +110,40 @@ def test_vencidos_por_grupo_divididos_por_tipo() -> None:
 
 
 def test_grupo_sem_nome_aparece_pelo_codigo() -> None:
-    m = calcular_sesmt(dados(documentos=[doc(4, "PGR", "2026-01-01")]), GERADO)
-    assert m["vencidos"]["por_grupo"][0]["grupo"] == "Grupo 14"
+    m = calcular_sesmt(dados(documentos=[doc(2, "PGR", "2026-01-01")], nomes_grupos={}), GERADO)
+    assert m["vencidos"]["por_grupo"][0]["grupo"] == "Grupo 4"
+
+
+def test_documento_da_planilha_traz_empresa_e_grupo() -> None:
+    planilha = DocumentoSst(
+        9, "LTCAT", d("2026-12-03"), empresa="Zeta SA", cnpj="22.222.222/0001-22", grupo="GESTÃO 2"
+    )
+    sem_grupo = DocumentoSst(1, "PGR", d("2026-01-01"), empresa="Alfa LTDA")
+    m = calcular_sesmt(dados(documentos=[planilha, sem_grupo]), GERADO)
+    assert m["proximo_mes"]["empresas"][0] | {"documentos": None} == {
+        "id_empresa": 9,
+        "empresa": "Zeta SA",
+        "cnpj": "22.222.222/0001-22",
+        "grupo": "GESTÃO 2",
+        "primeiro": "2026-12-03",
+        "documentos": None,
+    }
+    assert m["vencidos"]["por_grupo"][0]["grupo"] == "Sem grupo"
+
+
+def test_grupo_em_cancelamento_fica_fora_dos_documentos() -> None:
+    cancelando = DocumentoSst(9, "PGR", d("2026-01-01"), empresa="Zeta SA", grupo="EM CANCELAMENTO")
+    pela_api = doc(4, "PCMSO", "2026-12-10")  # grupo 14 com o nome EM CANCELAMENTO no admin
+    m = calcular_sesmt(
+        dados(documentos=[cancelando, pela_api], nomes_grupos={"14": "EM CANCELAMENTO"}), GERADO
+    )
+    assert (m["vencidos"]["total"], m["proximo_mes"]["total"]) == (0, 0)
+
+
+def test_resumo_diz_quando_cada_planilha_foi_enviada() -> None:
+    enviada = datetime(2026, 11, 16, 9, 0, tzinfo=FUSO_BRASILIA)
+    m = calcular_sesmt(dados(planilhas={"PCMSO": enviada}), GERADO)
+    assert m["planilhas"] == {"PCMSO": enviada.isoformat()}
 
 
 def test_vencem_no_mes_civil_seguinte_agrupados_por_empresa() -> None:
@@ -202,3 +234,19 @@ def test_resumo_e_json_puro_sem_dados_do_trabalhador() -> None:
 )
 def test_resumos_da_versao_antiga_tem_outro_formato(versao: str, atual: bool) -> None:
     assert da_versao_atual({"versao_regra": versao}) is atual
+
+
+def test_email_avisa_planilha_que_falta_ou_esta_velha() -> None:
+    from relatorio.infrastructure.email.apresentacao_sesmt import notas  # noqa: PLC0415
+
+    semana_passada = datetime(2026, 11, 10, 9, 0, tzinfo=FUSO_BRASILIA)  # 8 dias antes de 18/11
+    antiga = datetime(2026, 11, 9, 9, 0, tzinfo=FUSO_BRASILIA)
+    m = calcular_sesmt(dados(planilhas={"PGR": semana_passada, "PCMSO": antiga}), GERADO)
+    assert notas(m) == (
+        "Atenção: nenhuma planilha de vencimento de LTCAT foi enviada; esses documentos não"
+        " entram nos números.",
+        "Atenção: planilha de vencimento desatualizada: PCMSO (09/11). Envie a da semana na"
+        " gestão do relatório.",
+    )
+    em_dia = dict.fromkeys(("PGR", "PCMSO", "LTCAT"), semana_passada)
+    assert notas(calcular_sesmt(dados(planilhas=em_dia), GERADO)) == ()

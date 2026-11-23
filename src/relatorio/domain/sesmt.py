@@ -1,13 +1,13 @@
 """Relatório de gestão do SESMT: programas e laudos vencidos, os que vencem no mês que vem
 e os envios ao eSocial do mês.
 
-Funções puras sobre o que já foi lido do SGG (empresas, programas/laudos e eventos do
-eSocial). As regras:
+Funções puras sobre o que já foi lido: os documentos vêm das planilhas "Vencimento(s) de
+PGR/PCMSO/LTCAT" que o SESMT exporta do SGG e envia no admin (a API do SGG não traz os
+documentos atuais, ADR 0021); as empresas e os eventos do eSocial vêm da API. As regras:
 
-* **Documento corrente**: programas e laudos (PGR, PCMSO, LTCAT) são emitidos de novo a
-  cada renovação e o SGG guarda todo o histórico. Para cada empresa e tipo vale o **mais
-  recente** (maior emissão; empate ou emissão ausente, maior vencimento). Só o vencimento
-  dele conta; os anteriores foram renovados. Entram **todas** as empresas do SGG.
+* **Documento corrente**: para cada empresa e tipo vale o **mais recente** (maior emissão;
+  empate ou emissão ausente, maior vencimento). A planilha já traz um por empresa; a regra
+  continua valendo se vier repetido. Ficam de fora as empresas do grupo EM CANCELAMENTO.
 * **Vencido**: o vencimento do documento corrente é anterior a ``hoje`` (o dia do e-mail).
 * **Vence no mês que vem**: o vencimento cai no mês civil seguinte ao de ``hoje``.
 * **eSocial**: eventos gerados do dia 1º do mês de ``referencia`` até ``referencia``.
@@ -28,11 +28,12 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Any
 
-VERSAO_REGRA_SESMT = "2.0.0"
+VERSAO_REGRA_SESMT = "2.1.0"
 
 TIPOS_DOCUMENTO = ("PGR", "PCMSO", "LTCAT")
 MESES_HISTORICO_ESOCIAL = 12
 SEM_GRUPO = "Sem grupo"
+GRUPO_FORA_DOS_DOCUMENTOS = "EM CANCELAMENTO"  # o SESMT não acompanha
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +53,20 @@ class DocumentoSst:
     emissao: date | None = None
     situacao: str = ""
     codigo: str = ""
+    empresa: str = ""  # nome, CNPJ e grupo vêm da planilha; vazios, valem os da API
+    cnpj: str = ""
+    grupo: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PlanilhaSesmt:
+    """A última planilha de vencimentos de um tipo enviada no admin."""
+
+    tipo: str
+    arquivo: str
+    enviada_por: str
+    enviada_em: datetime
+    documentos: tuple[DocumentoSst, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +93,7 @@ class DadosSesmt:
     eventos: Sequence[EventoEsocial]
     nomes_grupos: Mapping[str, str] = field(default_factory=dict)
     empresas_sem_consulta: int = 0  # empresas cuja consulta falhou (relatório parcial)
+    planilhas: Mapping[str, datetime] = field(default_factory=dict)  # tipo → quando foi enviada
 
 
 def da_versao_atual(metricas: Mapping[str, Any]) -> bool:
@@ -131,6 +147,17 @@ def _empresa(id_empresa: int, dados: DadosSesmt) -> dict[str, Any]:
     }
 
 
+def _empresa_do_documento(doc: DocumentoSst, dados: DadosSesmt) -> dict[str, Any]:
+    if not doc.empresa:
+        return _empresa(doc.id_empresa, dados)
+    return {
+        "id_empresa": doc.id_empresa,
+        "empresa": doc.empresa,
+        "cnpj": doc.cnpj,
+        "grupo": doc.grupo or SEM_GRUPO,
+    }
+
+
 # --------------------------------------------------------------------------- documentos
 
 
@@ -160,7 +187,7 @@ def _vencidos(correntes: Sequence[DocumentoSst], dados: DadosSesmt) -> dict[str,
     por_grupo: defaultdict[str, Counter[str]] = defaultdict(Counter)
     itens = []
     for doc in vencidos:
-        linha = _empresa(doc.id_empresa, dados)
+        linha = _empresa_do_documento(doc, dados)
         por_grupo[linha["grupo"]][doc.tipo] += 1
         itens.append({**linha, "tipo": doc.tipo, "vencimento": str(doc.vencimento)})
     return {
@@ -182,11 +209,11 @@ def _proximo_mes(correntes: Sequence[DocumentoSst], dados: DadosSesmt) -> dict[s
         if doc.vencimento is not None and inicio <= doc.vencimento <= fim:
             por_empresa[doc.id_empresa].append(doc)
     empresas = []
-    for id_empresa, docs in por_empresa.items():
+    for docs in por_empresa.values():
         docs.sort(key=lambda d: (d.vencimento, d.tipo))
         empresas.append(
             {
-                **_empresa(id_empresa, dados),
+                **_empresa_do_documento(docs[0], dados),
                 "primeiro": str(docs[0].vencimento),
                 "documentos": [{"tipo": d.tipo, "vencimento": str(d.vencimento)} for d in docs],
             }
@@ -266,7 +293,12 @@ def _esocial_mensal(dados: DadosSesmt) -> list[dict[str, Any]]:
 
 def calcular_sesmt(dados: DadosSesmt, gerado_em: datetime) -> dict[str, Any]:
     """Resumo do dia em JSON puro (é o que vai para ``resumo_sesmt.metricas``)."""
-    correntes = documentos_correntes(dados.documentos)
+    correntes = [
+        d
+        for d in documentos_correntes(dados.documentos)
+        if _empresa_do_documento(d, dados)["grupo"].casefold()
+        != GRUPO_FORA_DOS_DOCUMENTOS.casefold()
+    ]
     return {
         "versao_regra": VERSAO_REGRA_SESMT,
         "referencia": dados.referencia.isoformat(),
@@ -274,6 +306,9 @@ def calcular_sesmt(dados: DadosSesmt, gerado_em: datetime) -> dict[str, Any]:
         "gerado_em": gerado_em.isoformat(),
         "empresas_consultadas": len(dados.empresas),
         "empresas_sem_consulta": dados.empresas_sem_consulta,
+        "planilhas": {
+            t: dados.planilhas[t].isoformat() for t in TIPOS_DOCUMENTO if t in dados.planilhas
+        },
         "vencidos": _vencidos(correntes, dados),
         "proximo_mes": _proximo_mes(correntes, dados),
         "esocial": _esocial(dados),

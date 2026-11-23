@@ -10,9 +10,9 @@
 | 07:59                    | enviar_relatorio   | 08:01 e 08:03; depois alerta técnico   |
 | 08:10                    | verificar_envio    | alerta se não foi entregue             |
 | dia 1, 03:00             | limpar_retencao    | reexecuta no dia seguinte              |
-| 20:00                    | consolidar_sesmt   | reexecuta às 00:00 (~3h30)             |
-| 08:00                    | enviar_sesmt       | 08:02 e 08:04; depois alerta técnico   |
-| 08:12                    | verificar_sesmt    | alerta se não foi entregue             |
+| 20:00                    | consolidar_sesmt   | reexecuta às 00:00 (~30 min)           |
+| segunda, 08:00           | enviar_sesmt       | 08:02 e 08:04; depois alerta técnico   |
+| segunda, 08:12           | verificar_sesmt    | alerta se não foi entregue             |
 | 23:20                    | processar_exames   | 02:20 e 05:20; o envio das 07:59 tenta |
 
 Todos com ``max_instances=1`` e ``coalesce=True``; o advisory lock do PostgreSQL impede
@@ -193,6 +193,9 @@ class JobsAgendados:
         self._executor.executar("limpar_retencao", self._casos.limpar.executar)
 
 
+DIA_ENVIO_SESMT = "mon"
+
+
 def _cron(**campos: Any) -> CronTrigger:
     return CronTrigger(timezone=FUSO_BRASILIA, **campos)
 
@@ -291,8 +294,8 @@ def registrar_jobs(agendador: BlockingScheduler, jobs: JobsAgendados, settings: 
         adicionar("verificar_financeiro", jobs.verificar_financeiro, _cron(hour=8, minute=10))
 
     if settings.sesmt_habilitado:
-        # Depois do coletor (até 18:00) e longe da volta dele (06:00): são ~4.300 consultas no
-        # limite de requisições por minuto, então a coleta leva cerca de 3h30.
+        # Depois do coletor (até 18:00): o eSocial são ~600 consultas no limite de requisições
+        # por minuto (cerca de 30 minutos). Os documentos vêm das planilhas enviadas no admin.
         for tentativa, (hora, minuto) in enumerate(((20, 0), (0, 0)), start=1):
             adicionar(
                 f"consolidar_sesmt_{tentativa}",
@@ -300,15 +303,20 @@ def registrar_jobs(agendador: BlockingScheduler, jobs: JobsAgendados, settings: 
                 _cron(hour=hora, minute=minuto),
                 {"tentativa": tentativa},
             )
+        # Semanal: a planilha de vencimentos é enviada uma vez por semana (ADR 0021).
         for tentativa, (hora, minuto) in enumerate(((8, 0), (8, 2), (8, 4)), start=1):
             adicionar(
                 f"enviar_sesmt_{tentativa}",
                 jobs.enviar_sesmt,
-                _cron(hour=hora, minute=minuto),
+                _cron(day_of_week=DIA_ENVIO_SESMT, hour=hora, minute=minuto),
                 {"tentativa": tentativa},
                 tolerancia_s=120,
             )
-        adicionar("verificar_sesmt", jobs.verificar_sesmt, _cron(hour=8, minute=12))
+        adicionar(
+            "verificar_sesmt",
+            jobs.verificar_sesmt,
+            _cron(day_of_week=DIA_ENVIO_SESMT, hour=8, minute=12),
+        )
 
     # Atendimentos por médico: à noite, fora do expediente (cota maior da API depois das 20h).
     for tentativa, hora in enumerate((23, 2, 5), start=1):

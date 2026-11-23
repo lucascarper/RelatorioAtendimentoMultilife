@@ -15,7 +15,7 @@ from relatorio.domain.entidades import Agenda, AgendamentoSgg, Situacao
 from relatorio.domain.exames import ExameClinico, Medico
 from relatorio.domain.exportacao import Aba, Coluna, Planilha, validar_periodo
 from relatorio.domain.financeiro import ItemFaturado, Titulo
-from relatorio.domain.sesmt import DocumentoSst, EmpresaSesmt, EventoEsocial
+from relatorio.domain.sesmt import DocumentoSst, EmpresaSesmt, EventoEsocial, PlanilhaSesmt
 from relatorio.infrastructure.memoria import _Exportacoes
 from relatorio.infrastructure.planilha_exportacao import escrever_planilha
 from tests.fabricas import DIA, hora, snapshot
@@ -253,12 +253,20 @@ def test_sgg_fora_marca_falha_com_mensagem(sistema: Sistema) -> None:
 def test_sesmt_exporta_a_ultima_coleta_sem_reler_o_sgg(sistema: Sistema) -> None:
     s = sistema.sesmt
     s.empresas = [EmpresaSesmt(1, "Conplan LTDA", "", "1", True)]
-    s.documentos = {
-        1: [
-            DocumentoSst(1, "PGR", DIA - timedelta(days=10)),
-            DocumentoSst(1, "PCMSO", date(DIA.year + (DIA.month == 12), DIA.month % 12 + 1, 15)),
-        ]
-    }
+    sistema.banco.planilhas_sesmt["PGR"] = PlanilhaSesmt(
+        "PGR",
+        "PGR.xlsx",
+        "sesmt",
+        hora("09:00", DIA),
+        (DocumentoSst(1, "PGR", DIA - timedelta(days=10)),),
+    )
+    sistema.banco.planilhas_sesmt["PCMSO"] = PlanilhaSesmt(
+        "PCMSO",
+        "PCMSO.xlsx",
+        "sesmt",
+        hora("09:00", DIA),
+        (DocumentoSst(1, "PCMSO", date(DIA.year + (DIA.month == 12), DIA.month % 12 + 1, 15)),),
+    )
     s.eventos = {
         1: [
             EventoEsocial("a", "S-2220", 1, DIA, "1.1"),

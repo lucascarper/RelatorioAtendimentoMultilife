@@ -654,7 +654,7 @@ class TestRelatorioSesmt:
             "Rejeitados (sem recibo)",
             "66,7% dos enviados",
             "S\u20112220: 1 · S\u20112240: 1",
-            "Regra de cálculo v2.0.0",
+            "Regra de cálculo v2.1.0",
             f'src="cid:{LOGO_CID}"',
         ):
             assert trecho in html, trecho

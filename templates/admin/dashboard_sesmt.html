@@ -25,13 +25,13 @@
   <strong>Envio automático</strong>
   {%- if habilitado %}<span class="badge badge-ok">{{ icone("ok") }}Ligado</span>
   {%- else %}<span class="badge badge-neutro">{{ icone("aviso") }}Desligado</span>{% endif %}
-  <span>coleta às 20:00 (retentativa 00:00), e-mail às 08:00</span>
+  <span>coleta às 20:00 (retentativa 00:00), e-mail às segundas, 08:00</span>
 </p>
 
 {% if not p %}
 <section class="card vazio">
   <h2>Nenhuma coleta ainda</h2>
-  <p class="nota">O relatório mudou de formato. Gere a primeira coleta pela gestão do relatório (leva cerca de 3h30) ou aguarde a das 20:00.</p>
+  <p class="nota">O relatório mudou de formato. Envie as planilhas de vencimento e gere a primeira coleta pela gestão do relatório (leva cerca de 30 minutos) ou aguarde a das 20:00.</p>
 </section>
 {% else %}
 {%- for n in p.notas %}
@@ -115,6 +115,6 @@
   {%- endfor %}
 </div>
 
-<p class="nota">Fonte: API do SGG ({{ p.gerado_em | datahora_br }}). Documentos de todas as empresas; vale o mais recente de cada empresa e tipo. eSocial das empresas com o eSocial habilitado.</p>
+<p class="nota">Fonte: documentos das planilhas de vencimento do SGG enviadas na gestão do relatório, menos o grupo EM CANCELAMENTO; eSocial da API do SGG ({{ p.gerado_em | datahora_br }}), das empresas com o eSocial habilitado.</p>
 {% endif %}
 {% endblock %}
