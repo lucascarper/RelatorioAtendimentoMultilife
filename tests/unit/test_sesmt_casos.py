@@ -1,4 +1,4 @@
-"""Relatório do SESMT: coleta de todas as empresas, tolerância a falhas, envio com lista própria."""
+"""Relatório do SESMT: documentos das planilhas, eSocial do SGG, tolerância a falhas e envio."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from relatorio.application.sesmt import (
     ler_nomes_grupos,
 )
 from relatorio.domain.entidades import FUSO_BRASILIA
-from relatorio.domain.sesmt import DocumentoSst, EmpresaSesmt, EventoEsocial
+from relatorio.domain.sesmt import DocumentoSst, EmpresaSesmt, EventoEsocial, PlanilhaSesmt
 from tests.unit.conftest import Sistema
 
 REF = date(2026, 9, 29)
@@ -29,15 +29,24 @@ def empresa(id_: int, esocial: bool = False, grupo: str = "1") -> EmpresaSesmt:
     return EmpresaSesmt(id_, f"Empresa {id_} LTDA", "", grupo, esocial)
 
 
+def enviar_planilhas(sistema: Sistema, *documentos: DocumentoSst) -> None:
+    for tipo in ("PGR", "PCMSO", "LTCAT"):
+        do_tipo = tuple(d for d in documentos if d.tipo == tipo)
+        sistema.banco.planilhas_sesmt[tipo] = PlanilhaSesmt(
+            tipo, f"{tipo}.xlsx", "sesmt", NOITE, do_tipo
+        )
+
+
 @pytest.fixture
 def sistema_sesmt(sistema: Sistema) -> Sistema:
     s = sistema.sesmt
     s.empresas = [empresa(1, esocial=True), empresa(2, esocial=True), empresa(3), empresa(4)]
-    s.documentos = {
-        1: [DocumentoSst(1, "PGR", date(2026, 10, 5))],  # vence no mês seguinte
-        3: [DocumentoSst(3, "PCMSO", date(2026, 9, 1))],  # vencido
-        4: [DocumentoSst(4, "PGR", date(2020, 1, 1))],  # vencido (todas as empresas entram)
-    }
+    enviar_planilhas(
+        sistema,
+        DocumentoSst(1, "PGR", date(2026, 10, 5)),  # vence no mês seguinte
+        DocumentoSst(3, "PCMSO", date(2026, 9, 1)),  # vencido
+        DocumentoSst(4, "PGR", date(2020, 1, 1)),  # vencido
+    )
     s.eventos = {
         1: [EventoEsocial("1", "S-2220", 1, REF, "1.1.1")],
         2: [EventoEsocial("2", "S-2240", 2, REF, "")],
@@ -57,9 +66,7 @@ def test_consulta_so_o_que_precisa_e_grava_o_resumo(sistema_sesmt: Sistema) -> N
         "esocial_rejeitados": 1,  # a empresa 3 não tem o eSocial habilitado: não é consultada
         "empresas_sem_consulta": 0,
     }
-    assert sorted(c for c in s.sesmt.chamadas if c.startswith("documentos")) == [
-        f"documentos:{i}" for i in (1, 2, 3, 4)
-    ]
+    assert not [c for c in s.sesmt.chamadas if c.startswith("documentos")]  # vêm das planilhas
     assert sorted(c for c in s.sesmt.chamadas if c.startswith("eventos")) == [
         "eventos:1",
         "eventos:2",
@@ -67,6 +74,7 @@ def test_consulta_so_o_que_precisa_e_grava_o_resumo(sistema_sesmt: Sistema) -> N
     m = s.banco.resumos_sesmt[REF].metricas
     assert (m["referencia"], m["hoje"]) == ("2026-09-29", "2026-09-30")
     assert (m["esocial"]["enviados"], m["esocial"]["rejeitados"]) == (2, 1)
+    assert m["planilhas"] == dict.fromkeys(("PGR", "PCMSO", "LTCAT"), NOITE.isoformat())
     assert REF not in s.banco.resumos and REF not in s.banco.resumos_financeiros
 
 
@@ -108,10 +116,9 @@ def test_falha_geral_aborta_em_vez_de_mandar_relatorio_vazio(sistema_sesmt: Sist
         s.consolidar_sesmt.executar(REF)
     assert REF not in s.banco.resumos_sesmt
     # Parou nas falhas seguidas, sem gastar a cota nas empresas restantes.
-    assert len([c for c in s.sesmt.chamadas if c.startswith("documentos")]) == (
+    assert len([c for c in s.sesmt.chamadas if c.startswith("eventos")]) == (
         FALHAS_SEGUIDAS_PARA_ABORTAR
     )
-    assert not [c for c in s.sesmt.chamadas if c.startswith("eventos")]
 
 
 def test_muitas_falhas_isoladas_tambem_inviabilizam(sistema_sesmt: Sistema) -> None:
@@ -163,8 +170,17 @@ def test_sgg_fora_na_ultima_tentativa_alerta_e_nao_envia(sistema: Sistema) -> No
 def test_coleta_da_noite_vence_pelo_dia_do_email(sistema_sesmt: Sistema) -> None:
     """Coletado às 20:00 de 29/09, o e-mail é de 30/09: o que vence em 30/09 não venceu."""
     s = sistema_sesmt
-    s.sesmt.documentos = {1: [DocumentoSst(1, "PGR", date(2026, 9, 30))]}
+    enviar_planilhas(s, DocumentoSst(1, "PGR", date(2026, 9, 30)))
     s.consolidar_sesmt.executar(REF)
     m = s.banco.resumos_sesmt[REF].metricas
     assert (m["hoje"], m["vencidos"]["total"]) == ("2026-09-30", 0)
     assert m["proximo_mes"]["inicio"] == "2026-10-01"
+
+
+def test_sem_planilha_o_resumo_sai_sem_documentos(sistema_sesmt: Sistema) -> None:
+    s = sistema_sesmt
+    s.banco.planilhas_sesmt.clear()
+    s.consolidar_sesmt.executar(REF)
+    m = s.banco.resumos_sesmt[REF].metricas
+    assert (m["vencidos"]["total"], m["planilhas"]) == (0, {})
+    assert m["esocial"]["rejeitados"] == 1  # o eSocial não depende das planilhas

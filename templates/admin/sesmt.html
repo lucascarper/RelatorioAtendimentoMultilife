@@ -5,7 +5,7 @@
 {%- from "admin/_icones.html" import icone %}
 <p class="voltar"><a href="/admin/sesmt">&larr; Dashboard</a></p>
 <div class="pagina-cabecalho"><h1>Gestão do relatório do SESMT</h1></div>
-<p class="subtitulo-pagina">Relatório de gestão diário: programas e laudos vencidos, os que vencem no mês que vem e os eventos do eSocial do mês.</p>
+<p class="subtitulo-pagina">Relatório de gestão semanal: programas e laudos vencidos e os que vencem no mês que vem (das planilhas de vencimento do SGG) e os eventos do eSocial do mês.</p>
 
 {% if not habilitado %}
 <div class="mensagem mensagem-aviso">{{ icone("aviso") }}<span>O envio automático está desligado (<code>SESMT_HABILITADO=false</code>). Gere a prévia abaixo, confira os números com o SESMT e só então ligue a variável no worker na Railway.</span></div>
@@ -18,8 +18,8 @@
 <section class="status-grade" aria-label="Situação do relatório do SESMT">
   <article class="card status">
     <h2>Envio automático</h2>
-    <p class="valor">{{ "08:00" if habilitado else "Desligado" }}</p>
-    <p class="nota">{% if habilitado %}Coleta às 20:00 (retentativa 00:00), e-mail às 08:00 do dia seguinte.{% else %}Prévia e reenvio pelo admin continuam disponíveis.{% endif %}</p>
+    <p class="valor">{{ "Segunda, 08:00" if habilitado else "Desligado" }}</p>
+    <p class="nota">{% if habilitado %}Coleta toda noite às 20:00 (retentativa 00:00); o e-mail de segunda leva a coleta de domingo.{% else %}Prévia e reenvio pelo admin continuam disponíveis.{% endif %}</p>
   </article>
   <article class="card status">
     <h2>Último relatório</h2>
@@ -38,9 +38,41 @@
   </article>
 </section>
 
+<section id="planilhas" class="card">
+  <h2>Planilhas de vencimento</h2>
+  <p class="nota">Toda semana, exporte do SGG as planilhas "Vencimento(s) de PGR", "de PCMSO" e "de LTCAT" <strong>com a coluna Grupo</strong> e envie aqui até domingo. Cada uma substitui a anterior do mesmo tipo; o tipo é lido do título da planilha. Ficam só código, empresa, CNPJ, grupo e validade (e-mails e telefones são descartados).</p>
+  <div class="rolagem">
+  <table class="tabela">
+    <thead><tr><th>Tipo</th><th>Enviada em</th><th class="num">Empresas</th><th class="oculta-celular">Arquivo</th><th class="oculta-celular">Por</th></tr></thead>
+    <tbody>
+    {%- for tipo, p in planilhas %}
+      <tr>
+        <td><strong>{{ tipo }}</strong></td>
+        {%- if p %}
+        <td>{{ p.enviada_em | datahora_br }}</td>
+        <td class="num">{{ p.documentos | length }}</td>
+        <td class="oculta-celular">{{ p.arquivo }}</td>
+        <td class="oculta-celular">{{ p.enviada_por }}</td>
+        {%- else %}
+        <td colspan="4" class="nota">Nenhuma planilha enviada: o relatório sai sem os documentos deste tipo.</td>
+        {%- endif %}
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  </div>
+  <form method="post" action="/admin/sesmt/planilhas" enctype="multipart/form-data" class="form form-linha">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Planilhas (.xlsx, até 3)
+      <input type="file" name="arquivos" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple required>
+    </label>
+    <button type="submit" class="btn btn-primario">Enviar planilhas</button>
+  </form>
+</section>
+
 <section class="card">
   <h2>Gerar ou reenviar uma data</h2>
-  <p class="nota">Consulta o SGG empresa por empresa (cerca de 4.300 consultas, perto de 3h30 no limite de requisições por minuto) e grava o resumo da data escolhida. Os documentos refletem a situação no momento da coleta; o eSocial vai do dia 1º do mês da data até ela. Durante o expediente a coleta disputa a cota da API com o painel: prefira rodar depois das 20h.</p>
+  <p class="nota">Lê as planilhas enviadas e consulta o eSocial no SGG empresa por empresa (cerca de 600 consultas, perto de 30 minutos no limite de requisições por minuto) e grava o resumo da data escolhida. Os vencimentos contam a partir do dia seguinte à data; o eSocial vai do dia 1º do mês da data até ela. Durante o expediente a coleta disputa a cota da API com o painel: prefira rodar depois das 20h.</p>
   <form method="post" action="/admin/sesmt/reprocessar" class="form form-linha">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <label>Data
@@ -111,7 +143,7 @@
 
 <section class="card">
   <h2>Nomes dos grupos</h2>
-  <p class="nota">A API do SGG informa só o código do grupo de cada empresa. Dê um nome a cada código, no formato <code>1=GESTÃO PREMIUM; 2=GESTÃO 2</code>. Já vem preenchido com os grupos cadastrados hoje no SGG.</p>
+  <p class="nota">Usado no eSocial: a API do SGG informa só o código do grupo de cada empresa (os documentos já trazem o nome do grupo na planilha). Dê um nome a cada código, no formato <code>1=GESTÃO PREMIUM; 2=GESTÃO 2</code>. Já vem preenchido com os grupos cadastrados hoje no SGG.</p>
   <form method="post" action="/admin/sesmt/grupos" class="form form-linha form-grupos">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <label>Códigos e nomes <input name="nomes" value="{{ nomes_grupos }}" maxlength="2000" placeholder="1=GESTÃO PREMIUM; 2=GESTÃO 2"></label>

@@ -26,6 +26,7 @@ from relatorio.application.modelos import (
 from relatorio.application.ports import EmailDuplicado, UsuarioDuplicado
 from relatorio.domain.entidades import FUSO_BRASILIA, Agenda, Evento, Snapshot
 from relatorio.domain.exames import ExameClinico, Medico
+from relatorio.domain.sesmt import PlanilhaSesmt
 
 
 @dataclass
@@ -39,6 +40,7 @@ class BancoEmMemoria:
     destinatarios_financeiro: dict[int, Destinatario] = field(default_factory=dict)
     resumos_sesmt: dict[date, ResumoRegistro] = field(default_factory=dict)
     destinatarios_sesmt: dict[int, Destinatario] = field(default_factory=dict)
+    planilhas_sesmt: dict[str, PlanilhaSesmt] = field(default_factory=dict)
     usuarios: dict[int, UsuarioSistema] = field(default_factory=dict)
     tokens_senha: dict[str, tuple[int, datetime]] = field(default_factory=dict)
     medicos: dict[str, Medico] = field(default_factory=dict)
@@ -457,6 +459,17 @@ class _Exportacoes:
         return len(antigas)
 
 
+class _PlanilhasSesmt:
+    def __init__(self, banco: BancoEmMemoria) -> None:
+        self.b = banco
+
+    def salvar(self, planilha: PlanilhaSesmt) -> None:
+        self.b.planilhas_sesmt[planilha.tipo] = planilha
+
+    def listar(self) -> list[PlanilhaSesmt]:
+        return list(self.b.planilhas_sesmt.values())
+
+
 class _Configuracoes:
     def __init__(self, banco: BancoEmMemoria) -> None:
         self.b = banco
@@ -577,6 +590,7 @@ class UoWEmMemoria:
         self.destinatarios_financeiro = _Destinatarios(banco.destinatarios_financeiro)
         self.resumos_sesmt = _Resumos(banco.resumos_sesmt)
         self.destinatarios_sesmt = _Destinatarios(banco.destinatarios_sesmt)
+        self.planilhas_sesmt = _PlanilhasSesmt(banco)
         self.usuarios = _Usuarios(banco.usuarios)
         self.tokens_senha = _TokensSenha(banco)
         self.medicos = _Medicos(banco)

@@ -9,7 +9,6 @@ import httpx
 import pytest
 import respx
 
-from relatorio.domain.sesmt import TIPOS_DOCUMENTO
 from relatorio.infrastructure.sgg.cliente import ClienteSgg
 from relatorio.infrastructure.sgg.dto_sesmt import para_empresa
 from relatorio.infrastructure.sgg.erros import ErroSggRequisicao
@@ -75,37 +74,6 @@ def test_empresas_paginam_e_ignoram_item_invalido(cliente: ClienteSgg) -> None:
 
 
 @respx.mock
-def test_documentos_uma_consulta_por_tipo_com_a_empresa(cliente: ClienteSgg) -> None:
-    def por_tipo(request: httpx.Request) -> httpx.Response:
-        tipo = request.url.params["tipo"]
-        if tipo == "LTCAT":
-            return sem_dados()  # D001: empresa sem esse documento
-        return resposta(
-            [
-                {
-                    "codigo": "92" if tipo == "PGR" else "71",
-                    "id_empresa": "124",
-                    "tipo": tipo,
-                    "data_vencimento": "2026-12-14",
-                    "situacao": "LIBERADO",
-                    "url": "https://app.sgg.net.br/doc/segredo",
-                    "nome_emissor": "João Pedro",
-                }
-            ]
-        )
-
-    rota = respx.get(BASE + "programasLaudos/").mock(side_effect=por_tipo)
-    documentos = cliente.documentos_sst(124)
-    assert sorted(c.request.url.params["tipo"] for c in rota.calls) == sorted(TIPOS_DOCUMENTO)
-    assert {c.request.url.params["id_empresa"] for c in rota.calls} == {"124"}
-    assert sorted((d.tipo, d.vencimento) for d in documentos) == [
-        ("PCMSO", date(2026, 12, 14)),
-        ("PGR", date(2026, 12, 14)),
-    ]
-    assert "segredo" not in repr(documentos)  # o link do documento não é guardado
-
-
-@respx.mock
 def test_eventos_esocial_guardam_so_tipo_data_e_recibo(cliente: ClienteSgg) -> None:
     rota = respx.get(BASE + "getEvtEsocial/").mock(
         return_value=resposta(
@@ -146,13 +114,13 @@ def test_eventos_esocial_guardam_so_tipo_data_e_recibo(cliente: ClienteSgg) -> N
 
 @respx.mock
 def test_campo_obrigatorio_ausente_e_erro_de_requisicao(cliente: ClienteSgg) -> None:
-    respx.get(BASE + "programasLaudos/").mock(
+    respx.get(BASE + "getEvtEsocial/").mock(
         return_value=httpx.Response(
-            200, json={"statusCode": "H0004", "statusMsg": "Campo tipo é obrigatório."}
+            200, json={"statusCode": "H0004", "statusMsg": "Campo evento é obrigatório."}
         )
     )
-    with pytest.raises(ErroSggRequisicao, match="tipo"):
-        cliente.documentos_sst(1)
+    with pytest.raises(ErroSggRequisicao, match="evento"):
+        cliente.eventos_esocial(1)
 
 
 @respx.mock

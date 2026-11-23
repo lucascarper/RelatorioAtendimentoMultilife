@@ -12,7 +12,7 @@ from relatorio.application.ports import ErroIntegracao
 from relatorio.domain.entidades import Agenda, AgendamentoSgg, Situacao
 from relatorio.domain.exames import ExameClinico, Medico
 from relatorio.domain.financeiro import Contrato, PrecoFornecedor, Titulo
-from relatorio.domain.sesmt import DocumentoSst, EmpresaSesmt, EventoEsocial
+from relatorio.domain.sesmt import EmpresaSesmt, EventoEsocial
 from relatorio.infrastructure.memoria import BancoEmMemoria, UoWEmMemoria
 
 __all__ = [
@@ -128,7 +128,6 @@ class SesmtFake:
     """Endpoints do SESMT no SGG com dados pré-programados."""
 
     empresas: list[EmpresaSesmt] = field(default_factory=list)
-    documentos: dict[int, list[DocumentoSst]] = field(default_factory=dict)
     eventos: dict[int, list[EventoEsocial]] = field(default_factory=dict)
     falhar: bool = False
     falhar_empresas: set[int] = field(default_factory=set)
@@ -142,10 +141,6 @@ class SesmtFake:
     def empresas_sesmt(self) -> list[EmpresaSesmt]:
         self._chamar("empresas")
         return list(self.empresas)
-
-    def documentos_sst(self, id_empresa: int) -> list[DocumentoSst]:
-        self._chamar("documentos", id_empresa)
-        return list(self.documentos.get(id_empresa, []))
 
     def eventos_esocial(self, id_empresa: int) -> list[EventoEsocial]:
         self._chamar("eventos", id_empresa)

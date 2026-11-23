@@ -184,6 +184,18 @@ class ResumoSesmtModel(Base):
     enviado_em: Mapped[datetime | None]
 
 
+class PlanilhaSesmtModel(Base):
+    """A última planilha de vencimentos de cada tipo (PGR, PCMSO, LTCAT) enviada no admin."""
+
+    __tablename__ = "planilha_sesmt"
+
+    tipo: Mapped[str] = mapped_column(String(10), primary_key=True)
+    arquivo: Mapped[str] = mapped_column(String(200))
+    enviada_por: Mapped[str] = mapped_column(String(80))
+    enviada_em: Mapped[datetime]
+    documentos: Mapped[dict[str, Any]]  # {"linhas": [[id, empresa, cnpj, grupo, validade]]}
+
+
 class DestinatarioSesmtModel(Base):
     """Lista própria do relatório do SESMT."""
 

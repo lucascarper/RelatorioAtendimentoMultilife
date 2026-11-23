@@ -1,5 +1,5 @@
-"""Admin do relatório do SESMT: histórico, prévia, reprocessamento, destinatários e nomes
-dos grupos de clientes. Todas as rotas exigem login."""
+"""Admin do relatório do SESMT: histórico, prévia, reprocessamento, planilhas de vencimento,
+destinatários e nomes dos grupos de clientes. Todas as rotas exigem login."""
 
 from __future__ import annotations
 
@@ -7,7 +7,16 @@ from datetime import date, timedelta
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from relatorio.application.sesmt import (
@@ -16,8 +25,9 @@ from relatorio.application.sesmt import (
     ler_nomes_grupos,
 )
 from relatorio.domain.acesso import email_valido
-from relatorio.domain.sesmt import da_versao_atual
+from relatorio.domain.sesmt import TIPOS_DOCUMENTO, PlanilhaSesmt, da_versao_atual
 from relatorio.infrastructure.container import Container
+from relatorio.infrastructure.planilha_sesmt import PlanilhaInvalida, ler_planilha_vencimentos
 from relatorio.interfaces.demo import html_para_navegador
 from relatorio.interfaces.web.dashboard import montar_sesmt
 from relatorio.interfaces.web.dependencias import Csrf, Ctx, UsuarioSesmt, mensagem, redirecionar
@@ -30,6 +40,7 @@ JOB_REPROCESSAR_SESMT = "reprocessar_sesmt"
 URL = "/admin/sesmt"
 URL_GESTAO = f"{URL}/gestao"
 DIAS_HISTORICO = 90
+MAX_BYTES_PLANILHA = 5 * 1024 * 1024
 CSP_PREVIA = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; frame-ancestors 'self'"
 
 
@@ -70,6 +81,7 @@ def sesmt(request: Request, ctx: Ctx, _usuario: UsuarioSesmt) -> HTMLResponse:
         resumos = uow.resumos_sesmt.listar_recentes(14)
         destinatarios = uow.destinatarios_sesmt.listar()
         texto = uow.configuracoes.obter_todas().get(CHAVE_NOMES_GRUPOS)
+        planilhas = {p.tipo: p for p in uow.planilhas_sesmt.listar()}
     return ctx.render(
         request,
         "admin/sesmt.html",
@@ -84,6 +96,7 @@ def sesmt(request: Request, ctx: Ctx, _usuario: UsuarioSesmt) -> HTMLResponse:
             "hoje": ctx.hoje(),
             "override": ctx.settings.destinatarios_override,
             "nomes_grupos": formatar_nomes_grupos(ler_nomes_grupos(texto)),
+            "planilhas": [(t, planilhas.get(t)) for t in TIPOS_DOCUMENTO],
         },
     )
 
@@ -121,8 +134,9 @@ def reprocessar_sesmt(
     log.info("sesmt_reprocessamento_agendado", referencia=dia.isoformat(), enviar=enviar)
     mensagem(
         request,
-        f"Coleta do SESMT de {dia:%d/%m/%Y} iniciada. São cerca de 4.300 consultas ao SGG e leva"
-        " cerca de 3h30. O resultado aparece nesta página e em Execuções.",
+        f"Coleta do SESMT de {dia:%d/%m/%Y} iniciada. O eSocial são cerca de 600 consultas ao SGG"
+        " (perto de 30 minutos); os documentos vêm das planilhas enviadas. O resultado aparece"
+        " nesta página e em Execuções.",
     )
     return redirecionar(URL_GESTAO)
 
@@ -143,6 +157,61 @@ def reprocessar_em_segundo_plano(container: Container, dia: date, enviar: bool) 
         return detalhe
 
     container.executor.executar(JOB_REPROCESSAR_SESMT, tarefa)
+
+
+@router.post("/planilhas")
+async def enviar_planilhas(
+    request: Request,
+    ctx: Ctx,
+    usuario: UsuarioSesmt,
+    _csrf: Csrf,
+    arquivos: Annotated[list[UploadFile], File()],
+) -> RedirectResponse:
+    """As planilhas "Vencimento(s) de PGR/PCMSO/LTCAT" do SGG: cada uma substitui a anterior
+    do mesmo tipo. O tipo vem do título da planilha, não do nome do arquivo."""
+    lidas: dict[str, PlanilhaSesmt] = {}
+    for arquivo in arquivos:
+        nome = (arquivo.filename or "planilha.xlsx")[:200]
+        conteudo = await arquivo.read(MAX_BYTES_PLANILHA + 1)
+        if not conteudo:
+            continue
+        try:
+            if len(conteudo) > MAX_BYTES_PLANILHA:
+                raise PlanilhaInvalida("O arquivo passa de 5 MB.")
+            planilha = ler_planilha_vencimentos(conteudo)
+        except PlanilhaInvalida as erro:
+            mensagem(request, f"{nome}: {erro} Nenhuma planilha foi salva.", "erro")
+            return redirecionar(f"{URL_GESTAO}#planilhas")
+        if not planilha.documentos:
+            mensagem(
+                request, f"{nome}: nenhuma linha com código e validade. Nada foi salvo.", "erro"
+            )
+            return redirecionar(f"{URL_GESTAO}#planilhas")
+        lidas[planilha.tipo] = PlanilhaSesmt(
+            planilha.tipo,
+            nome,
+            usuario.login,
+            ctx.container.relogio.agora(),
+            tuple(planilha.documentos),
+        )
+    if not lidas:
+        mensagem(request, "Escolha ao menos uma planilha .xlsx.", "erro")
+        return redirecionar(f"{URL_GESTAO}#planilhas")
+    with ctx.container.uow() as uow:
+        for nova in lidas.values():
+            uow.planilhas_sesmt.salvar(nova)
+        uow.commit()
+    log.info(
+        "sesmt_planilhas_enviadas",
+        tipos={t: len(p.documentos) for t, p in lidas.items()},
+        usuario=usuario.login,
+    )
+    resumo = ", ".join(f"{t} ({len(p.documentos)} empresas)" for t, p in lidas.items())
+    mensagem(
+        request,
+        f"Planilhas salvas: {resumo}. Entram na próxima coleta, às 20:00 (ou use Gerar abaixo).",
+    )
+    return redirecionar(f"{URL_GESTAO}#planilhas")
 
 
 @router.post("/destinatarios")

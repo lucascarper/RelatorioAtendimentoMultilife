@@ -25,6 +25,7 @@ ALERTA = "#B45309"  # laranja escuro: contraste 5,0:1 no branco
 
 COR_TIPO = {"PGR": AZUL, "PCMSO": ALERTA, "LTCAT": "#0F766E"}
 MAX_LINHAS = 40  # listas do e-mail; o dashboard pagina a lista completa
+DIAS_PLANILHA_ATUAL = 8  # enviada toda semana: mais velha que isso, o e-mail avisa
 
 MESES = (
     "janeiro",
@@ -44,10 +45,10 @@ MESES = (
 DEFINICOES = (
     (
         "Documento",
-        "PGR, PCMSO e LTCAT de todas as empresas do SGG. Vale o mais recente de cada empresa"
-        " e tipo (os anteriores foram renovados).",
+        "PGR, PCMSO e LTCAT das planilhas de vencimento do SGG enviadas pelo SESMT (uma"
+        " linha por empresa, com o documento atual), menos o grupo EM CANCELAMENTO.",
     ),
-    ("Vencido", "o vencimento do documento mais recente já passou."),
+    ("Vencido", "a validade do documento já passou."),
     ("Mês que vem", "documentos que vencem no mês civil seguinte ao do relatório."),
     (
         "eSocial",
@@ -291,14 +292,39 @@ def manchete(m: Mapping[str, Any]) -> str:
     )
 
 
+def _notas_planilhas(m: Mapping[str, Any]) -> list[str]:
+    planilhas, hoje = m.get("planilhas") or {}, date.fromisoformat(m["hoje"])
+    faltam = [t for t in TIPOS_DOCUMENTO if t not in planilhas]
+    antigas = [
+        f"{t} ({_data_br(planilhas[t], '%d/%m')})"
+        for t in TIPOS_DOCUMENTO
+        if t in planilhas
+        and (hoje - date.fromisoformat(planilhas[t][:10])).days > DIAS_PLANILHA_ATUAL
+    ]
+    avisos = []
+    if faltam:
+        avisos.append(
+            f"Atenção: nenhuma planilha de vencimento de {', '.join(faltam)} foi enviada;"
+            " esses documentos não entram nos números."
+        )
+    if antigas:
+        avisos.append(
+            f"Atenção: planilha de vencimento desatualizada: {', '.join(antigas)}."
+            " Envie a da semana na gestão do relatório."
+        )
+    return avisos
+
+
 def notas(m: Mapping[str, Any]) -> tuple[str, ...]:
+    avisos = _notas_planilhas(m)
     n = int(m.get("empresas_sem_consulta") or 0)
-    if not n:
-        return ()
-    sujeito = "empresa não pôde" if n == 1 else "empresas não puderam"
-    return (
-        f"Atenção: {n} {sujeito} ser consultada nesta coleta; os números podem estar incompletos.",
-    )
+    if n:
+        sujeito = "empresa não pôde" if n == 1 else "empresas não puderam"
+        avisos.append(
+            f"Atenção: {n} {sujeito} ser consultada no eSocial nesta coleta; os números do"
+            " eSocial podem estar incompletos."
+        )
+    return tuple(avisos)
 
 
 def montar_apresentacao_sesmt(m: Mapping[str, Any], admin_url: str = "") -> ApresentacaoSesmt:

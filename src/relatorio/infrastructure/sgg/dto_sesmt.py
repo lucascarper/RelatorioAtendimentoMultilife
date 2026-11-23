@@ -1,6 +1,7 @@
 """Mapeamento dos endpoints do SESMT no SGG → entidades do relatório de gestão.
 
-Endpoints: ``empresa/``, ``programasLaudos/`` e ``getEvtEsocial/``.
+Endpoints: ``empresa/`` e ``getEvtEsocial/``. Os programas e laudos vêm das planilhas
+de vencimento enviadas no admin (ADR 0021).
 
 LGPD: da empresa só ficam código, nome, CNPJ, grupo e a situação do eSocial (quando o
 documento é CPF, o nome vira "Empresa #id"). Do evento do eSocial ficam código, tipo,
@@ -14,7 +15,7 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
-from relatorio.domain.sesmt import DocumentoSst, EmpresaSesmt, EventoEsocial
+from relatorio.domain.sesmt import EmpresaSesmt, EventoEsocial
 from relatorio.infrastructure.sgg.dto import _data, _inteiro, _texto
 
 
@@ -38,22 +39,6 @@ def para_empresa(item: Mapping[str, Any]) -> EmpresaSesmt:
         cnpj=(_texto(item.get("CNPJ")) or "") if cnpj_valido else "",
         id_grupo=_texto(item.get("id_grupo")) or "",
         esocial_habilitado=(_texto(item.get("situacao_esocial")) or "").casefold() == "habilitada",
-    )
-
-
-def para_documento(item: Mapping[str, Any]) -> DocumentoSst:
-    """Programa ou laudo (PGR, PCMSO, LTCAT…). O link e o emissor são descartados."""
-    id_empresa = _inteiro(item.get("id_empresa"))
-    tipo = _texto(item.get("tipo"))
-    if id_empresa is None or tipo is None:
-        raise ValueError("documento sem empresa ou tipo")
-    return DocumentoSst(
-        id_empresa=id_empresa,
-        tipo=tipo.upper(),
-        vencimento=_data(item.get("data_vencimento")),
-        emissao=_data(item.get("data_emissao")),
-        situacao=_texto(item.get("situacao")) or "",
-        codigo=_texto(item.get("codigo")) or "",
     )
 
 

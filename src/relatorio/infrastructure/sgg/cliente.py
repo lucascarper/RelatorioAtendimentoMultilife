@@ -26,8 +26,6 @@ from relatorio.domain.entidades import FUSO_BRASILIA, Agenda, AgendamentoSgg, Si
 from relatorio.domain.exames import EXAME_CLINICO, ExameClinico, Medico
 from relatorio.domain.financeiro import Contrato, PrecoFornecedor, Titulo
 from relatorio.domain.sesmt import (
-    TIPOS_DOCUMENTO,
-    DocumentoSst,
     EmpresaSesmt,
     EventoEsocial,
 )
@@ -35,7 +33,6 @@ from relatorio.infrastructure.sgg.dto import formatar_filtro, para_agenda, para_
 from relatorio.infrastructure.sgg.dto_exames import para_exame_clinico, para_medico
 from relatorio.infrastructure.sgg.dto_financeiro import para_contrato, para_preco, para_titulo
 from relatorio.infrastructure.sgg.dto_sesmt import (
-    para_documento,
     para_empresa,
     para_evento_esocial,
 )
@@ -353,20 +350,6 @@ class ClienteSgg:
                 continue
             empresas[empresa.id] = empresa
         return list(empresas.values())
-
-    def documentos_sst(self, id_empresa: int) -> list[DocumentoSst]:
-        # A API exige o tipo: uma consulta por tipo do relatório.
-        documentos: dict[tuple[str, str], DocumentoSst] = {}
-        for tipo in TIPOS_DOCUMENTO:
-            filtros = {"id_empresa": str(id_empresa), "tipo": tipo}
-            for item in self._paginar("programasLaudos/", filtros):
-                try:
-                    documento = para_documento(item)
-                except ValueError as erro:
-                    log.warning("sgg_documento_ignorado", empresa=id_empresa, motivo=str(erro))
-                    continue
-                documentos[(documento.tipo, documento.codigo or str(len(documentos)))] = documento
-        return list(documentos.values())
 
     def eventos_esocial(self, id_empresa: int) -> list[EventoEsocial]:
         eventos: dict[str, EventoEsocial] = {}

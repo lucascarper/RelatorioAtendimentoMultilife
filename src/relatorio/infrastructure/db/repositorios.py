@@ -26,6 +26,7 @@ from relatorio.application.modelos import (
 from relatorio.application.ports import EmailDuplicado, UsuarioDuplicado
 from relatorio.domain.entidades import Agenda, Evento, OrigemEvento, Situacao, Snapshot
 from relatorio.domain.exames import ExameClinico, Medico
+from relatorio.domain.sesmt import DocumentoSst, PlanilhaSesmt
 from relatorio.infrastructure.db.modelos import (
     AgendamentoEventoModel,
     AgendamentoSnapshotModel,
@@ -40,6 +41,7 @@ from relatorio.infrastructure.db.modelos import (
     ExecucaoJobModel,
     ExportacaoModel,
     MedicoRelatorioModel,
+    PlanilhaSesmtModel,
     ResumoDiarioModel,
     ResumoFinanceiroModel,
     ResumoSesmtModel,
@@ -824,6 +826,49 @@ class ExportacaoRepositorioSql:
         return _afetadas(resultado)
 
 
+class PlanilhaSesmtRepositorioSql:
+    def __init__(self, sessao: Session) -> None:
+        self._s = sessao
+
+    def salvar(self, planilha: PlanilhaSesmt) -> None:
+        linhas = [
+            [d.id_empresa, d.empresa, d.cnpj, d.grupo, d.vencimento.isoformat()]
+            for d in planilha.documentos
+            if d.vencimento is not None
+        ]
+        self._s.merge(
+            PlanilhaSesmtModel(
+                tipo=planilha.tipo,
+                arquivo=planilha.arquivo,
+                enviada_por=planilha.enviada_por,
+                enviada_em=planilha.enviada_em,
+                documentos={"linhas": linhas},
+            )
+        )
+
+    def listar(self) -> list[PlanilhaSesmt]:
+        return [
+            PlanilhaSesmt(
+                m.tipo,
+                m.arquivo,
+                m.enviada_por,
+                m.enviada_em,
+                tuple(
+                    DocumentoSst(
+                        int(id_),
+                        m.tipo,
+                        date.fromisoformat(validade),
+                        empresa=nome,
+                        cnpj=cnpj,
+                        grupo=grupo,
+                    )
+                    for id_, nome, cnpj, grupo, validade in m.documentos.get("linhas", [])
+                ),
+            )
+            for m in self._s.scalars(select(PlanilhaSesmtModel)).all()
+        ]
+
+
 class ConfiguracaoRepositorioSql:
     def __init__(self, sessao: Session) -> None:
         self._s = sessao
@@ -1003,6 +1048,7 @@ class UnidadeDeTrabalhoSql:
         self.destinatarios_sesmt = DestinatarioRepositorioSql(
             sessao, DestinatarioSesmtModel, "uq_destinatario_sesmt_email"
         )
+        self.planilhas_sesmt = PlanilhaSesmtRepositorioSql(sessao)
         self.usuarios = UsuarioRepositorioSql(sessao)
         self.tokens_senha = TokenSenhaRepositorioSql(sessao)
         self.medicos = MedicoRepositorioSql(sessao)

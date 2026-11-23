@@ -153,7 +153,8 @@ def test_jobs_do_sesmt_so_quando_habilitado() -> None:
     assert "hour='20', minute='0'" in gatilhos["consolidar_sesmt_1"]
     assert "hour='0', minute='0'" in gatilhos["consolidar_sesmt_2"]
     assert "consolidar_sesmt_3" not in gatilhos
-    assert "hour='8', minute='0'" in gatilhos["enviar_sesmt_1"]
-    assert "hour='8', minute='12'" in gatilhos["verificar_sesmt"]
+    assert "day_of_week='mon', hour='8', minute='0'" in gatilhos["enviar_sesmt_1"]
+    assert "day_of_week='mon', hour='8', minute='12'" in gatilhos["verificar_sesmt"]
+    assert "day_of_week" not in gatilhos["consolidar_sesmt_1"]  # a coleta segue diária
     padrao = _gatilhos(Settings(_env_file=None))  # type: ignore[call-arg]
     assert not any("sesmt" in j for j in padrao)

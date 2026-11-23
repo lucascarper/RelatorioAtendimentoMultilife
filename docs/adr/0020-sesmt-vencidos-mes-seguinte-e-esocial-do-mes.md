@@ -1,6 +1,6 @@
 # ADR 0020: SESMT refeito: vencidos por grupo, vencimentos do mês seguinte e eSocial do mês
 
-- **Status:** aceita (substitui as regras do ADR 0013 e a parte do SESMT do ADR 0018)
+- **Status:** aceita, com a fonte dos documentos e a agenda do e-mail substituídas pelo [ADR 0021](0021-sesmt-documentos-pelas-planilhas.md) (substitui as regras do ADR 0013 e a parte do SESMT do ADR 0018)
 - **Data:** 2026-11-18
 
 ## Contexto
@@ -67,3 +67,4 @@ A API foi testada de novo em 11/2026: `programasLaudos/` e `getEvtEsocial/` exig
 - **Ex-clientes:** todas as empresas entram, então ex-clientes com PGR vencido há anos contam como vencidos para sempre. Se isso poluir o gráfico, a saída é filtrar pelo contrato.
 - **Rejeitado:** inclui o que só ainda não foi transmitido. Um evento gerado no dia da coleta aparece como rejeitado até receber o recibo.
 - **Histórico:** o de vencidos começa na primeira coleta da versão 2.0.0. O do eSocial mês a mês já sai completo na primeira coleta.
+- **A API não traz os documentos atuais (23/11/2026):** ver o [ADR 0021](0021-sesmt-documentos-pelas-planilhas.md).
