@@ -70,5 +70,17 @@
     {{ grafico(p.grafico) }}
   </section>
 </div>
+
+{%- for g in p.topicos %}
+<div class="secao-titulo">
+  <h2>{{ g.titulo }}</h2>
+  <span class="nota">Clique num cartão para ver por tipo de exame.</span>
+</div>
+<div class="kpi-grade kpi-grade-3">
+  {%- for k in g.cartoes %}
+  {{ cartao_kpi(k) }}
+  {%- endfor %}
+</div>
+{%- endfor %}
 {% endif %}
 {% endblock %}

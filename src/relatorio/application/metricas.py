@@ -117,6 +117,7 @@ class ObterMetricasPeriodo:
                 hora_agendamento=s.hora_agendamento,
                 situacao_atual=s.situacao_atual,
                 eventos=tuple(eventos.get(s.id_agendamento, ())),
+                tipo_exame=s.tipo_exame,
             )
             for s in snapshots
         ]

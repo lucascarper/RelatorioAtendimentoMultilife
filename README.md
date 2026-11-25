@@ -50,6 +50,7 @@ Todos os jobs usam `max_instances=1` e `coalesce=True`, com **advisory lock** do
 ### Métricas (seção 4 da documentação técnica)
 
 - **Tempo de Espera** = "Em Atendimento" − "Aguardando". **Tempo de Atendimento** (ou de Consulta, no consultório) = "Atendido" − "Em Atendimento".
+- **Tópicos por tipo de agenda**: cada agenda é marcada no admin como **sala de exames**, **consultório** ou **guichê**. O relatório mostra um tópico para cada tipo com movimento (atendimentos, tempo de espera, tempo de atendimento ou consulta) e, em cada cartão, o subtotal por **tipo de exame** (Admissional, Demissional, Periódico, Mudança de Riscos Ocupacionais, Retorno ao Trabalho e Outros), vindo do campo "tipo" do agendamento no SGG.
 - **Tempo Médio Total de Permanência** (com guichês marcados): soma das quatro médias (espera e atendimento na recepção, espera e consulta no consultório). O SGG não liga o agendamento do guichê ao do consultório da mesma pessoa, então é a soma das médias de cada etapa, não uma medida pessoa a pessoa.
 - **Turno pela hora agendada**: é da tarde quando a hora agendada for 13:00 ou depois (configurável).
 - **Atípicos** (menos de 1 min ou mais de 180 min) entram nos totais, mas ficam fora das médias e do TMA e aparecem nos alertas.
@@ -57,14 +58,14 @@ Todos os jobs usam `max_instances=1` e `coalesce=True`, com **advisory lock** do
 - **Sem baixa**: terminou o dia em Agendado ou Aguardando. Antes de contar, o sistema confere no SGG se há falta registrada (RF11).
 - O cálculo é versionado (`versao_regra` no resumo). Mudou uma regra? Suba a versão e reprocesse.
 
-Detalhes e ajustes de interpretação: [ADR 0005](docs/adr/0005-conferencia-final-antes-da-consolidacao.md), [ADR 0006](docs/adr/0006-interpretacoes-das-regras.md) e [ADR 0012](docs/adr/0012-tempo-medio-total-de-permanencia.md) (rótulos e Tempo Médio Total de Permanência).
+Detalhes e ajustes de interpretação: [ADR 0005](docs/adr/0005-conferencia-final-antes-da-consolidacao.md), [ADR 0006](docs/adr/0006-interpretacoes-das-regras.md) e [ADR 0012](docs/adr/0012-tempo-medio-total-de-permanencia.md) (rótulos e Tempo Médio Total de Permanência) e [ADR 0022](docs/adr/0022-topicos-por-tipo-de-agenda-e-tipo-de-exame.md) (tópicos e tipo de exame).
 
 ### O e-mail (boas práticas de BI)
 
 Leitura em até 1 minuto, em pirâmide de atenção:
 
 1. **Topo:** manchete em uma frase ("102 atendimentos e 11 faltas… espera média 15 min, +93,7% sobre a semana anterior") e selo de alertas.
-2. **KPIs:** atendimentos, faltas (% dos agendados), espera média e TMA, cada um com variação contra o mesmo dia da semana anterior. A seta sempre vem com o valor e o rótulo, nunca só a cor. Verde e vermelho aparecem só quando subir é claramente bom ou ruim; o TMA é neutro. Taxas variam em pontos percentuais (p.p.).
+2. **KPIs:** visão geral (atendimentos e faltas, % dos agendados, com variação contra o mesmo dia da semana anterior) e um bloco por tópico (**salas de exames**, **consultórios**, **guichês**) com atendimentos, tempo de espera e tempo de atendimento ou consulta, cada cartão com a lista **Por tipo de exame** sempre aberta. No dashboard do admin a mesma lista abre ao clicar no cartão. A seta sempre vem com o valor e o rótulo, nunca só a cor. Verde e vermelho aparecem só quando subir é claramente bom ou ruim; o TMA é neutro. Taxas variam em pontos percentuais (p.p.).
 3. **Meio (evidência):** tabela por turno (com os **guichês** separados das demais agendas, quando houver agendas marcadas como guichê em *Atendimento → Configurar Agendas*), TMA por consultório e tempos por agenda (qtd., média, mediana, maior), **um bloco por turno**, porque na troca de turno troca o médico. As barras de TMA usam uma única cor, a azul da marca, e a mesma escala nos dois turnos.
 4. **Base:** comparativo semanal completo, alertas por severidade (ícone + rótulo + cor) e rodapé com a versão da regra e o link do admin.
 
@@ -127,7 +128,7 @@ O painel é o **Sistema de Relatórios**, organizado em cinco módulos no menu:
 
 | Módulo | O que tem |
 | --- | --- |
-| **Atendimento** | Painel do relatório de atendimentos (coleta, últimos 14 dias, reprocessar) e os **destinatários**. Os botões **Acompanhar AO VIVO** (monitor) e **Configurar Agendas** (unidades, agendas e guichês) abrem as telas de apoio |
+| **Atendimento** | Painel do relatório de atendimentos (coleta, últimos 14 dias, reprocessar) e os **destinatários**. Os botões **Acompanhar AO VIVO** (monitor) e **Configurar Agendas** (unidades e o tipo de cada agenda: sala de exames, consultório ou guichê) abrem as telas de apoio |
 | **Financeiro** | Relatório financeiro diário e seus destinatários |
 | **SESMT** | Relatório de gestão do SESMT e seus destinatários |
 | **Configurações** | Abas *Regras do relatório* (turnos, atípicos, e-mail técnico), **Médicos** (atendimentos por médico) e **Usuários** |
@@ -150,7 +151,7 @@ Toda lista do admin que passa de 10 registros ganha um rodapé com "Mostrar 10, 
 `/admin/monitor` (em *Atendimento*, botão **Acompanhar AO VIVO**), dentro do login do admin. São os mesmos indicadores do e-mail, calculados para **hoje até agora** e atualizados sozinhos a cada 5 s:
 
 1. **Topo:** situação da coleta ("Dados do SGG de 10:40:00"), uma frase-resumo e os cartões de agora. Com guichês marcados, a espera e o atendimento aparecem por área: **espera recepção** (no guichê), **espera consultório** (aguardando o médico), **em atendimento no guichê** e **no consultório**, cada um com a maior espera ou atendimento em curso. Também mostra quem **ainda não chegou**, destacando os de horário vencido.
-2. **Hoje até agora:** atendimentos, faltas, espera média e TMA, comparados com o mesmo dia da semana anterior **até o mesmo horário**. Com guichês marcados, os cartões ficam em três linhas: **Consultórios** (atendimentos, Tempo de Espera - Consultório, Tempo de Consulta e faltas), **Recepção** (atendimentos nos guichês, Tempo de Espera - Recepção e Tempo de Atendimento - Recepção) e **Permanência total** (Tempo Médio Total de Permanência). O e-mail diário segue o mesmo padrão.
+2. **Hoje até agora:** atendimentos, faltas, espera média e TMA, comparados com o mesmo dia da semana anterior **até o mesmo horário**. Os cartões ficam em linhas: **Visão geral** (atendimentos e faltas), um tópico por tipo de agenda com movimento (**Salas de exames**, **Consultórios**, **Guichês**: atendimentos, tempo de espera e tempo de atendimento ou consulta, cada um com a lista por tipo de exame ao clicar) e, com guichês marcados, **Permanência total**. O e-mail diário segue o mesmo padrão, com a lista sempre aberta.
 3. **Meio:** movimento por hora (chegadas × atendimentos finalizados, com dica ao passar o mouse e tabela alternativa) e TMA por consultório.
 4. **Base:** por turno, tempos por agenda e alertas da coleta.
 

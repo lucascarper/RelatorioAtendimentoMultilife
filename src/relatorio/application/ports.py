@@ -22,7 +22,14 @@ from relatorio.application.modelos import (
     StatusJob,
     UsuarioSistema,
 )
-from relatorio.domain.entidades import Agenda, AgendamentoSgg, Evento, Situacao, Snapshot
+from relatorio.domain.entidades import (
+    Agenda,
+    AgendamentoSgg,
+    Evento,
+    Situacao,
+    Snapshot,
+    TipoAgenda,
+)
 from relatorio.domain.exames import ExameClinico, Medico
 from relatorio.domain.financeiro import Contrato, PrecoFornecedor, Titulo
 from relatorio.domain.sesmt import EmpresaSesmt, EventoEsocial, PlanilhaSesmt
@@ -135,7 +142,7 @@ class AgendaRepository(Protocol):
     def listar(self) -> list[Agenda]: ...
 
     def sincronizar(self, agendas: Sequence[Agenda]) -> tuple[int, int, int]:
-        """Upsert preservando ``incluir_relatorio`` e ``guiche``; desativa as que sumiram.
+        """Upsert preservando ``incluir_relatorio`` e ``tipo``; desativa as que sumiram.
 
         Retorna (novas, atualizadas, desativadas).
         """
@@ -143,7 +150,7 @@ class AgendaRepository(Protocol):
 
     def definir_inclusao(self, id_agenda: int, incluir: bool) -> None: ...
 
-    def definir_guiche(self, id_agenda: int, guiche: bool) -> None: ...
+    def definir_tipo(self, id_agenda: int, tipo: TipoAgenda) -> None: ...
 
 
 class SnapshotRepository(Protocol):

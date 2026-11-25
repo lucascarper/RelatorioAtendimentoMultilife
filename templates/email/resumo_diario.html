@@ -88,8 +88,9 @@
   <td bgcolor="#FFFFFF" class="px" style="background:#FFFFFF; padding:18px 24px 0; font-size:0; text-align:center;">
     <!--[if mso]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><![endif]-->
     {%- for k in grupo.cartoes %}
-    <!--[if mso]><td width="25%" valign="top"><![endif]-->
-    <div class="kpi" style="display:inline-block; width:100%; max-width:146px; vertical-align:top;">
+    {%- set topico = k.detalhe is not none %}
+    <!--[if mso]><td width="{{ '33%' if topico else '25%' }}" valign="top"><![endif]-->
+    <div class="kpi{{ " kpi-topico" if topico else "" }}" style="display:inline-block; width:100%; max-width:{{ 184 if topico else 146 }}px; vertical-align:top;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
           <td style="padding:6px;">
@@ -99,7 +100,21 @@
                   <div style="font-size:12px; line-height:16px; color:#444B68; font-weight:600; min-height:32px;">{{ k.rotulo }}</div>
                   <div class="kpi-valor" style="font-size:28px; line-height:34px; color:#20295A; font-weight:700; padding-top:4px; white-space:nowrap;">{{ k.valor }}</div>
                   <div style="font-size:11px; line-height:15px; color:#626883; padding-top:2px; min-height:30px;">{{ k.contexto }}</div>
+                  {%- if topico %}
+                  <div style="padding-top:6px; border-top:1px solid #E3E8EF; margin-top:6px;">
+                    <div style="font-size:10px; line-height:14px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:#2F4A80; padding-bottom:2px;">Por tipo de exame</div>
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                      {%- for d in k.detalhe %}
+                      <tr>
+                        <td class="fonte" style="font-size:11px; line-height:15px; color:#444B68; padding:2px 6px 2px 0; border-top:1px dotted #E3E8EF;">{{ d.rotulo }}</td>
+                        <td class="fonte" style="font-size:11px; line-height:15px; color:#20295A; font-weight:700; padding:2px 0; text-align:right; white-space:nowrap; border-top:1px dotted #E3E8EF;">{{ d.valor }}{% if d.nota %}<br><span style="font-weight:400; font-size:10px; color:#626883;">{{ d.nota }}</span>{% endif %}</td>
+                      </tr>
+                      {%- endfor %}
+                    </table>
+                  </div>
+                  {%- else %}
                   <div style="font-size:11px; line-height:15px; padding-top:6px; border-top:1px solid #E3E8EF; margin-top:6px;">{{ delta_html(k.delta) }}</div>
+                  {%- endif %}
                 </td>
               </tr>
             </table>

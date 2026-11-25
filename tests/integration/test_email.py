@@ -14,6 +14,7 @@ import pytest
 
 from relatorio.application.modelos import Anexo, ConteudoEmail, ImagemInline
 from relatorio.domain.comparativo import comparar
+from relatorio.domain.entidades import TipoAgenda
 from relatorio.domain.metricas import RegrasMetricas, calcular_metricas
 from relatorio.domain.resumo import ResumoDiario
 from relatorio.infrastructure.email.apresentacao import (
@@ -74,7 +75,7 @@ class TestRelatorio:
             "Tempo de atendimento por agenda",
             "Comparativo com a semana anterior",
             "Alertas",
-            "Regra de cálculo v1.3.0",
+            "Regra de cálculo v1.4.0",
             "Prévia com dados fictícios",
             "https://admin.exemplo",
         ):
@@ -428,46 +429,96 @@ class TestTurnosEGuiches:
 
 
 class TestConsultoriosERecepcao:
-    """Com guichês, KPIs, manchete e comparativo separam consultórios e recepção."""
+    """Resumo da regra 1.4+: visão geral, um tópico por tipo de agenda e a permanência."""
 
-    def test_cartoes_em_dois_grupos(self) -> None:
+    def test_cartoes_por_topico(self) -> None:
         a = montar_apresentacao(TestTurnosEGuiches().resumo(True))
+        assert [g["titulo"] for g in a.grupos_kpis] == [
+            "Visão geral",
+            "Consultórios",
+            "Guichês (recepção)",
+            "Permanência total",
+        ]
+        geral, consultorios, recepcao, permanencia = (g["cartoes"] for g in a.grupos_kpis)
+        assert [c.rotulo for c in geral] == ["Atendimentos realizados", "Faltas"]
+        assert [(c.rotulo, c.valor) for c in consultorios] == [
+            ("Consultas", "2"),
+            ("Tempo de espera", "10 min"),
+            ("Tempo de consulta", "22 min"),
+        ]
+        assert [(c.rotulo, c.valor) for c in recepcao] == [
+            ("Atendimentos", "1"),
+            ("Tempo de espera", "5 min"),
+            ("Tempo de atendimento", "5 min"),
+        ]
+        assert [(c.rotulo, c.valor) for c in permanencia] == [
+            ("Tempo Médio Total de Permanência", "42 min"),
+        ]
+        detalhe = consultorios[0].detalhe
+        assert detalhe is not None
+        assert [d.rotulo for d in detalhe] == [
+            "Admissional",
+            "Demissional",
+            "Periódico",
+            "Mudança de Riscos Ocupacionais",
+            "Retorno ao Trabalho",
+            "Outros",  # os agendamentos do teste não têm tipo
+        ]
+        assert (detalhe[-1].valor, detalhe[-1].nota) == ("2", "de 2")
+        assert a.manchete.startswith("2 atendimentos nos consultórios e 1 nos guichês")
+        assert "Espera média de 5 min na recepção e 10 min no consultório." in a.manchete
+
+    def test_manchete_com_salas_de_exames(self) -> None:
+        agendas = {
+            10: agenda(10, "Clínico", sala="Sala 01"),
+            20: agenda(20, "Audiometria", tipo=TipoAgenda.SALA_EXAMES),
+        }
+        m = calcular_metricas(
+            [
+                atendimento(1, chegada="07:50", chamada="08:00", fim="08:15"),
+                atendimento(2, id_agenda=20, chegada="07:55", chamada="08:00", fim="08:10"),
+            ],
+            agendas,
+            RegrasMetricas(),
+            hora("00:00"),
+            hora("23:59:59"),
+        )
+        resumo = ResumoDiario(DIA, ("Todas",), hora("23:00"), m, comparar(m.kpis, None, DIA))
+        a = montar_apresentacao(resumo.para_json())
+        assert a.manchete == (
+            "1 atendimentos nas salas de exames e 1 nos consultórios; 0 faltas (0,0% dos "
+            "agendados). Espera média de 5 min nas salas de exames e 10 min no consultório."
+        )
+
+    def test_sem_guiche_so_o_topico_com_movimento(self) -> None:
+        a = montar_apresentacao(TestTurnosEGuiches().resumo(False))
+        assert [g["titulo"] for g in a.grupos_kpis] == ["Visão geral", "Consultórios"]
+        # Indicadores de guichê sem dado nos dois dias não entram no comparativo.
+        assert all("guich" not in linha["rotulo"] for linha in a.comparativo)
+
+    def test_resumo_antigo_sem_topicos_fica_como_antes(self) -> None:
+        antigo = TestTurnosEGuiches().resumo(True)
+        del antigo["por_topico"]
+        a = montar_apresentacao(antigo)
         assert [g["titulo"] for g in a.grupos_kpis] == [
             "Consultórios",
             "Recepção (guichês)",
             "Permanência total",
         ]
-        consultorios, recepcao, permanencia = (g["cartoes"] for g in a.grupos_kpis)
-        assert [c.rotulo for c in consultorios] == [
-            "Atendimentos nos consultórios",
-            "Tempo de Espera - Consultório",
-            "Tempo de Consulta",
-            "Faltas",
-        ]
-        assert [(c.rotulo, c.valor) for c in recepcao] == [
-            ("Atendimentos nos guichês", "1"),
-            ("Tempo de Espera - Recepção", "5 min"),
-            ("Tempo de Atendimento - Recepção", "5 min"),
-        ]
-        assert [(c.rotulo, c.valor) for c in permanencia] == [
-            ("Tempo Médio Total de Permanência", "42 min"),
-        ]
-        assert a.manchete.startswith("2 atendimentos nos consultórios e 1 nos guichês")
-        assert "Espera média de 5 min na recepção e 10 min no consultório." in a.manchete
+        sem_guiche = TestTurnosEGuiches().resumo(False)
+        del sem_guiche["por_topico"]
+        assert [g["titulo"] for g in montar_apresentacao(sem_guiche).grupos_kpis] == [""]
 
-    def test_sem_guiche_fica_como_antes(self) -> None:
-        a = montar_apresentacao(TestTurnosEGuiches().resumo(False))
-        assert [g["titulo"] for g in a.grupos_kpis] == [""]
-        assert a.grupos_kpis[0]["cartoes"][0].rotulo == "Atendimentos realizados"
-        # Indicadores de guichê sem dado nos dois dias não entram no comparativo.
-        assert all("guich" not in linha["rotulo"] for linha in a.comparativo)
-
-    def test_email_com_grupos(self, renderizador: RenderizadorJinja) -> None:
+    def test_email_com_topicos_e_detalhe_aberto(self, renderizador: RenderizadorJinja) -> None:
         conteudo = renderizador.relatorio(TestTurnosEGuiches().resumo(True))
-        assert "Recepção (guichês)" in conteudo.html
-        assert "Tempo de Espera - Recepção" in conteudo.html
+        assert "Guichês (recepção)" in conteudo.html
+        assert "Tempo de consulta" in conteudo.html
         assert "Tempo Médio Total de Permanência" in conteudo.html
-        assert "RECEPÇÃO (GUICHÊS)" in conteudo.texto
+        # Detalhe por tipo sempre visível (sem <details>, que o e-mail não garante).
+        assert conteudo.html.count("Por tipo de exame") == 6
+        assert "<details" not in conteudo.html
+        assert "GUICHÊS (RECEPÇÃO)" in conteudo.texto
+        assert "  Por tipo de exame:\n    · Admissional: 0 (de 0)" in conteudo.texto
 
 
 class TestRelatorioFinanceiro:

@@ -12,6 +12,7 @@ from relatorio.domain.entidades import (
     OrigemEvento,
     Situacao,
     Snapshot,
+    TipoAgenda,
 )
 from relatorio.domain.metricas import AgendamentoDoDia
 
@@ -33,6 +34,7 @@ def agenda(
     unidade: int | None = 1,
     incluir: bool = True,
     guiche: bool = False,
+    tipo: TipoAgenda = TipoAgenda.CONSULTORIO,
 ) -> Agenda:
     return Agenda(
         id_agenda=id_agenda,
@@ -41,7 +43,7 @@ def agenda(
         id_unidade_atendimento=unidade,
         unidade_atendimento=f"Unidade {unidade}" if unidade is not None else None,
         incluir_relatorio=incluir,
-        guiche=guiche,
+        tipo=TipoAgenda.GUICHE if guiche else tipo,
     )
 
 
@@ -74,6 +76,7 @@ def atendimento(
     fim: str | None = "08:20",
     unidade: int | None = 1,
     dia: date = DIA,
+    tipo_exame: str = "",
 ) -> AgendamentoDoDia:
     """Agendamento que percorre o fluxo completo (ou parte dele, se algum horário for None)."""
     eventos = [evento(id_agendamento, None, Situacao.AGENDADO, "06:00", dia)]
@@ -96,6 +99,7 @@ def atendimento(
         hora_agendamento=time.fromisoformat(hora_agendada) if hora_agendada else None,
         situacao_atual=situacao,
         eventos=tuple(eventos),
+        tipo_exame=tipo_exame,
     )
 
 
@@ -108,6 +112,7 @@ def com_situacao(
     hora_agendada: str | None = "08:00",
     quando: str = "09:00",
     unidade: int | None = 1,
+    tipo_exame: str = "",
 ) -> AgendamentoDoDia:
     """Agendamento que saiu de Agendado direto para ``situacao`` (falta, cancelamento…)."""
     eventos = [evento(id_agendamento, None, Situacao.AGENDADO, "06:00")]
@@ -122,6 +127,7 @@ def com_situacao(
         hora_agendamento=time.fromisoformat(hora_agendada) if hora_agendada else None,
         situacao_atual=situacao,
         eventos=tuple(eventos),
+        tipo_exame=tipo_exame,
     )
 
 

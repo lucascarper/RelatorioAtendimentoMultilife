@@ -8,16 +8,28 @@ os tempos médios são médias ponderadas pelo volume de cada dia (nunca média 
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
-from relatorio.domain.entidades import Turno
+from relatorio.domain.entidades import TipoAgenda, Turno
 from relatorio.domain.exportacao import dias
-from relatorio.domain.metricas import Kpis, ResumoTurno
+from relatorio.domain.metricas import (
+    OUTROS_TIPOS,
+    TIPOS_ATENDIMENTO,
+    Kpis,
+    ResumoTopico,
+    ResumoTurno,
+)
 
 # O que o dashboard lê de cada resumo (o resto do JSON fica no banco).
-CAMPOS = (("kpis",), ("por_turno",), ("por_grupo",), ("alertas", "quantidade"))
+CAMPOS = (
+    ("kpis",),
+    ("por_turno",),
+    ("por_grupo",),
+    ("por_topico",),
+    ("alertas", "quantidade"),
+)
 
 
 def numero_em(dados: Any, *caminho: str) -> float | None:
@@ -45,6 +57,8 @@ class ResumoPeriodo:
     alertas: int
     por_turno: tuple[ResumoTurno, ...]
     dias: tuple[DiaGrafico, ...]
+    # TipoAgenda.value → tópico somado; só dias consolidados com a regra 1.4+ entram.
+    por_topico: dict[str, ResumoTopico] = field(default_factory=dict)
 
     @property
     def vazio(self) -> bool:
@@ -118,6 +132,10 @@ def _somar_kpis(diarios: list[tuple[Kpis, Mapping[str, Any]]]) -> Kpis:
 
 
 def _somar_turno(turno: Turno, diarios: list[Mapping[str, Any]]) -> ResumoTurno:
+    return _somar_resumos(turno.rotulo, diarios)
+
+
+def _somar_resumos(rotulo: str, diarios: list[Mapping[str, Any]]) -> ResumoTurno:
     def inteiro(dado: Mapping[str, Any], chave: str) -> int:
         valor = dado.get(chave)
         return int(valor) if isinstance(valor, int | float) else 0
@@ -126,7 +144,7 @@ def _somar_turno(turno: Turno, diarios: list[Mapping[str, Any]]) -> ResumoTurno:
     faltas = sum(inteiro(t, "faltas") for t in diarios)
     esperas = [t["espera_maxima_s"] for t in diarios if t.get("espera_maxima_s") is not None]
     return ResumoTurno(
-        rotulo=turno.rotulo,
+        rotulo=rotulo,
         faixa=next((str(t["faixa"]) for t in reversed(diarios) if t.get("faixa")), ""),
         agendados=agendados,
         atendimentos=sum(inteiro(t, "atendimentos") for t in diarios),
@@ -141,6 +159,22 @@ def _somar_turno(turno: Turno, diarios: list[Mapping[str, Any]]) -> ResumoTurno:
             (t.get("tma_s"), inteiro(t, "atendimentos_medidos")) for t in diarios
         ),
         atendimentos_medidos=sum(inteiro(t, "atendimentos_medidos") for t in diarios),
+    )
+
+
+def _somar_topico(topico: TipoAgenda, diarios: list[Mapping[str, Any]]) -> ResumoTopico:
+    """Soma o tópico de cada dia (JSON de ``ResumoTopico``), tipo de exame a tipo."""
+    tipos = [*TIPOS_ATENDIMENTO]
+    if any(OUTROS_TIPOS in (d.get("por_tipo") or {}) for d in diarios):
+        tipos.append(OUTROS_TIPOS)
+    return ResumoTopico(
+        total=_somar_resumos(topico.rotulo, [d.get("total") or {} for d in diarios]),
+        por_tipo={
+            tipo: _somar_resumos(
+                tipo, [d["por_tipo"][tipo] for d in diarios if tipo in (d.get("por_tipo") or {})]
+            )
+            for tipo in tipos
+        },
     )
 
 
@@ -178,4 +212,15 @@ def resumir_periodo(
             )
             for dia in dias(inicio, fim)
         ),
+        por_topico={
+            t.value: _somar_topico(
+                t,
+                [
+                    m["por_topico"][t.value]
+                    for _, m in do_periodo
+                    if t.value in (m.get("por_topico") or {})
+                ],
+            )
+            for t in TipoAgenda
+        },
     )

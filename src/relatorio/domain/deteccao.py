@@ -99,6 +99,7 @@ def detectar_transicao(
         situacao_atual=registro.situacao,
         data_hora_edicao=registro.data_hora_edicao,
         atualizado_em=observado_em,
+        tipo_exame=registro.tipo,
     )
 
     if atual is not None and atual.situacao_atual is registro.situacao:
@@ -109,6 +110,7 @@ def detectar_transicao(
             and atual.data_agendamento == novo_snapshot.data_agendamento
             and atual.hora_agendamento == novo_snapshot.hora_agendamento
             and atual.data_hora_edicao == novo_snapshot.data_hora_edicao
+            and atual.tipo_exame == novo_snapshot.tipo_exame
         )
         return Deteccao(evento=None, snapshot=None if campos_iguais else novo_snapshot)
 

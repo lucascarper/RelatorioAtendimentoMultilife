@@ -28,11 +28,20 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from relatorio.domain.entidades import FUSO_BRASILIA, Agenda, Evento, Situacao, Turno
+from relatorio.domain.entidades import (
+    FUSO_BRASILIA,
+    Agenda,
+    Evento,
+    Situacao,
+    TipoAgenda,
+    Turno,
+    normalizar_texto,
+)
 from relatorio.domain.turnos import ConfiguracaoTurnos
 
-VERSAO_REGRA = "1.3.0"  # 1.1: guichês e turnos; 1.2: espera do consultório = última espera;
-# 1.3: tempo médio total de permanência (soma das médias de recepção e consultório)
+VERSAO_REGRA = "1.4.0"  # 1.1: guichês e turnos; 1.2: espera do consultório = última espera;
+# 1.3: tempo médio total de permanência (soma das médias de recepção e consultório);
+# 1.4: tópicos por tipo de agenda (salas de exames, consultórios, guichês) e tipo de exame
 
 
 # --------------------------------------------------------------------------- entradas
@@ -62,6 +71,34 @@ class AgendamentoDoDia:
     hora_agendamento: time | None
     situacao_atual: Situacao
     eventos: tuple[Evento, ...] = ()
+    tipo_exame: str = ""  # campo "tipo" do agendamento no SGG
+
+
+# Tipos de exame do detalhamento, nesta ordem; o que não casar (ou vier vazio) é "Outros".
+TIPOS_ATENDIMENTO = (
+    "Admissional",
+    "Demissional",
+    "Periódico",
+    "Mudança de Riscos Ocupacionais",
+    "Retorno ao Trabalho",
+)
+OUTROS_TIPOS = "Outros"
+# "Mudança de Função" é o nome antigo de "Mudança de Riscos Ocupacionais" (NR-7).
+_PREFIXOS_TIPO = (
+    ("admiss", "Admissional"),
+    ("demiss", "Demissional"),
+    ("period", "Periódico"),
+    ("mudanca", "Mudança de Riscos Ocupacionais"),
+    ("retorno", "Retorno ao Trabalho"),
+)
+
+
+def tipo_de_exame(texto: str) -> str:
+    """Tipo do SGG ("periodico", "Mudança de Função"...) → um de ``TIPOS_ATENDIMENTO``."""
+    alvo = normalizar_texto(texto)
+    return next(
+        (tipo for prefixo, tipo in _PREFIXOS_TIPO if alvo.startswith(prefixo)), OUTROS_TIPOS
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,6 +189,18 @@ class ResumoTurno:
     espera_maxima_s: int | None
     tma_s: int | None
     atendimentos_medidos: int
+
+
+@dataclass(frozen=True, slots=True)
+class ResumoTopico:
+    """Um tópico do relatório (salas de exames, consultórios ou guichês).
+
+    ``por_tipo`` traz os cinco tipos de ``TIPOS_ATENDIMENTO`` sempre (mesmo zerados) e
+    "Outros" só quando houver.
+    """
+
+    total: ResumoTurno
+    por_tipo: dict[str, ResumoTurno]
 
 
 @dataclass(frozen=True, slots=True)
@@ -261,6 +310,8 @@ class MetricasPeriodo:
         default_factory=dict
     )
     agendas_por_turno: dict[str, tuple[LinhaAgenda, ...]] = field(default_factory=dict)
+    # TipoAgenda.value → tópico, na ordem de TipoAgenda.
+    por_topico: dict[str, ResumoTopico] = field(default_factory=dict)
 
     @property
     def sem_movimento(self) -> bool:
@@ -415,6 +466,8 @@ class _Linha:
     turno: Turno | None
     situacao: Situacao
     guiche: bool = False
+    topico: TipoAgenda = TipoAgenda.CONSULTORIO
+    tipo_exame: str = OUTROS_TIPOS
     espera_s: float | None = None
     atendimento_s: float | None = None
     atipico: str | None = None
@@ -457,6 +510,8 @@ def _classificar(
         turno=definir_turno(agendamento, regras.turnos, regras.fuso),
         situacao=situacao,
         guiche=bool(agenda and agenda.guiche),
+        topico=agenda.tipo if agenda else TipoAgenda.CONSULTORIO,
+        tipo_exame=tipo_de_exame(agendamento.tipo_exame),
     )
 
     # Espera e atendimento só com eventos do próprio dia do agendamento: um evento
@@ -494,6 +549,20 @@ def _resumo_turno(linhas: Sequence[_Linha], rotulo: str, faixa: str) -> ResumoTu
         espera_maxima_s=_maximo(esperas),
         tma_s=_media(duracoes),
         atendimentos_medidos=len(duracoes),
+    )
+
+
+def _resumo_topico(linhas: Sequence[_Linha], topico: TipoAgenda) -> ResumoTopico:
+    do_topico = [x for x in linhas if x.topico is topico]
+    tipos = [*TIPOS_ATENDIMENTO]
+    if any(x.tipo_exame == OUTROS_TIPOS for x in do_topico):
+        tipos.append(OUTROS_TIPOS)
+    return ResumoTopico(
+        total=_resumo_turno(do_topico, topico.rotulo, ""),
+        por_tipo={
+            tipo: _resumo_turno([x for x in do_topico if x.tipo_exame == tipo], tipo, "")
+            for tipo in tipos
+        },
     )
 
 
@@ -724,4 +793,5 @@ def calcular_metricas(
         por_grupo=por_grupo,
         consultorios_por_turno=consultorios_por_turno,
         agendas_por_turno=agendas_por_turno,
+        por_topico={t.value: _resumo_topico(linhas, t) for t in TipoAgenda},
     )
