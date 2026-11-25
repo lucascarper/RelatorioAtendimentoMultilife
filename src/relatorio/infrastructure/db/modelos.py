@@ -53,6 +53,9 @@ class Base(DeclarativeBase):
 
 class AgendaModel(Base):
     __tablename__ = "agenda"
+    __table_args__ = (
+        CheckConstraint("tipo IN ('sala_exames','consultorio','guiche')", name="tipo_valido"),
+    )
 
     id_agenda: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
     nome: Mapped[str] = mapped_column(String(200))
@@ -61,7 +64,8 @@ class AgendaModel(Base):
     unidade_atendimento: Mapped[str | None] = mapped_column(String(200))
     ativa: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     incluir_relatorio: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
-    guiche: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    # sala_exames | consultorio | guiche: o tópico do relatório (decisão do admin).
+    tipo: Mapped[str] = mapped_column(String(20), server_default=text("'consultorio'"))
     atualizado_em: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
@@ -81,6 +85,7 @@ class AgendamentoSnapshotModel(Base):
     situacao_atual: Mapped[str] = mapped_column(String(20))
     data_hora_edicao: Mapped[datetime | None]
     atualizado_em: Mapped[datetime]
+    tipo_exame: Mapped[str] = mapped_column(String(60), server_default=text("''"))
 
 
 class AgendamentoEventoModel(Base):

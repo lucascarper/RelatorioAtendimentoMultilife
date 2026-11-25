@@ -23,6 +23,7 @@ from relatorio.application.configuracao import (
 from relatorio.application.ports import ErroIntegracao
 from relatorio.domain.acesso import CONFIGURACOES, Acesso, email_valido
 from relatorio.domain.dashboard import CAMPOS, resumir_periodo
+from relatorio.domain.entidades import TipoAgenda
 from relatorio.domain.metricas import RegrasMetricas
 from relatorio.domain.turnos import ConfiguracaoTurnos
 from relatorio.infrastructure.container import Container
@@ -421,6 +422,7 @@ def agendas(request: Request, ctx: Ctx, _usuario: UsuarioAtendimento) -> HTMLRes
             "pg_agendas": paginar(request, lista, "agendas"),
             "unidades": sorted(nomes.items(), key=lambda u: u[1]),
             "selecionadas": ctx.configuracao_atual().unidades,
+            "tipos": TipoAgenda,
         },
     )
 
@@ -478,26 +480,26 @@ def alternar_agenda(
     if agenda is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     log.info("agenda_alterada", id_agenda=id_agenda, incluir=incluir)
-    return ctx.render(request, "admin/_linha_agenda.html", {"a": agenda})
+    return ctx.render(request, "admin/_linha_agenda.html", {"a": agenda, "tipos": TipoAgenda})
 
 
-@router.post("/agendas/{id_agenda}/guiche", response_class=HTMLResponse)
-def alternar_guiche(
+@router.post("/agendas/{id_agenda}/tipo", response_class=HTMLResponse)
+def definir_tipo_agenda(
     request: Request,
     id_agenda: int,
     ctx: Ctx,
     _usuario: UsuarioAtendimento,
     _csrf: Csrf,
-    guiche: Annotated[bool, Form()] = False,
+    tipo: Annotated[TipoAgenda, Form()],
 ) -> HTMLResponse:
     with ctx.container.uow() as uow:
-        uow.agendas.definir_guiche(id_agenda, guiche)
+        uow.agendas.definir_tipo(id_agenda, tipo)
         uow.commit()
         agenda = next((a for a in uow.agendas.listar() if a.id_agenda == id_agenda), None)
     if agenda is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    log.info("agenda_alterada", id_agenda=id_agenda, guiche=guiche)
-    return ctx.render(request, "admin/_linha_agenda.html", {"a": agenda})
+    log.info("agenda_alterada", id_agenda=id_agenda, tipo=tipo.value)
+    return ctx.render(request, "admin/_linha_agenda.html", {"a": agenda, "tipos": TipoAgenda})
 
 
 # ------------------------------------------------------------------ configurações

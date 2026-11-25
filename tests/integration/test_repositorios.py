@@ -10,7 +10,7 @@ import pytest
 
 from relatorio.application.modelos import ColetaExames, StatusEnvio, StatusJob
 from relatorio.application.ports import FabricaUoW
-from relatorio.domain.entidades import OrigemEvento, Situacao
+from relatorio.domain.entidades import OrigemEvento, Situacao, TipoAgenda
 from relatorio.domain.exames import ExameClinico, Medico
 from tests.fabricas import DIA, agenda, evento, hora, snapshot
 from tests.integration.conftest import ESTADO_INICIAL
@@ -63,7 +63,9 @@ class TestSnapshots:
     def test_upsert_e_consulta_por_data(self, uow: FabricaUoW) -> None:
         with uow() as u:
             u.snapshots.salvar(snapshot(1, Situacao.AGENDADO))
-            u.snapshots.salvar(snapshot(1, Situacao.AGUARDANDO, hora_agendamento=None))
+            u.snapshots.salvar(
+                snapshot(1, Situacao.AGUARDANDO, hora_agendamento=None, tipo_exame="Periódico")
+            )
             u.snapshots.salvar(snapshot(2, Situacao.FALTOU, data_agendamento=DIA - timedelta(1)))
             u.commit()
         with uow() as u:
@@ -71,6 +73,7 @@ class TestSnapshots:
             assert set(atual) == {1, 2}
             assert atual[1].situacao_atual is Situacao.AGUARDANDO
             assert atual[1].hora_agendamento is None
+            assert (atual[1].tipo_exame, atual[2].tipo_exame) == ("Periódico", "")
             assert [s.id_agendamento for s in u.snapshots.listar_por_data(DIA, DIA)] == [1]
             assert u.snapshots.obter_varios([]) == {}
             assert u.snapshots.apagar_anteriores_a(DIA) == 1
@@ -86,7 +89,8 @@ class TestAgendas:
                 0,
             )
             u.agendas.definir_inclusao(10, False)
-            u.agendas.definir_guiche(10, True)
+            u.agendas.definir_tipo(10, TipoAgenda.GUICHE)
+            u.agendas.definir_tipo(30, TipoAgenda.SALA_EXAMES)
             u.commit()
         with uow() as u:
             resultado = u.agendas.sincronizar(
@@ -100,7 +104,8 @@ class TestAgendas:
         assert agendas[10].consultorio == "Sala 01"
         assert agendas[10].incluir_relatorio is False
         assert agendas[10].guiche is True  # o sync não desfaz a marcação do admin
-        assert agendas[20].guiche is False
+        assert agendas[20].tipo is TipoAgenda.CONSULTORIO
+        assert agendas[30].tipo is TipoAgenda.SALA_EXAMES
         assert agendas[30].ativa is False
 
 

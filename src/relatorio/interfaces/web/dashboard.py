@@ -24,6 +24,7 @@ from relatorio.infrastructure.email.apresentacao import (
     Delta,
     delta_do_item,
     duracao,
+    grupos_topicos,
     montar_delta,
     numero,
     percentual,
@@ -54,6 +55,7 @@ class PainelDashboard:
     cartoes: tuple[CartaoKpi, ...]
     comparacao: str
     grafico: dict[str, Any]
+    topicos: tuple[dict[str, Any], ...] = ()
 
 
 def periodo_padrao(hoje: date) -> tuple[date, date]:
@@ -494,6 +496,7 @@ def montar_dashboard(atual: ResumoPeriodo, anterior: ResumoPeriodo) -> PainelDas
         periodo=atual,
         anterior=anterior,
         cartoes=cartoes,
+        topicos=grupos_topicos(para_json(atual.por_topico)),
         comparacao=(
             f"comparado com {intervalo}"
             if base

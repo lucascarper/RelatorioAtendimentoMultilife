@@ -16,7 +16,8 @@ from zoneinfo import ZoneInfo
 FUSO_BRASILIA = ZoneInfo("America/Sao_Paulo")
 
 
-def _normalizar(texto: str) -> str:
+def normalizar_texto(texto: str) -> str:
+    """Minúsculas, sem acentos e com espaços simples (para comparar textos do SGG)."""
     sem_acento = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
     return " ".join(sem_acento.lower().split())
 
@@ -34,9 +35,9 @@ class Situacao(StrEnum):
     @classmethod
     def de_texto(cls, valor: str) -> Situacao:
         """Converte o texto da API tolerando caixa, acentos e espaços extras."""
-        alvo = _normalizar(valor)
+        alvo = normalizar_texto(valor)
         for situacao in cls:
-            if _normalizar(situacao.value) == alvo:
+            if normalizar_texto(situacao.value) == alvo:
                 return situacao
         raise ValueError(f"Situação desconhecida: {valor!r}")
 
@@ -44,6 +45,20 @@ class Situacao(StrEnum):
     def final(self) -> bool:
         """Situações que o SGG não permite mais alterar."""
         return self in (Situacao.ATENDIDO, Situacao.FALTOU, Situacao.CANCELADO)
+
+
+class TipoAgenda(StrEnum):
+    """Classificação da agenda, feita no admin: define o tópico do relatório."""
+
+    SALA_EXAMES = "sala_exames"
+    CONSULTORIO = "consultorio"
+    GUICHE = "guiche"
+
+    @property
+    def rotulo(self) -> str:
+        return {"sala_exames": "Sala de exames", "consultorio": "Consultório", "guiche": "Guichê"}[
+            self.value
+        ]
 
 
 class OrigemEvento(StrEnum):
@@ -89,6 +104,7 @@ class Snapshot:
     situacao_atual: Situacao
     data_hora_edicao: datetime | None
     atualizado_em: datetime
+    tipo_exame: str = ""  # campo "tipo" do agendamento no SGG (Admissional, Periódico...)
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,7 +121,7 @@ class Evento:
 
 @dataclass(frozen=True, slots=True)
 class Agenda:
-    """Agenda do SGG: um consultório ou um guichê (recepção, marcado no admin)."""
+    """Agenda do SGG: sala de exames, consultório ou guichê (recepção), marcado no admin."""
 
     id_agenda: int
     nome: str
@@ -114,7 +130,11 @@ class Agenda:
     unidade_atendimento: str | None
     ativa: bool = True
     incluir_relatorio: bool = True
-    guiche: bool = False
+    tipo: TipoAgenda = TipoAgenda.CONSULTORIO
+
+    @property
+    def guiche(self) -> bool:
+        return self.tipo is TipoAgenda.GUICHE
 
     @property
     def consultorio(self) -> str:

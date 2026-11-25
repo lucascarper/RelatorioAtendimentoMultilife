@@ -24,7 +24,7 @@ from relatorio.application.modelos import (
     UsuarioSistema,
 )
 from relatorio.application.ports import EmailDuplicado, UsuarioDuplicado
-from relatorio.domain.entidades import Agenda, Evento, OrigemEvento, Situacao, Snapshot
+from relatorio.domain.entidades import Agenda, Evento, OrigemEvento, Situacao, Snapshot, TipoAgenda
 from relatorio.domain.exames import ExameClinico, Medico
 from relatorio.domain.sesmt import DocumentoSst, PlanilhaSesmt
 from relatorio.infrastructure.db.modelos import (
@@ -73,7 +73,7 @@ def _agenda(m: AgendaModel) -> Agenda:
         unidade_atendimento=m.unidade_atendimento,
         ativa=m.ativa,
         incluir_relatorio=m.incluir_relatorio,
-        guiche=m.guiche,
+        tipo=TipoAgenda(m.tipo),
     )
 
 
@@ -88,6 +88,7 @@ def _snapshot(m: AgendamentoSnapshotModel) -> Snapshot:
         situacao_atual=Situacao(m.situacao_atual),
         data_hora_edicao=m.data_hora_edicao,
         atualizado_em=m.atualizado_em,
+        tipo_exame=m.tipo_exame,
     )
 
 
@@ -175,9 +176,9 @@ class AgendaRepositorioSql:
                 unidade_atendimento=agenda.unidade_atendimento,
                 ativa=agenda.ativa,
                 incluir_relatorio=agenda.incluir_relatorio,
-                guiche=agenda.guiche,
+                tipo=agenda.tipo.value,
             )
-            # incluir_relatorio e guiche são decisões do admin: o sync nunca sobrescreve.
+            # incluir_relatorio e tipo são decisões do admin: o sync nunca sobrescreve.
             self._s.execute(
                 comando.on_conflict_do_update(
                     index_elements=[AgendaModel.id_agenda],
@@ -209,9 +210,9 @@ class AgendaRepositorioSql:
             .values(incluir_relatorio=incluir)
         )
 
-    def definir_guiche(self, id_agenda: int, guiche: bool) -> None:
+    def definir_tipo(self, id_agenda: int, tipo: TipoAgenda) -> None:
         self._s.execute(
-            update(AgendaModel).where(AgendaModel.id_agenda == id_agenda).values(guiche=guiche)
+            update(AgendaModel).where(AgendaModel.id_agenda == id_agenda).values(tipo=tipo.value)
         )
 
 
@@ -240,6 +241,7 @@ class SnapshotRepositorioSql:
             "situacao_atual": snapshot.situacao_atual.value,
             "data_hora_edicao": snapshot.data_hora_edicao,
             "atualizado_em": snapshot.atualizado_em,
+            "tipo_exame": snapshot.tipo_exame,
         }
         comando = insert(AgendamentoSnapshotModel).values(**valores)
         self._s.execute(

@@ -14,11 +14,14 @@ from sqlalchemy import Engine
 from relatorio.application.modelos import StatusJob
 from relatorio.application.ports import FabricaUoW
 from relatorio.config import Settings
-from relatorio.domain.entidades import Situacao
+from relatorio.domain.comparativo import comparar
+from relatorio.domain.entidades import Situacao, TipoAgenda
+from relatorio.domain.metricas import RegrasMetricas, calcular_metricas
+from relatorio.domain.resumo import ResumoDiario
 from relatorio.infrastructure.container import Container
 from relatorio.interfaces.web.app import create_app
 from relatorio.interfaces.web.seguranca import gerar_hash_senha
-from tests.fabricas import DIA, agenda, evento, hora, snapshot
+from tests.fabricas import DIA, agenda, atendimento, evento, hora, snapshot
 from tests.fakes import RelogioFixo
 from tests.integration.conftest import _url
 
@@ -159,7 +162,7 @@ class TestPaginas:
             ("/admin", "Gestão do relatório"),
             ("/admin/atendimento/gestao", "Reprocessar ou reenviar uma data"),
             ("/admin/destinatarios", "Cadastrar"),
-            ("/admin/agendas", "Agendas (consultórios e guichês)"),
+            ("/admin/agendas", "Agendas (salas de exames, consultórios e guichês)"),
             ("/admin/configuracoes", "Início da tarde (corte)"),
             ("/admin/execucoes", "Execuções dos jobs"),
         ],
@@ -239,12 +242,18 @@ class TestConfiguracoesEUnidades:
             "/admin/agendas/10/incluir", data={"incluir": "false"}, headers={"X-CSRF-Token": token}
         )
         assert "Fora" in linha.text
-        guiche = cliente.post(
-            "/admin/agendas/10/guiche", data={"guiche": "true"}, headers={"X-CSRF-Token": token}
+        assert 'value="consultorio" selected' in pagina
+        sala = cliente.post(
+            "/admin/agendas/10/tipo", data={"tipo": "sala_exames"}, headers={"X-CSRF-Token": token}
         )
-        assert 'aria-checked="true"' in guiche.text and "Guichê" in guiche.text
+        assert 'value="sala_exames" selected' in sala.text and "Sala de exames" in sala.text
         with uow() as u:
-            assert next(a for a in u.agendas.listar() if a.id_agenda == 10).guiche is True
+            tipo = next(a for a in u.agendas.listar() if a.id_agenda == 10).tipo
+            assert tipo is TipoAgenda.SALA_EXAMES
+        invalido = cliente.post(
+            "/admin/agendas/10/tipo", data={"tipo": "sala"}, headers={"X-CSRF-Token": token}
+        )
+        assert invalido.status_code == 422
         sem_chave = cliente.post("/admin/agendas/sincronizar", data={"csrf": token})
         assert "SGG indisponível" in sem_chave.text
 
@@ -336,6 +345,35 @@ class TestDashboard:
             and "/static/admin/chart.umd.min.js" in pagina
         )
         assert "Sem dados consolidados" not in pagina
+        assert "kpi-detalhe" not in pagina  # resumos 1.3 não têm tópicos
+
+    def test_topicos_com_detalhe_por_tipo_de_exame(
+        self, cliente: TestClient, uow: FabricaUoW, relogio: RelogioFixo
+    ) -> None:
+        agendas = {
+            10: agenda(10, "Clínico", sala="Consultório 1"),
+            20: agenda(20, "Audiometria", tipo=TipoAgenda.SALA_EXAMES),
+        }
+        m = calcular_metricas(
+            [
+                atendimento(1, chamada="08:00", fim="08:20", tipo_exame="Admissional"),
+                atendimento(2, id_agenda=20, chamada="08:00", fim="08:10", tipo_exame="Periódico"),
+            ],
+            agendas,
+            RegrasMetricas(),
+            hora("00:00"),
+            hora("23:59:59"),
+        )
+        resumo = ResumoDiario(DIA, ("Todas",), hora("23:00"), m, comparar(m.kpis, None, DIA))
+        with uow() as u:
+            u.resumos.salvar_metricas(DIA, resumo.para_json(), "1.4.0", relogio.instante)
+            u.commit()
+        entrar(cliente)
+        pagina = cliente.get("/admin/atendimento").text
+        assert "<h2>Salas de exames</h2>" in pagina and "<h2>Consultórios</h2>" in pagina
+        assert "Guichês (recepção)" not in pagina  # tópico sem movimento não aparece
+        assert pagina.count('<details class="card kpi kpi-detalhe">') == 6
+        assert "Tempo de consulta" in pagina and "Mudança de Riscos Ocupacionais" in pagina
 
     def test_periodo_vazio_e_periodo_escolhido(self, cliente: TestClient) -> None:
         entrar(cliente)

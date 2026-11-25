@@ -1,5 +1,22 @@
-{#- Cartão de indicador com a variação (monitor e dashboard). Recebe um CartaoKpi. -#}
+{#- Cartão de indicador com a variação (monitor e dashboard). Recebe um CartaoKpi.
+    Cartão de tópico (com ``detalhe``): o próprio cartão é um <details>; clicar (ou Enter/
+    Espaço no teclado) abre a lista por tipo de exame logo abaixo do número. -#}
 {% macro cartao_kpi(k) -%}
+{%- if k.detalhe is not none %}
+<details class="card kpi kpi-detalhe">
+  <summary>
+    <h3>{{ k.rotulo }}</h3>
+    <span class="valor">{{ k.valor }}</span>
+    <span class="nota">{{ k.contexto }}</span>
+    <span class="kpi-abrir">Por tipo de exame</span>
+  </summary>
+  <ul class="kpi-tipos" aria-label="{{ k.rotulo }} por tipo de exame">
+    {%- for d in k.detalhe %}
+    <li><span>{{ d.rotulo }}</span><span><strong>{{ d.valor }}</strong>{% if d.nota %} <span class="nota">{{ d.nota }}</span>{% endif %}</span></li>
+    {%- endfor %}
+  </ul>
+</details>
+{%- else %}
 <article class="card kpi">
       <h3>{{ k.rotulo }}</h3>
       <p class="valor">{{ k.valor }}</p>
@@ -9,4 +26,5 @@
         {%- else %}<span class="nota">sem base de comparação</span>{% endif -%}
       </p>
     </article>
+{%- endif %}
 {%- endmacro %}

@@ -113,11 +113,74 @@ class Delta:
 
 
 @dataclass(frozen=True, slots=True)
+class LinhaDetalhe:
+    rotulo: str
+    valor: str
+    nota: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class CartaoKpi:
     rotulo: str
     valor: str
     contexto: str
     delta: Delta | None
+    # Cartão de tópico: subtotais por tipo de exame (no lugar da variação).
+    detalhe: tuple[LinhaDetalhe, ...] | None = None
+
+
+# Tópicos do relatório (chave = TipoAgenda): título, cartão de quantidade e de tempo.
+TOPICOS = (
+    ("sala_exames", "Salas de exames", "Atendimentos", "Tempo de atendimento"),
+    ("consultorio", "Consultórios", "Consultas", "Tempo de consulta"),
+    ("guiche", "Guichês (recepção)", "Atendimentos", "Tempo de atendimento"),
+)
+
+
+def grupos_topicos(por_topico: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
+    """Um grupo de cartões por tópico com movimento, cada cartão com o detalhe por tipo."""
+    grupos: list[dict[str, Any]] = []
+    for chave, titulo, rotulo_quantidade, rotulo_tempo in TOPICOS:
+        topico = por_topico.get(chave) or {}
+        total = topico.get("total") or {}
+        if not total.get("agendados"):
+            continue
+        tipos = tuple((topico.get("por_tipo") or {}).items())
+
+        def medidos(r: Mapping[str, Any]) -> str:
+            return f"{numero(r.get('atendimentos_medidos'))} medidos"
+
+        def detalhe(valor: Any, nota: Any, tipos: Any = tipos) -> tuple[LinhaDetalhe, ...]:
+            return tuple(LinhaDetalhe(nome, valor(r), nota(r)) for nome, r in tipos)
+
+        cartoes = (
+            CartaoKpi(
+                rotulo=rotulo_quantidade,
+                valor=numero(total.get("atendimentos")),
+                contexto=f"de {numero(total.get('agendados'))} agendados",
+                delta=None,
+                detalhe=detalhe(
+                    lambda r: numero(r.get("atendimentos")),
+                    lambda r: f"de {numero(r.get('agendados'))}",
+                ),
+            ),
+            CartaoKpi(
+                rotulo="Tempo de espera",
+                valor=duracao(total.get("espera_media_s")),
+                contexto=f"maior espera {duracao(total.get('espera_maxima_s'))}",
+                delta=None,
+                detalhe=detalhe(lambda r: duracao(r.get("espera_media_s")), lambda _: ""),
+            ),
+            CartaoKpi(
+                rotulo=rotulo_tempo,
+                valor=duracao(total.get("tma_s")),
+                contexto=f"{numero(total.get('atendimentos_medidos'))} atendimentos medidos",
+                delta=None,
+                detalhe=detalhe(lambda r: duracao(r.get("tma_s")), medidos),
+            ),
+        )
+        grupos.append({"titulo": titulo, "chave": chave, "cartoes": cartoes})
+    return tuple(grupos)
 
 
 @dataclass(frozen=True, slots=True)
@@ -252,8 +315,18 @@ def _kpis(m: Mapping[str, Any]) -> tuple[CartaoKpi, ...]:
 
 
 def _grupos_kpis(m: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
-    """Cartões do dia; com guichês marcados, consultórios e recepção separados."""
+    """Cartões do dia: visão geral e um tópico por tipo de agenda (regra 1.4+).
+
+    Resumos gravados antes da 1.4 não têm ``por_topico``: seguem com a separação antiga
+    (consultórios × guichês).
+    """
     k = m["kpis"]
+    if m.get("por_topico"):
+        geral = _kpis(m)[:2]  # atendimentos e faltas; os tempos ficam em cada tópico
+        grupos = ({"titulo": "Visão geral", "cartoes": geral}, *grupos_topicos(m["por_topico"]))
+        if k.get("permanencia_total_s") is None:
+            return grupos
+        return (*grupos, _grupo_permanencia(m))
     if k.get("atendimentos_guiches") is None:
         return ({"titulo": "", "cartoes": _kpis(m)},)
     comp = m.get("comparativo", {})
@@ -308,19 +381,21 @@ def _grupos_kpis(m: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
             delta=montar_delta(comp, "tma_guiches_s"),
         ),
     )
-    consolidado = (
-        CartaoKpi(
-            rotulo="Tempo Médio Total de Permanência",
-            valor=duracao(k.get("permanencia_total_s")),
-            contexto="da chegada na recepção até a saída do consultório",
-            delta=montar_delta(comp, "permanencia_total_s"),
-        ),
-    )
     return (
         {"titulo": "Consultórios", "cartoes": consultorios},
         {"titulo": "Recepção (guichês)", "cartoes": recepcao},
-        {"titulo": "Permanência total", "cartoes": consolidado},
+        _grupo_permanencia(m),
     )
+
+
+def _grupo_permanencia(m: Mapping[str, Any]) -> dict[str, Any]:
+    cartao = CartaoKpi(
+        rotulo="Tempo Médio Total de Permanência",
+        valor=duracao(m["kpis"].get("permanencia_total_s")),
+        contexto="da chegada na recepção até a saída do consultório",
+        delta=montar_delta(m.get("comparativo", {}), "permanencia_total_s"),
+    )
+    return {"titulo": "Permanência total", "cartoes": (cartao,)}
 
 
 def _turnos(
@@ -603,8 +678,55 @@ def _alertas(m: Mapping[str, Any]) -> tuple[Alerta, ...]:
     return tuple(alertas)
 
 
+def _em_lista(itens: Sequence[str]) -> str:
+    """["a", "b", "c"] → "a, b e c"."""
+    return itens[0] if len(itens) == 1 else f"{', '.join(itens[:-1])} e {itens[-1]}"
+
+
+def _manchete_topicos(m: Mapping[str, Any]) -> str | None:
+    """Manchete por tópico quando há mais de um com movimento (regra 1.4+)."""
+    totais = {chave: (t.get("total") or {}) for chave, t in (m.get("por_topico") or {}).items()}
+    com_movimento = {chave: t for chave, t in totais.items() if t.get("agendados")}
+    if len(com_movimento) < 2:
+        return None
+    onde = {
+        "sala_exames": "nas salas de exames",
+        "consultorio": "nos consultórios",
+        "guiche": "nos guichês",
+    }
+    contagens = [
+        f"{numero(com_movimento[chave]['atendimentos'])} {onde[chave]}"
+        for chave, *_ in TOPICOS
+        if chave in com_movimento
+    ]
+    numero_inicial, resto = contagens[0].split(" ", 1)
+    contagens[0] = f"{numero_inicial} atendimentos {resto}"  # "12 atendimentos nas salas…"
+    k = m["kpis"]
+    partes = [
+        f"{_em_lista(contagens)}; "
+        f"{numero(k['faltas'])} faltas ({percentual(k.get('taxa_faltas'))} dos agendados)."
+    ]
+    # Esperas na ordem do fluxo: recepção primeiro.
+    espera_em = {
+        "guiche": "na recepção",
+        "sala_exames": "nas salas de exames",
+        "consultorio": "no consultório",
+    }
+    esperas = [
+        f"{duracao(com_movimento[chave]['espera_media_s'])} {texto}"
+        for chave, texto in espera_em.items()
+        if com_movimento.get(chave, {}).get("espera_media_s") is not None
+    ]
+    if esperas:
+        partes.append(f"Espera média de {_em_lista(esperas)}.")
+    return " ".join(partes)
+
+
 def _manchete(m: Mapping[str, Any], alertas: Sequence[Alerta]) -> str:
     k = m["kpis"]
+    por_topico = _manchete_topicos(m)
+    if por_topico is not None:
+        return por_topico
     if k.get("atendimentos_guiches") is not None:
         partes = [
             f"{numero(k['atendimentos_consultorios'])} atendimentos nos consultórios e "

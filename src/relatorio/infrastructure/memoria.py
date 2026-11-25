@@ -24,7 +24,7 @@ from relatorio.application.modelos import (
     UsuarioSistema,
 )
 from relatorio.application.ports import EmailDuplicado, UsuarioDuplicado
-from relatorio.domain.entidades import FUSO_BRASILIA, Agenda, Evento, Snapshot
+from relatorio.domain.entidades import FUSO_BRASILIA, Agenda, Evento, Snapshot, TipoAgenda
 from relatorio.domain.exames import ExameClinico, Medico
 from relatorio.domain.sesmt import PlanilhaSesmt
 
@@ -72,7 +72,7 @@ class _Agendas:
             else:
                 atualizadas += 1
                 self.b.agendas[agenda.id_agenda] = replace(
-                    agenda, incluir_relatorio=existente.incluir_relatorio, guiche=existente.guiche
+                    agenda, incluir_relatorio=existente.incluir_relatorio, tipo=existente.tipo
                 )
         desativadas = 0
         for id_agenda, agenda in list(self.b.agendas.items()):
@@ -84,8 +84,8 @@ class _Agendas:
     def definir_inclusao(self, id_agenda: int, incluir: bool) -> None:
         self.b.agendas[id_agenda] = replace(self.b.agendas[id_agenda], incluir_relatorio=incluir)
 
-    def definir_guiche(self, id_agenda: int, guiche: bool) -> None:
-        self.b.agendas[id_agenda] = replace(self.b.agendas[id_agenda], guiche=guiche)
+    def definir_tipo(self, id_agenda: int, tipo: TipoAgenda) -> None:
+        self.b.agendas[id_agenda] = replace(self.b.agendas[id_agenda], tipo=tipo)
 
 
 class _Snapshots:

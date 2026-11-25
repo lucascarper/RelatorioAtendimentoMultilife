@@ -11,10 +11,10 @@
     </button>
   </td>
   <td>
-    <button type="button" class="alternador" role="switch" aria-checked="{{ 'true' if a.guiche else 'false' }}" aria-label="Guichê: {{ a.consultorio }}"
-            hx-post="/admin/agendas/{{ a.id_agenda }}/guiche" hx-vals='{"guiche": "{{ 'false' if a.guiche else 'true' }}"}'
+    <select name="tipo" aria-label="Tipo da agenda {{ a.consultorio }}"
+            hx-post="/admin/agendas/{{ a.id_agenda }}/tipo" hx-trigger="change"
             hx-target="#agenda-{{ a.id_agenda }}" hx-swap="outerHTML">
-      <span class="alternador-trilho" aria-hidden="true"></span>{{ "Guichê" if a.guiche else "Consultório" }}
-    </button>
+      {% for t in tipos %}<option value="{{ t.value }}"{% if a.tipo == t %} selected{% endif %}>{{ t.rotulo }}</option>{% endfor %}
+    </select>
   </td>
 </tr>
